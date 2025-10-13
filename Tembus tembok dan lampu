@@ -1,0 +1,276 @@
+--================================================================
+-- Skrip Noclip & Cahaya Player
+-- VERSI 2: Ditambahkan tombol Minimize & Close
+--================================================================
+
+-- Variabel Servis & Player
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService") -- Ditambahkan untuk animasi
+local Player = Players.LocalPlayer
+
+-- Variabel Status
+local noclipEnabled = false
+local lightEnabled = false
+local isMinimized = false -- Status untuk minimize
+local noclipConnection = nil
+
+--================================================================
+-- 1. PEMBUATAN GUI (INTERFACE)
+--================================================================
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "UtilityGui"
+screenGui.Parent = Player:WaitForChild("PlayerGui")
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Parent = screenGui
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BackgroundTransparency = 0.3
+mainFrame.BorderColor3 = Color3.fromRGB(80, 80, 80)
+mainFrame.Position = UDim2.new(0, 10, 0, 10)
+mainFrame.Size = UDim2.new(0, 150, 0, 110)
+mainFrame.Draggable = true
+mainFrame.Active = true
+mainFrame.ClipsDescendants = true
+
+-- Judul GUI
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "Title"
+titleLabel.Parent = mainFrame
+titleLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+titleLabel.Size = UDim2.new(1, 0, 0, 25)
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.Text = "♡APAM♡"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 16
+
+-- [[BARU]] Tombol Minimize
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Name = "MinimizeButton"
+minimizeButton.Parent = mainFrame
+minimizeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+minimizeButton.BackgroundTransparency = 0.5
+minimizeButton.Size = UDim2.new(0, 15, 0, 15)
+minimizeButton.Position = UDim2.new(0, 5, 0, 5)
+minimizeButton.Font = Enum.Font.SourceSansBold
+minimizeButton.Text = "-"
+minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeButton.TextSize = 16
+
+-- [[BARU]] Tombol Close
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Parent = mainFrame
+closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeButton.BackgroundTransparency = 0.5
+closeButton.Size = UDim2.new(0, 15, 0, 15)
+closeButton.Position = UDim2.new(1, -20, 0, 5) -- Ujung kanan
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 14
+
+-- Tombol Noclip
+local noclipButton = Instance.new("TextButton")
+noclipButton.Name = "NoclipButton"
+noclipButton.Parent = mainFrame
+noclipButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+noclipButton.Position = UDim2.new(0.05, 0, 0, 30)
+noclipButton.Size = UDim2.new(0.9, 0, 0, 20)
+noclipButton.Font = Enum.Font.SourceSans
+noclipButton.Text = "Tembus Tembok: OFF"
+noclipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+noclipButton.TextSize = 14
+
+-- Tombol Cahaya
+local lightButton = Instance.new("TextButton")
+lightButton.Name = "LightButton"
+lightButton.Parent = mainFrame
+lightButton.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+lightButton.Position = UDim2.new(0.05, 0, 0, 55)
+lightButton.Size = UDim2.new(0.9, 0, 0, 20)
+lightButton.Font = Enum.Font.SourceSans
+lightButton.Text = "Cahaya/Lampu: OFF"
+lightButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+lightButton.TextSize = 14
+
+-- Pengaturan Jarak Cahaya
+local lightRangeLabel = Instance.new("TextLabel")
+lightRangeLabel.Name = "LightRangeLabel"
+lightRangeLabel.Parent = mainFrame
+lightRangeLabel.BackgroundTransparency = 1
+lightRangeLabel.Position = UDim2.new(0.3, 0, 0, 80)
+lightRangeLabel.Size = UDim2.new(0.4, 0, 0, 20)
+lightRangeLabel.Font = Enum.Font.SourceSans
+lightRangeLabel.Text = "30" -- Jarak awal
+lightRangeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+lightRangeLabel.TextSize = 16
+
+local minusButton = Instance.new("TextButton")
+minusButton.Name = "MinusButton"
+minusButton.Parent = mainFrame
+minusButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+minusButton.Position = UDim2.new(0.05, 0, 0, 80)
+minusButton.Size = UDim2.new(0.25, 0, 0, 20)
+minusButton.Font = Enum.Font.SourceSansBold
+minusButton.Text = "-"
+minusButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minusButton.TextSize = 18
+
+local plusButton = Instance.new("TextButton")
+plusButton.Name = "PlusButton"
+plusButton.Parent = mainFrame
+plusButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+plusButton.Position = UDim2.new(0.7, 0, 0, 80)
+plusButton.Size = UDim2.new(0.25, 0, 0, 20)
+plusButton.Font = Enum.Font.SourceSansBold
+plusButton.Text = "+"
+plusButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+plusButton.TextSize = 18
+
+-- [[BARU]] Tabel untuk menyimpan semua elemen konten
+local contentElements = {noclipButton, lightButton, lightRangeLabel, minusButton, plusButton}
+
+--================================================================
+-- 2. LOGIKA & FUNGSI
+--================================================================
+
+-- Variabel untuk Cahaya Player
+local playerLight = nil
+local currentLightRange = 30
+local minLightRange = 5
+local maxLightRange = 100
+
+-- Fungsi untuk menginisialisasi saat karakter muncul/respawn
+local function onCharacterAdded(character)
+	if not playerLight or not playerLight.Parent then
+		playerLight = Instance.new("PointLight")
+		playerLight.Name = "PlayerLight"
+		playerLight.Color = Color3.fromRGB(255, 255, 220)
+		playerLight.Brightness = 2
+		playerLight.Range = currentLightRange
+		playerLight.Shadows = true
+		playerLight.Enabled = lightEnabled
+		playerLight.Parent = character:WaitForChild("HumanoidRootPart")
+	end
+end
+
+-- --- Logika Noclip ---
+local function setNoclip(enabled)
+	if enabled then
+		if noclipConnection then noclipConnection:Disconnect() end
+		noclipConnection = RunService.Stepped:Connect(function()
+			local char = Player.Character
+			if char then
+				for _, part in ipairs(char:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = false
+					end
+				end
+			end
+		end)
+	else
+		if noclipConnection then
+			noclipConnection:Disconnect()
+			noclipConnection = nil
+			local char = Player.Character
+			if char then
+				for _, part in ipairs(char:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.CanCollide = true
+					end
+				end
+			end
+		end
+	end
+end
+
+-- --- Logika Tombol Close --- [[BARU]]
+closeButton.MouseButton1Click:Connect(function()
+	screenGui:Destroy()
+end)
+
+-- --- Logika Tombol Minimize --- [[BARU]]
+minimizeButton.MouseButton1Click:Connect(function()
+	isMinimized = not isMinimized
+
+	local targetSize
+	if isMinimized then
+		targetSize = UDim2.new(0, 150, 0, 25) -- Ukuran kecil (hanya title bar)
+		minimizeButton.Text = "+"
+	else
+		targetSize = UDim2.new(0, 150, 0, 110) -- Ukuran normal
+		minimizeButton.Text = "-"
+	end
+
+	-- Sembunyikan/tampilkan semua elemen konten
+	for _, element in ipairs(contentElements) do
+		element.Visible = not isMinimized
+	end
+	
+	-- Animasi perubahan ukuran
+	local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local tween = TweenService:Create(mainFrame, tweenInfo, {Size = targetSize})
+	tween:Play()
+end)
+
+-- --- Logika Tombol Noclip ---
+noclipButton.MouseButton1Click:Connect(function()
+	noclipEnabled = not noclipEnabled
+	setNoclip(noclipEnabled)
+	
+	if noclipEnabled then
+		noclipButton.Text = "Noclip: ON"
+		noclipButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+	else
+		noclipButton.Text = "Noclip: OFF"
+		noclipButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+	end
+end)
+
+-- --- Logika Tombol Cahaya ---
+lightButton.MouseButton1Click:Connect(function()
+	lightEnabled = not lightEnabled
+	
+	if playerLight then
+		playerLight.Enabled = lightEnabled
+	end
+	
+	if lightEnabled then
+		lightButton.Text = "Cahaya: ON"
+		lightButton.BackgroundColor3 = Color3.fromRGB(50, 200, 200)
+	else
+		lightButton.Text = "Cahaya: OFF"
+		lightButton.BackgroundColor3 = Color3.fromRGB(50, 50, 200)
+	end
+end)
+
+-- --- Logika Tombol Pengatur Jarak Cahaya ---
+local function updateLightRange(newRange)
+	currentLightRange = math.clamp(newRange, minLightRange, maxLightRange)
+	lightRangeLabel.Text = tostring(currentLightRange)
+	if playerLight then
+		playerLight.Range = currentLightRange
+	end
+end
+
+plusButton.MouseButton1Click:Connect(function()
+	updateLightRange(currentLightRange + 5)
+end)
+
+minusButton.MouseButton1Click:Connect(function()
+	updateLightRange(currentLightRange - 5)
+end)
+
+--================================================================
+-- 3. INISIALISASI
+--================================================================
+
+if Player.Character then
+	onCharacterAdded(Player.Character)
+end
+Player.CharacterAdded:Connect(onCharacterAdded)
+
