@@ -1,0 +1,261 @@
+--================================================================
+-- Script Loader Panel
+-- VERSI 4: Ditambahkan Tombol Tutup di Kiri
+--================================================================
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Player = Players.LocalPlayer
+
+--[[
+    [ 1. KONFIGURASI ANIMASI PEMBUKA ]
+    - Ganti nama, ID gambar, dan durasi sesuai keinginan.
+]]
+local splashConfig = {
+    namaPembuat = "dibuat oleh Ristan",
+    idGambar = "rbxassetid://75384310624665", -- << GANTI DENGAN ID GAMBAR ANDA
+    durasi = 4 -- detik
+}
+
+--[[
+    [ 2. KONFIGURASI SCRIPT HUB ]
+    - Atur daftar skrip yang akan dimuat.
+]]
+local ScriptsToLoad = {
+    {Name = "Teleport Tulis",  URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/teleport"},
+    {Name = "Terbang",    URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/terbang"},
+    {Name = "Liat Admin Owner",   URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/liat%20admin%20dan%20owner"},
+    {Name = "Lari Cepat",    URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/lari%20cepat"},
+    {Name = "Tembus Tembok dan lampu",    URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Tembus%20tembok%20dan%20lampu"},
+}
+
+--================================================================
+-- FUNGSI UNTUK MEMBUAT PANEL SCRIPT HUB UTAMA
+-- Panel ini baru akan dibuat setelah animasi pembuka selesai.
+--================================================================
+local function createMainHub()
+    -- [ SEMUA KODE SCRIPT HUB YANG LAMA DIPINDAHKAN KE DALAM FUNGSI INI ]
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ScriptLoaderGUI"
+    screenGui.Parent = Player:WaitForChild("PlayerGui")
+    screenGui.ResetOnSpawn = false
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Parent = screenGui
+    mainFrame.BackgroundColor3 = Color3.fromRGB(40, 42, 54)
+    mainFrame.BorderColor3 = Color3.fromRGB(150, 150, 150)
+    mainFrame.Position = UDim2.new(0, 20, 0, 20)
+    mainFrame.Size = UDim2.new(0, 200, 0, 30)
+    mainFrame.Draggable = true
+    mainFrame.Active = true
+    mainFrame.ClipsDescendants = true
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Parent = mainFrame
+    titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    titleBar.Size = UDim2.new(1, 0, 0, 30)
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Parent = titleBar
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Size = UDim2.new(1, 0, 1, 0)
+    titleLabel.Font = Enum.Font.SourceSansBold
+    titleLabel.Text = "Script By Ristan"
+    titleLabel.TextColor3 = Color3.fromRGB(248, 248, 242)
+    titleLabel.TextSize = 16
+
+    -- ========================================================== --
+    -- [[ KODE BARU: Tombol Tutup (Close Button) di Kiri ]]
+    -- ========================================================== --
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Parent = titleBar
+    closeButton.BackgroundColor3 = Color3.fromRGB(255, 95, 85) -- Warna merah khas tombol tutup
+    closeButton.Size = UDim2.new(0, 20, 0, 20)
+    closeButton.Position = UDim2.new(0, 5, 0.5, -10) -- Diposisikan 5 pixel dari kiri, dan di tengah secara vertikal
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.Text = "X"
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.TextSize = 14
+
+    closeButton.MouseButton1Click:Connect(function()
+        screenGui:Destroy() -- Menghancurkan seluruh GUI
+    end)
+    -- ========================================================== --
+
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Parent = titleBar
+    toggleButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    toggleButton.Size = UDim2.new(0, 20, 0, 20)
+    toggleButton.Position = UDim2.new(1, -25, 0.5, -10) -- Tombol minimize tetap di kanan
+    toggleButton.Font = Enum.Font.SourceSansBold
+    toggleButton.Text = "▼"
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.TextSize = 14
+
+    local listContainer = Instance.new("ScrollingFrame")
+    listContainer.Name = "ListContainer"
+    listContainer.Parent = mainFrame
+    listContainer.Position = UDim2.new(0, 0, 0, 30)
+    listContainer.Size = UDim2.new(1, 0, 1, -30)
+    listContainer.BackgroundTransparency = 1
+    listContainer.BorderSizePixel = 0
+    listContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+    listContainer.ScrollBarImageColor3 = Color3.fromRGB(150, 150, 150)
+
+    local function loadScriptFromURL(url, button)
+        if not pcall(function() return loadstring("") end) then
+            warn("loadstring() tidak aktif.")
+            button.Text = "Error: loadstring disabled"
+            return
+        end
+        local success, response = pcall(function() return game:HttpGet(url, true) end)
+        if success and response then
+            local scriptFunction, compileError = loadstring(response)
+            if scriptFunction then
+                local runSuccess, runError = pcall(scriptFunction)
+                if runSuccess then
+                    button.BackgroundColor3 = Color3.fromRGB(80, 250, 123)
+                    button.Text = "Loaded!"
+                    task.wait(2)
+                    button.BackgroundColor3 = Color3.fromRGB(68, 71, 90)
+                    button.Text = button.Name
+                else
+                    warn("Error saat menjalankan skrip:", runError)
+                    button.Text = "Execution Error"
+                end
+            else
+                warn("Error saat kompilasi skrip:", compileError)
+                button.Text = "Compile Error"
+            end
+        else
+            warn("Gagal mendapatkan skrip dari URL:", response)
+            button.Text = "HTTP Error"
+        end
+    end
+
+    local uiListLayout = Instance.new("UIListLayout")
+    uiListLayout.Parent = listContainer
+    uiListLayout.Padding = UDim.new(0, 5)
+    uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    for i, scriptInfo in ipairs(ScriptsToLoad) do
+        local scriptButton = Instance.new("TextButton")
+        scriptButton.Name = scriptInfo.Name
+        scriptButton.Parent = listContainer
+        scriptButton.BackgroundColor3 = Color3.fromRGB(68, 71, 90)
+        scriptButton.Size = UDim2.new(1, -10, 0, 30)
+        scriptButton.Position = UDim2.new(0, 5, 0, 0)
+        scriptButton.Font = Enum.Font.SourceSans
+        scriptButton.Text = scriptInfo.Name
+        scriptButton.TextColor3 = Color3.fromRGB(248, 248, 242)
+        scriptButton.TextSize = 14
+        scriptButton.LayoutOrder = i
+        scriptButton.MouseButton1Click:Connect(function()
+            scriptButton.Text = "Loading..."
+            task.spawn(loadScriptFromURL, scriptInfo.URL, scriptButton)
+        end)
+    end
+    listContainer.CanvasSize = UDim2.new(0, 0, 0, (#ScriptsToLoad * 35) + 5)
+
+    local isExpanded = false
+    toggleButton.MouseButton1Click:Connect(function()
+        isExpanded = not isExpanded
+        local targetSize = isExpanded and UDim2.new(0, 200, 0, 200) or UDim2.new(0, 200, 0, 30)
+        toggleButton.Text = isExpanded and "▲" or "▼"
+        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local tween = TweenService:Create(mainFrame, tweenInfo, {Size = targetSize})
+        tween:Play()
+    end)
+    
+    local function applyRainbowEffect(guiObject)
+        local hue = 0
+        local connection = RunService.Heartbeat:Connect(function(deltaTime)
+            if not guiObject or not guiObject.Parent then connection:Disconnect() return end
+            local speed = 0.2
+            hue = (hue + (deltaTime * speed)) % 1
+            guiObject.TextColor3 = Color3.fromHSV(hue, 0.8, 1)
+        end)
+    end
+    applyRainbowEffect(titleLabel)
+end
+
+--================================================================
+-- FUNGSI UNTUK MENJALANKAN ANIMASI PEMBUKA (SPLASH SCREEN)
+--================================================================
+local function playSplashScreen()
+    local splashGui = Instance.new("ScreenGui")
+    splashGui.Name = "SplashScreen"
+    splashGui.Parent = Player:WaitForChild("PlayerGui")
+    splashGui.ResetOnSpawn = false
+    splashGui.ZIndexBehavior = Enum.ZIndexBehavior.Global -- Pastikan tampil di atas segalanya
+
+    local background = Instance.new("Frame")
+    background.Name = "Background"
+    background.Parent = splashGui
+    background.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    background.Size = UDim2.new(1, 0, 1, 0)
+    background.BackgroundTransparency = 1 -- Awalnya transparan
+
+    -- [[ PERUBAHAN DI SINI ]] --
+    local imageLogo = Instance.new("ImageLabel")
+    imageLogo.Name = "Logo"
+    imageLogo.Parent = background
+    imageLogo.Image = splashConfig.idGambar
+    -- [PERUBAHAN 1] Atur ukuran agar lebih besar dan responsif (contoh: 60% lebar dan tinggi layar)
+    imageLogo.Size = UDim2.new(1, 0, 0.8, 0)
+    -- [PERUBAHAN 2] Atur agar gambar tidak terdistorsi dan menjaga proporsi aslinya
+    imageLogo.ScaleType = Enum.ScaleType.Fit
+    imageLogo.AnchorPoint = Vector2.new(0.5, 0.5)
+    imageLogo.Position = UDim2.new(0.5, 0, 0.45, 0)
+    imageLogo.BackgroundTransparency = 1
+    imageLogo.ImageTransparency = 1 -- Awalnya transparan
+    -- [[ AKHIR DARI PERUBAHAN ]] --
+
+    local creatorText = Instance.new("TextLabel")
+    creatorText.Name = "CreatorText"
+    creatorText.Parent = background
+    creatorText.Text = splashConfig.namaPembuat
+    creatorText.Font = Enum.Font.SourceSansBold
+    creatorText.TextColor3 = Color3.fromRGB(220, 220, 220)
+    creatorText.TextSize = 50
+    creatorText.AnchorPoint = Vector2.new(0.5, 0.5)
+    creatorText.Position = UDim2.new(0.5, 0, 0.9, 0)
+    creatorText.BackgroundTransparency = 1
+    creatorText.TextTransparency = 1 -- Awalnya transparan
+
+    -- Animasi
+    local tweenInfo_FadeIn = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tweenInfo_FadeOut = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+
+    -- 1. Animasi Muncul (Fade In)
+    TweenService:Create(background, tweenInfo_FadeIn, {BackgroundTransparency = 0}):Play()
+    TweenService:Create(imageLogo, tweenInfo_FadeIn, {ImageTransparency = 0}):Play()
+    TweenService:Create(creatorText, tweenInfo_FadeIn, {TextTransparency = 0}):Play()
+    
+    task.wait(splashConfig.durasi) -- Tunggu sesuai durasi
+
+    -- 2. Animasi Menghilang (Fade Out)
+    TweenService:Create(background, tweenInfo_FadeOut, {BackgroundTransparency = 1}):Play()
+    TweenService:Create(imageLogo, tweenInfo_FadeOut, {ImageTransparency = 1}):Play()
+    local fadeOutText = TweenService:Create(creatorText, tweenInfo_FadeOut, {TextTransparency = 1})
+    fadeOutText:Play()
+
+    -- 3. Tunggu animasi selesai lalu hancurkan GUI splash
+    fadeOutText.Completed:Wait()
+    splashGui:Destroy()
+    
+    -- 4. Panggil fungsi untuk membuat panel hub utama
+    createMainHub()
+end
+
+--================================================================
+-- MULAI SKRIP
+--================================================================
+playSplashScreen()
+
