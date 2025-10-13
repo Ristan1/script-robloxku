@@ -1,10 +1,12 @@
 --[[
 	================================================================
-	Skrip Dibuat oleh Gemini (Google AI) - Versi 4 (Teleport Cerdas & Klik)
+	Skrip Dibuat oleh Gemini (Google AI) - Versi 7.1 (Optimal & Ringan)
 	Fungsi:
-	- Teleport via ketik (username/displayname, nama parsial).
-	- Teleport via klik pada list pemain.
+	- Teleport via ketik & klik.
 	- GUI minimalis yang bisa di-close dan minimize.
+	- Menampilkan info CP DAN Jarak secara bersamaan.
+	- [OPTIMAL] Proses update otomatis berhenti saat GUI di-close untuk
+	  menghemat performa dan mencegah lag.
 	================================================================
 ]]
 
@@ -61,10 +63,11 @@ end
 
 local showNotification = createNotification()
 
--- MEMBUAT UI UTAMA (Tidak perlu diubah) --
+-- MEMBUAT UI UTAMA --
 local mainGui = Instance.new("ScreenGui")
 mainGui.Name = "PlayerListGui"
 mainGui.ResetOnSpawn = false
+-- mainGui.Enabled = true -- Defaultnya sudah true
 
 local mainFrame = Instance.new("Frame", mainGui)
 mainFrame.Name = "MainFrame"
@@ -173,7 +176,36 @@ inputCorner.CornerRadius = UDim.new(0, 4)
 
 -- FUNGSI LOGIKA --
 
--- [BARU] Fungsi utama untuk teleportasi, bisa dipanggil dari mana saja
+local function getCheckpointInfo(player)
+	local leaderstats = player:FindFirstChild("leaderstats")
+	if leaderstats then
+		local stage = leaderstats:FindFirstChild("Stage") or leaderstats:FindFirstChild("Checkpoint")
+		if stage and (stage:IsA("IntValue") or stage:IsA("NumberValue")) then
+			return "CP: " .. tostring(stage.Value)
+		end
+	end
+	
+	if player.RespawnLocation then
+		return "CP: "..player.RespawnLocation.Name
+	end
+	
+	return "CP: -"
+end
+
+local function getDistanceInfo(targetPlayer)
+	local localChar = localPlayer.Character
+	local targetChar = targetPlayer.Character
+
+	if localChar and targetChar and localChar:FindFirstChild("HumanoidRootPart") and targetChar:FindFirstChild("HumanoidRootPart") then
+		local myPos = localChar.HumanoidRootPart.Position
+		local targetPos = targetChar.HumanoidRootPart.Position
+		local distance = (myPos - targetPos).Magnitude
+		return string.format("%dm", math.floor(distance))
+	end
+
+	return "- m"
+end
+
 local function teleportToPlayer(targetPlayer)
 	if not targetPlayer then
 		showNotification("Pemain tidak ditemukan.", false)
@@ -190,16 +222,14 @@ local function teleportToPlayer(targetPlayer)
 
 	if localChar and targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
 		local targetCFrame = targetChar.HumanoidRootPart.CFrame
-		localChar:SetPrimaryPartCFrame(targetCFrame * CFrame.new(0, 3, 5)) -- Teleport di belakang target
+		localChar:SetPrimaryPartCFrame(targetCFrame * CFrame.new(0, 3, 5))
 		showNotification("Berhasil teleport ke " .. targetPlayer.Name .. "!", true)
-		teleportInput.Text = "" -- Kosongkan kotak teks setelah berhasil
+		teleportInput.Text = ""
 	else
 		showNotification("Gagal: Karakter pemain tidak ditemukan.", false)
 	end
 end
 
-
--- [DIUBAH] Fungsi ini sekarang menambahkan tombol klik
 local function createPlayerEntry(player)
 	local playerEntry = Instance.new("Frame")
 	playerEntry.Name = player.Name
@@ -209,7 +239,6 @@ local function createPlayerEntry(player)
 	local entryCorner = Instance.new("UICorner", playerEntry)
 	entryCorner.CornerRadius = UDim.new(0, 4)
     
-	-- [BARU] Tombol tak terlihat untuk menangani klik
 	local clickButton = Instance.new("TextButton")
 	clickButton.Name = "ClickButton"
 	clickButton.Size = UDim2.new(1, 0, 1, 0)
@@ -217,7 +246,7 @@ local function createPlayerEntry(player)
 	clickButton.Text = ""
 	clickButton.Parent = playerEntry
 	clickButton.MouseButton1Click:Connect(function()
-		teleportToPlayer(player) -- Memanggil fungsi teleport saat di-klik
+		teleportToPlayer(player)
 	end)
 
 	local playerImage = Instance.new("ImageLabel", playerEntry)
@@ -230,15 +259,37 @@ local function createPlayerEntry(player)
 
 	local playerNameLabel = Instance.new("TextLabel", playerEntry)
 	playerNameLabel.Name = "PlayerName"
-	playerNameLabel.Size = UDim2.new(1, -45, 1, 0)
+	playerNameLabel.Size = UDim2.new(0.5, -40, 1, 0)
 	playerNameLabel.Position = UDim2.new(0, 40, 0, 0)
 	playerNameLabel.BackgroundTransparency = 1
 	playerNameLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
 	playerNameLabel.Font = Enum.Font.SourceSans
-	playerNameLabel.TextSize = 15
+	playerNameLabel.TextSize = 14
 	playerNameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	playerNameLabel.Text = player.DisplayName .. " (@" .. player.Name .. ")"
+	playerNameLabel.Text = player.DisplayName
 	
+	local checkpointLabel = Instance.new("TextLabel", playerEntry)
+	checkpointLabel.Name = "CheckpointLabel"
+	checkpointLabel.Size = UDim2.new(0.25, 0, 1, 0)
+	checkpointLabel.Position = UDim2.new(0.5, -5, 0, 0)
+	checkpointLabel.BackgroundTransparency = 1
+	checkpointLabel.TextColor3 = Color3.fromRGB(180, 255, 180)
+	checkpointLabel.Font = Enum.Font.SourceSans
+	checkpointLabel.TextSize = 13
+	checkpointLabel.TextXAlignment = Enum.TextXAlignment.Right
+	checkpointLabel.Text = "..."
+	
+	local distanceLabel = Instance.new("TextLabel", playerEntry)
+	distanceLabel.Name = "DistanceLabel"
+	distanceLabel.Size = UDim2.new(0.25, -5, 1, 0)
+	distanceLabel.Position = UDim2.new(0.75, -5, 0, 0)
+	distanceLabel.BackgroundTransparency = 1
+	distanceLabel.TextColor3 = Color3.fromRGB(255, 230, 150)
+	distanceLabel.Font = Enum.Font.SourceSansBold
+	distanceLabel.TextSize = 13
+	distanceLabel.TextXAlignment = Enum.TextXAlignment.Right
+	distanceLabel.Text = "..."
+
 	local success, content = pcall(function()
 		return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
 	end)
@@ -250,7 +301,6 @@ local function createPlayerEntry(player)
 	return playerEntry
 end
 
--- Fungsi update daftar pemain (sama seperti sebelumnya)
 local function updatePlayerList()
 	for _, child in ipairs(playerList:GetChildren()) do
 		if child:IsA("Frame") then
@@ -268,7 +318,6 @@ local function updatePlayerList()
 	playerList.CanvasSize = UDim2.new(0, 0, 0, contentHeight)
 end
 
--- [DIUBAH] Logika pencarian pemain yang lebih cerdas
 local function attemptTeleportFromInput()
 	local targetName = teleportInput.Text
 	if targetName == "" then return end
@@ -281,13 +330,11 @@ local function attemptTeleportFromInput()
 		local nameLower = string.lower(player.Name)
 		local displayNameLower = string.lower(player.DisplayName)
 
-		-- Cari nama yang sama persis (prioritas utama)
 		if nameLower == targetNameLower or displayNameLower == targetNameLower then
 			exactMatch = player
-			break -- Langsung hentikan pencarian jika sudah ketemu
+			break 
 		end
 
-		-- Jika belum ketemu, simpan pemain pertama yang cocok sebagian
 		if not partialMatch then
 			if string.sub(nameLower, 1, #targetNameLower) == targetNameLower then
 				partialMatch = player
@@ -297,7 +344,7 @@ local function attemptTeleportFromInput()
 		end
 	end
 	
-	local playerToTeleport = exactMatch or partialMatch -- Gunakan exact match jika ada, jika tidak, gunakan partial match
+	local playerToTeleport = exactMatch or partialMatch 
 	
 	if playerToTeleport then
 		teleportToPlayer(playerToTeleport)
@@ -308,7 +355,7 @@ end
 
 -- KONEKSI EVENT --
 closeButton.MouseButton1Click:Connect(function()
-	mainGui.Enabled = false
+	mainGui.Enabled = false -- Ini akan menghentikan loop update di bawah
 end)
 
 local isMinimized = false
@@ -334,3 +381,25 @@ Players.PlayerRemoving:Connect(updatePlayerList)
 updatePlayerList()
 
 mainGui.Parent = playerGui
+
+
+-- [DIUBAH & DIOPTIMALKAN] Loop ini sekarang HANYA berjalan jika GUI sedang aktif
+coroutine.wrap(function()
+	while task.wait(0.5) do
+		-- Hanya jalankan kode di bawah jika jendela GUI sedang terlihat/aktif
+		if mainGui.Enabled then
+			for _, entryFrame in ipairs(playerList:GetChildren()) do
+				if entryFrame:IsA("Frame") then
+					local player = Players:FindFirstChild(entryFrame.Name)
+					local checkpointLabel = entryFrame:FindFirstChild("CheckpointLabel")
+					local distanceLabel = entryFrame:FindFirstChild("DistanceLabel")
+					
+					if player and checkpointLabel and distanceLabel then
+						checkpointLabel.Text = getCheckpointInfo(player)
+						distanceLabel.Text = getDistanceInfo(player)
+					end
+				end
+			end
+		end
+	end
+end)()
