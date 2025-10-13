@@ -1,0 +1,451 @@
+--[[
+    Skrip Gabungan: Invisible & Spectate (ROMBAK ULANG)
+    - GUI di-rework total untuk stabilitas dan tampilan yang rapi.
+    - Memperbaiki semua masalah fungsi dan elemen yang hilang.
+    - Fitur Invisible di atas, Spectate di bawah.
+]]
+
+-- =================================================================
+-- SECTION 1: DEKLARASI LAYANAN & VARIABEL GLOBAL
+-- =================================================================
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+
+local LocalPlayer = Players.LocalPlayer
+local CurrentCamera = workspace.CurrentCamera
+local originalCameraSubject = CurrentCamera.CameraSubject
+
+-- Variabel status untuk Invisibility
+local isStandardInvisActive = false
+local isToolInvisActive = false
+local invisRunning = false
+local IsInvis = false
+local InvisibleCharacter = nil
+local OriginalCharacter = nil
+local invisDied
+
+-- Variabel status untuk Spectate
+local isSpectating = false
+local spectateConnections = {}
+
+-- =================================================================
+-- SECTION 2: FUNGSI LOGIKA (INVISIBILITY & SPECTATE)
+-- =================================================================
+
+-- Fungsi Invisibility
+local function TurnVisible()
+    if not IsInvis then return end
+    if invisDied then invisDied:Disconnect(); invisDied = nil end
+    
+    local currentPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.CFrame
+    
+    if InvisibleCharacter then
+        InvisibleCharacter:Destroy()
+        InvisibleCharacter = nil
+    end
+
+    LocalPlayer.Character = OriginalCharacter
+    if OriginalCharacter then
+        OriginalCharacter.Parent = workspace
+        if currentPos then
+            OriginalCharacter:SetPrimaryPartCFrame(currentPos)
+        end
+        
+        task.wait()
+        local originalHumanoid = OriginalCharacter:FindFirstChildOfClass("Humanoid")
+        if originalHumanoid then
+            workspace.CurrentCamera.CameraSubject = originalHumanoid
+        end
+        workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+        
+        local animate = OriginalCharacter:FindFirstChild("Animate")
+        if animate then
+            animate.Disabled = true; task.wait(); animate.Disabled = false
+        end
+    end
+    
+    IsInvis = false
+    invisRunning = false
+    isStandardInvisActive = false
+    OriginalCharacter = nil
+end
+
+local function ForceResetCharacter()
+    TurnVisible()
+    isToolInvisActive = false
+    local character = LocalPlayer.Character
+    if character and character:FindFirstChildOfClass("Humanoid") then
+        character.Humanoid.Health = 0
+    end
+end
+
+local function ActivateInvisible()
+    if invisRunning then return end
+    invisRunning = true
+    OriginalCharacter = LocalPlayer.Character
+    if not OriginalCharacter or not OriginalCharacter:FindFirstChild("HumanoidRootPart") then
+        warn("Karakter tidak ditemukan.")
+        invisRunning = false
+        return
+    end
+    
+    OriginalCharacter.Archivable = true
+    InvisibleCharacter = OriginalCharacter:Clone()
+    InvisibleCharacter.Parent = Lighting
+    InvisibleCharacter.Name = ""
+
+    for _, part in pairs(InvisibleCharacter:GetDescendants()) do
+        if part:IsA("BasePart") then part.Transparency = 0.7 end
+    end
+
+    invisDied = InvisibleCharacter:FindFirstChildOfClass('Humanoid').Died:Connect(TurnVisible)
+    
+    IsInvis = true
+    local originalCFrame = OriginalCharacter.HumanoidRootPart.CFrame
+    OriginalCharacter.Parent = Lighting
+
+    InvisibleCharacter.Parent = workspace
+    LocalPlayer.Character = InvisibleCharacter
+    InvisibleCharacter:SetPrimaryPartCFrame(originalCFrame)
+    
+    task.wait()
+    local newHumanoid = InvisibleCharacter:FindFirstChildOfClass("Humanoid")
+    if newHumanoid then workspace.CurrentCamera.CameraSubject = newHumanoid end
+    workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
+    
+    local animate = InvisibleCharacter:FindFirstChild("Animate")
+    if animate then
+        animate.Disabled = true; task.wait(); animate.Disabled = false
+    end
+end
+
+local function ActivateToolInvisible()
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+
+    local touched = false
+    local originalPos = char.HumanoidRootPart.Position
+    local box = Instance.new('Part')
+    box.Anchored, box.CanCollide, box.Size, box.Position, box.Parent = true, true, Vector3.new(10, 1, 10), Vector3.new(0, 10000, 0), workspace
+
+    local boxTouchedConnection
+    boxTouchedConnection = box.Touched:Connect(function(part)
+        if part.Parent == char and not touched then
+            touched = true
+            local newHRP = char.HumanoidRootPart:Clone()
+            char.HumanoidRootPart:Destroy()
+            newHRP.Parent = char
+            char:MoveTo(originalPos)
+            boxTouchedConnection:Disconnect()
+            box:Destroy()
+        end
+    end)
+    char:MoveTo(box.Position + Vector3.new(0, 1, 0))
+
+    local charAddedConnection
+    charAddedConnection = LocalPlayer.CharacterAdded:Connect(function()
+        if boxTouchedConnection then boxTouchedConnection:Disconnect() end
+        if box and box.Parent then box:Destroy() end
+        if charAddedConnection then charAddedConnection:Disconnect() end
+        isToolInvisActive = false
+    end)
+end
+
+-- Fungsi Spectate
+function clearSpectateConnections()
+    for _, conn in pairs(spectateConnections) do conn:Disconnect() end
+    table.clear(spectateConnections)
+end
+
+function unview()
+    if isSpectating then
+        CurrentCamera.CameraSubject = originalCameraSubject
+        isSpectating = false
+        clearSpectateConnections()
+    end
+end
+
+function spectatePlayer(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then
+        warn("Pemain atau karakter tidak ditemukan.")
+        return
+    end
+    unview()
+    originalCameraSubject = LocalPlayer.Character or CurrentCamera.CameraSubject
+    CurrentCamera.CameraSubject = targetPlayer.Character
+    CurrentCamera.CameraType = Enum.CameraType.Custom
+    isSpectating = true
+    spectateConnections.playerRemoving = Players.PlayerRemoving:Connect(function(player)
+        if player == targetPlayer then unview() end
+    end)
+    spectateConnections.characterAdded = targetPlayer.CharacterAdded:Connect(function(newCharacter)
+        CurrentCamera.CameraSubject = newCharacter
+    end)
+end
+
+function findPartialPlayer(query)
+    query = query:lower()
+    if query == "" then return nil end
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Name:lower() == query or player.DisplayName:lower() == query then return player end
+    end
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.DisplayName:lower():sub(1, #query) == query or player.Name:lower():sub(1, #query) == query then return player end
+    end
+    return nil
+end
+
+-- =================================================================
+-- SECTION 3: PEMBUATAN GUI GABUNGAN (REWORK)
+-- =================================================================
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CombinedGUIRework"
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+screenGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Parent = screenGui
+mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+mainFrame.BorderColor3 = Color3.fromRGB(85, 85, 127)
+mainFrame.BorderSizePixel = 1
+mainFrame.Position = UDim2.new(0.5, -125, 0.2, 0)
+mainFrame.Size = UDim2.new(0, 250, 0, 255) -- Ukuran disesuaikan
+mainFrame.Draggable = true
+mainFrame.Active = true
+mainFrame.ClipsDescendants = false
+
+local corner = Instance.new("UICorner", mainFrame)
+corner.CornerRadius = UDim.new(0, 8)
+
+local titleBar = Instance.new("Frame")
+titleBar.Name = "TitleBar"
+titleBar.Parent = mainFrame
+titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+titleBar.BorderSizePixel = 0
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Name = "TitleLabel"
+titleLabel.Parent = titleBar
+titleLabel.BackgroundTransparency = 1
+titleLabel.Size = UDim2.new(1, -60, 1, 0)
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.Text = "Tak Terlihat"
+titleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+titleLabel.TextSize = 16
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+
+local closeButton = Instance.new("TextButton")
+closeButton.Parent = titleBar
+closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeButton.Position = UDim2.new(1, -30, 0.5, -10)
+closeButton.Size = UDim2.new(0, 20, 0, 20)
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+local closeCorner = Instance.new("UICorner", closeButton)
+closeCorner.CornerRadius = UDim.new(0, 4)
+
+local contentFrame = Instance.new("Frame")
+contentFrame.Name = "ContentFrame"
+contentFrame.Parent = mainFrame
+contentFrame.BackgroundTransparency = 1
+contentFrame.Position = UDim2.new(0, 0, 0, 30)
+contentFrame.Size = UDim2.new(1, 0, 1, -30)
+contentFrame.ClipsDescendants = false
+
+local listLayout = Instance.new("UIListLayout", contentFrame)
+listLayout.Padding = UDim.new(0, 10)
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.FillDirection = Enum.FillDirection.Vertical
+
+local listPadding = Instance.new("UIPadding", contentFrame)
+listPadding.PaddingTop = UDim.new(0, 10)
+listPadding.PaddingLeft = UDim.new(0, 15)
+listPadding.PaddingRight = UDim.new(0, 15)
+
+-- -- Elemen GUI untuk INVISIBLE -- --
+local invisFrame = Instance.new("Frame")
+invisFrame.Name = "InvisFrame"
+invisFrame.Parent = contentFrame
+invisFrame.BackgroundTransparency = 1
+invisFrame.Size = UDim2.new(1, 0, 0, 80)
+invisFrame.LayoutOrder = 1
+local invisLayout = Instance.new("UIListLayout", invisFrame)
+invisLayout.Padding = UDim.new(0, 5)
+
+local toggleInvisibleButton = Instance.new("TextButton", invisFrame)
+toggleInvisibleButton.Size = UDim2.new(1, 0, 0, 35)
+toggleInvisibleButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+toggleInvisibleButton.Font = Enum.Font.SourceSans
+toggleInvisibleButton.Text = "Invisible v1 On/Off"
+toggleInvisibleButton.TextColor3 = Color3.fromRGB(230, 230, 230)
+toggleInvisibleButton.TextSize = 16
+local btnCorner1 = Instance.new("UICorner", toggleInvisibleButton)
+btnCorner1.CornerRadius = UDim.new(0, 6)
+
+local toolInvisResetButton = Instance.new("TextButton", invisFrame)
+toolInvisResetButton.Size = UDim2.new(1, 0, 0, 35)
+toolInvisResetButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+toolInvisResetButton.Font = Enum.Font.SourceSans
+toolInvisResetButton.Text = "Invisible v2 On/Reset"
+toolInvisResetButton.TextColor3 = Color3.fromRGB(230, 230, 230)
+toolInvisResetButton.TextSize = 16
+local btnCorner2 = Instance.new("UICorner", toolInvisResetButton)
+btnCorner2.CornerRadius = UDim.new(0, 6)
+
+-- -- Elemen GUI untuk SPECTATE -- --
+local spectateFrame = Instance.new("Frame")
+spectateFrame.Name = "SpectateFrame"
+spectateFrame.Parent = contentFrame
+spectateFrame.BackgroundTransparency = 1
+spectateFrame.Size = UDim2.new(1, 0, 0, 110)
+spectateFrame.LayoutOrder = 2
+spectateFrame.ClipsDescendants = false
+
+local spectateTitle = Instance.new("TextLabel", spectateFrame)
+spectateTitle.BackgroundTransparency = 1
+spectateTitle.Size = UDim2.new(1, 0, 0, 20)
+spectateTitle.Position = UDim2.new(0, 0, 0, -5)
+spectateTitle.Font = Enum.Font.SourceSansBold
+spectateTitle.Text = "Spectate Player"
+spectateTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+spectateTitle.TextSize = 14
+spectateTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+local playerNameInput = Instance.new("TextBox")
+playerNameInput.Parent = spectateFrame
+playerNameInput.Position = UDim2.new(0, 0, 0, 20)
+playerNameInput.Size = UDim2.new(1, 0, 0, 30)
+playerNameInput.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+playerNameInput.Font = Enum.Font.SourceSans
+playerNameInput.PlaceholderText = "Ketik nama pemain..."
+playerNameInput.TextColor3 = Color3.fromRGB(220, 220, 220)
+playerNameInput.TextSize = 14
+playerNameInput.ClearTextOnFocus = true
+local inputCorner = Instance.new("UICorner", playerNameInput)
+inputCorner.CornerRadius = UDim.new(0, 4)
+
+local spectateButton = Instance.new("TextButton")
+spectateButton.Parent = spectateFrame
+spectateButton.Position = UDim2.new(0, 0, 0, 55)
+spectateButton.Size = UDim2.new(0.5, -2, 0, 30)
+spectateButton.BackgroundColor3 = Color3.fromRGB(80, 120, 220)
+spectateButton.Font = Enum.Font.SourceSansBold
+spectateButton.Text = "Spectate"
+spectateButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+spectateButton.TextSize = 14
+local specCorner = Instance.new("UICorner", spectateButton)
+specCorner.CornerRadius = UDim.new(0, 4)
+
+local unviewButton = Instance.new("TextButton")
+unviewButton.Parent = spectateFrame
+unviewButton.Position = UDim2.new(0.5, 2, 0, 55)
+unviewButton.Size = UDim2.new(0.5, -2, 0, 30)
+unviewButton.BackgroundColor3 = Color3.fromRGB(100, 100, 110)
+unviewButton.Font = Enum.Font.SourceSansBold
+unviewButton.Text = "Unview"
+unviewButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+unviewButton.TextSize = 14
+local unviewCorner = Instance.new("UICorner", unviewButton)
+unviewCorner.CornerRadius = UDim.new(0, 4)
+
+-- Frame Saran Pemain
+local suggestionsFrame = Instance.new("ScrollingFrame")
+suggestionsFrame.Name = "SuggestionsFrame"
+suggestionsFrame.Parent = spectateFrame
+suggestionsFrame.Position = UDim2.new(0, 0, 0, 20 - 95 - 2)
+suggestionsFrame.Size = UDim2.new(1, 0, 0, 95)
+suggestionsFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+suggestionsFrame.BorderColor3 = Color3.fromRGB(80, 80, 100)
+suggestionsFrame.Visible = false
+suggestionsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+suggestionsFrame.ScrollBarThickness = 5
+local suggestionsCorner = Instance.new("UICorner", suggestionsFrame)
+suggestionsCorner.CornerRadius = UDim.new(0, 4)
+
+local suggestionsListLayout = Instance.new("UIListLayout", suggestionsFrame)
+suggestionsListLayout.Padding = UDim.new(0, 2)
+
+-- =================================================================
+-- SECTION 4: LOGIKA DAN INTERAKSI GUI
+-- =================================================================
+
+function updateSuggestions()
+    for _, child in pairs(suggestionsFrame:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    local query = playerNameInput.Text:lower()
+    if query == "" then
+        suggestionsFrame.Visible = false
+        return
+    end
+    local count = 0
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and (player.Name:lower():sub(1, #query) == query or player.DisplayName:lower():sub(1, #query) == query) then
+            count = count + 1
+            local suggestionButton = Instance.new("TextButton")
+            local currentPlayer = player
+            suggestionButton.Name = currentPlayer.Name
+            suggestionButton.Parent = suggestionsFrame
+            suggestionButton.Size = UDim2.new(1, 0, 0, 25)
+            suggestionButton.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+            suggestionButton.Font = Enum.Font.SourceSans
+            if currentPlayer.DisplayName ~= currentPlayer.Name then
+                suggestionButton.Text = string.format("%s (@%s)", currentPlayer.DisplayName, currentPlayer.Name)
+            else
+                suggestionButton.Text = currentPlayer.Name
+            end
+            suggestionButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+            suggestionButton.TextSize = 14
+            suggestionButton.MouseButton1Click:Connect(function()
+                playerNameInput.Text = currentPlayer.Name 
+                suggestionsFrame.Visible = false
+                spectatePlayer(currentPlayer)
+            end)
+        end
+    end
+    suggestionsFrame.Visible = count > 0
+    suggestionsFrame.CanvasSize = UDim2.new(0, 0, 0, count * 27)
+end
+
+toggleInvisibleButton.MouseButton1Click:Connect(function()
+    if isToolInvisActive then return end
+    if not isStandardInvisActive then ActivateInvisible(); isStandardInvisActive = true else TurnVisible() end
+end)
+
+toolInvisResetButton.MouseButton1Click:Connect(function()
+    if isStandardInvisActive then return end
+    if not isToolInvisActive then ActivateToolInvisible(); isToolInvisActive = true else ForceResetCharacter() end
+end)
+
+unviewButton.MouseButton1Click:Connect(unview)
+spectateButton.MouseButton1Click:Connect(function()
+    local target = findPartialPlayer(playerNameInput.Text)
+    if target then spectatePlayer(target) end
+    suggestionsFrame.Visible = false
+end)
+playerNameInput.Focused:Connect(updateSuggestions)
+playerNameInput:GetPropertyChangedSignal("Text"):Connect(updateSuggestions)
+playerNameInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local target = findPartialPlayer(playerNameInput.Text)
+        if target then spectatePlayer(target) end
+    end
+    task.wait(0.2)
+    if suggestionsFrame.Visible then suggestionsFrame.Visible = false end
+end)
+
+closeButton.MouseButton1Click:Connect(function()
+    unview()
+    TurnVisible()
+    screenGui:Destroy()
+end)
+
+-- Tombol minimize tidak disertakan untuk menjaga kesederhanaan, jika Anda ingin menambahkannya kembali, beri tahu saya.
