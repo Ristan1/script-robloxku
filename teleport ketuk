@@ -1,0 +1,336 @@
+--[[
+	================================================================
+	Skrip Dibuat oleh Gemini (Google AI) - Versi 4 (Teleport Cerdas & Klik)
+	Fungsi:
+	- Teleport via ketik (username/displayname, nama parsial).
+	- Teleport via klik pada list pemain.
+	- GUI minimalis yang bisa di-close dan minimize.
+	================================================================
+]]
+
+-- SERVICES --
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+-- PLAYER & GUI --
+local localPlayer = Players.LocalPlayer
+local playerGui = localPlayer:WaitForChild("PlayerGui")
+
+-- FUNGSI UNTUK NOTIFIKASI --
+local function createNotification()
+	local notificationGui = Instance.new("ScreenGui")
+	notificationGui.Name = "NotificationGui"
+	notificationGui.ResetOnSpawn = false
+
+	local notificationLabel = Instance.new("TextLabel")
+	notificationLabel.Name = "NotificationLabel"
+	notificationLabel.Size = UDim2.new(0.4, 0, 0.1, 0)
+	notificationLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+	notificationLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+	notificationLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	notificationLabel.BackgroundTransparency = 0.2
+	notificationLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	notificationLabel.Font = Enum.Font.SourceSansBold
+	notificationLabel.TextSize = 20
+	notificationLabel.TextWrapped = true
+	notificationLabel.Visible = false
+	notificationLabel.Parent = notificationGui
+
+	local corner = Instance.new("UICorner", notificationLabel)
+	corner.CornerRadius = UDim.new(0, 8)
+	
+	notificationGui.Parent = playerGui
+
+	return function(message, isSuccess)
+		notificationLabel.Text = message
+		notificationLabel.TextColor3 = isSuccess and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+		notificationLabel.Visible = true
+		notificationLabel.TextTransparency = 1
+
+		local fadeIn = TweenService:Create(notificationLabel, TweenInfo.new(0.3), {TextTransparency = 0})
+		local fadeOut = TweenService:Create(notificationLabel, TweenInfo.new(0.3), {TextTransparency = 1})
+
+		fadeIn:Play()
+		task.wait(3)
+		fadeOut:Play()
+		fadeOut.Completed:Wait()
+		notificationLabel.Visible = false
+	end
+end
+
+local showNotification = createNotification()
+
+-- MEMBUAT UI UTAMA (Tidak perlu diubah) --
+local mainGui = Instance.new("ScreenGui")
+mainGui.Name = "PlayerListGui"
+mainGui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame", mainGui)
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 250, 0, 350)
+mainFrame.Position = UDim2.new(0.02, 0, 0.1, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+mainFrame.BorderSizePixel = 0
+mainFrame.Draggable = true
+mainFrame.Active = true
+local mainCorner = Instance.new("UICorner", mainFrame)
+mainCorner.CornerRadius = UDim.new(0, 6)
+
+local titleBar = Instance.new("Frame", mainFrame)
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1, 0, 0, 30)
+titleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+titleBar.BorderSizePixel = 0
+local titleCorner = Instance.new("UICorner", titleBar)
+titleCorner.CornerRadius = UDim.new(0, 6)
+
+local titleLabel = Instance.new("TextLabel", titleBar)
+titleLabel.Name = "TitleLabel"
+titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+titleLabel.Position = UDim2.new(0.05, 0, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Font = Enum.Font.SourceSansBold
+titleLabel.Text = "Player List"
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.TextSize = 16
+
+local closeButton = Instance.new("TextButton", titleBar)
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 20, 0, 20)
+closeButton.Position = UDim2.new(1, -25, 0.5, -10)
+closeButton.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.TextSize = 14
+local closeCorner = Instance.new("UICorner", closeButton)
+closeCorner.CornerRadius = UDim.new(0, 4)
+
+local minimizeButton = Instance.new("TextButton", titleBar)
+minimizeButton.Name = "MinimizeButton"
+minimizeButton.Size = UDim2.new(0, 20, 0, 20)
+minimizeButton.Position = UDim2.new(1, -50, 0.5, -10)
+minimizeButton.BackgroundColor3 = Color3.fromRGB(240, 180, 50)
+minimizeButton.Text = "-"
+minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeButton.Font = Enum.Font.SourceSansBold
+minimizeButton.TextSize = 18
+local minCorner = Instance.new("UICorner", minimizeButton)
+minCorner.CornerRadius = UDim.new(0, 4)
+
+local contentFrame = Instance.new("Frame", mainFrame)
+contentFrame.Name = "Content"
+contentFrame.Size = UDim2.new(1, 0, 1, -30)
+contentFrame.Position = UDim2.new(0, 0, 0, 30)
+contentFrame.BackgroundTransparency = 1
+
+local playerList = Instance.new("ScrollingFrame", contentFrame)
+playerList.Name = "PlayerList"
+playerList.Size = UDim2.new(1, -10, 0.8, -40)
+playerList.Position = UDim2.new(0, 5, 0, 5)
+playerList.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+playerList.BorderSizePixel = 0
+playerList.CanvasSize = UDim2.new(0, 0, 0, 0)
+playerList.ScrollBarThickness = 6
+local listCorner = Instance.new("UICorner", playerList)
+listCorner.CornerRadius = UDim.new(0, 4)
+
+local uiListLayout = Instance.new("UIListLayout", playerList)
+uiListLayout.Padding = UDim.new(0, 5)
+uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local teleportFrame = Instance.new("Frame", contentFrame)
+teleportFrame.Name = "TeleportFrame"
+teleportFrame.Size = UDim2.new(1, -10, 0.2, 0)
+teleportFrame.Position = UDim2.new(0, 5, 1, -50)
+teleportFrame.AnchorPoint = Vector2.new(0, 1)
+teleportFrame.BackgroundTransparency = 1
+
+local teleportTitle = Instance.new("TextLabel", teleportFrame)
+teleportTitle.Name = "TeleportTitle"
+teleportTitle.Size = UDim2.new(1, 0, 0, 15)
+teleportTitle.BackgroundTransparency = 1
+teleportTitle.TextColor3 = Color3.fromRGB(220, 220, 220)
+teleportTitle.Font = Enum.Font.SourceSans
+teleportTitle.Text = "Teleport (Ketik/Klik List)"
+teleportTitle.TextSize = 14
+teleportTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+local teleportInput = Instance.new("TextBox", teleportFrame)
+teleportInput.Name = "TeleportInput"
+teleportInput.Size = UDim2.new(1, 0, 1, -20)
+teleportInput.Position = UDim2.new(0, 0, 0, 20)
+teleportInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+teleportInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+teleportInput.PlaceholderText = "Ketik nama pemain..."
+teleportInput.Font = Enum.Font.SourceSans
+teleportInput.TextSize = 14
+teleportInput.ClearTextOnFocus = true
+local inputCorner = Instance.new("UICorner", teleportInput)
+inputCorner.CornerRadius = UDim.new(0, 4)
+
+-- FUNGSI LOGIKA --
+
+-- [BARU] Fungsi utama untuk teleportasi, bisa dipanggil dari mana saja
+local function teleportToPlayer(targetPlayer)
+	if not targetPlayer then
+		showNotification("Pemain tidak ditemukan.", false)
+		return
+	end
+
+	if targetPlayer == localPlayer then
+		showNotification("Anda tidak bisa teleport ke diri sendiri.", false)
+		return
+	end
+
+	local localChar = localPlayer.Character
+	local targetChar = targetPlayer.Character
+
+	if localChar and targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
+		local targetCFrame = targetChar.HumanoidRootPart.CFrame
+		localChar:SetPrimaryPartCFrame(targetCFrame * CFrame.new(0, 3, 5)) -- Teleport di belakang target
+		showNotification("Berhasil teleport ke " .. targetPlayer.Name .. "!", true)
+		teleportInput.Text = "" -- Kosongkan kotak teks setelah berhasil
+	else
+		showNotification("Gagal: Karakter pemain tidak ditemukan.", false)
+	end
+end
+
+
+-- [DIUBAH] Fungsi ini sekarang menambahkan tombol klik
+local function createPlayerEntry(player)
+	local playerEntry = Instance.new("Frame")
+	playerEntry.Name = player.Name
+	playerEntry.Size = UDim2.new(1, 0, 0, 40)
+	playerEntry.BackgroundColor3 = Color3.fromRGB(65, 65, 65)
+	
+	local entryCorner = Instance.new("UICorner", playerEntry)
+	entryCorner.CornerRadius = UDim.new(0, 4)
+    
+	-- [BARU] Tombol tak terlihat untuk menangani klik
+	local clickButton = Instance.new("TextButton")
+	clickButton.Name = "ClickButton"
+	clickButton.Size = UDim2.new(1, 0, 1, 0)
+	clickButton.BackgroundTransparency = 1
+	clickButton.Text = ""
+	clickButton.Parent = playerEntry
+	clickButton.MouseButton1Click:Connect(function()
+		teleportToPlayer(player) -- Memanggil fungsi teleport saat di-klik
+	end)
+
+	local playerImage = Instance.new("ImageLabel", playerEntry)
+	playerImage.Name = "PlayerImage"
+	playerImage.Size = UDim2.new(0, 32, 0, 32)
+	playerImage.Position = UDim2.new(0, 4, 0.5, -16)
+	playerImage.BackgroundTransparency = 1
+	local imageCorner = Instance.new("UICorner", playerImage)
+	imageCorner.CornerRadius = UDim.new(1, 0)
+
+	local playerNameLabel = Instance.new("TextLabel", playerEntry)
+	playerNameLabel.Name = "PlayerName"
+	playerNameLabel.Size = UDim2.new(1, -45, 1, 0)
+	playerNameLabel.Position = UDim2.new(0, 40, 0, 0)
+	playerNameLabel.BackgroundTransparency = 1
+	playerNameLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
+	playerNameLabel.Font = Enum.Font.SourceSans
+	playerNameLabel.TextSize = 15
+	playerNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	playerNameLabel.Text = player.DisplayName .. " (@" .. player.Name .. ")"
+	
+	local success, content = pcall(function()
+		return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+	end)
+	
+	if success and content then
+		playerImage.Image = content
+	end
+	
+	return playerEntry
+end
+
+-- Fungsi update daftar pemain (sama seperti sebelumnya)
+local function updatePlayerList()
+	for _, child in ipairs(playerList:GetChildren()) do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+	
+	for _, player in ipairs(Players:GetPlayers()) do
+		local entry = createPlayerEntry(player)
+		entry.Parent = playerList
+	end
+
+	task.wait() 
+	local contentHeight = uiListLayout.AbsoluteContentSize.Y
+	playerList.CanvasSize = UDim2.new(0, 0, 0, contentHeight)
+end
+
+-- [DIUBAH] Logika pencarian pemain yang lebih cerdas
+local function attemptTeleportFromInput()
+	local targetName = teleportInput.Text
+	if targetName == "" then return end
+
+	local targetNameLower = string.lower(targetName)
+	local partialMatch = nil
+	local exactMatch = nil
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		local nameLower = string.lower(player.Name)
+		local displayNameLower = string.lower(player.DisplayName)
+
+		-- Cari nama yang sama persis (prioritas utama)
+		if nameLower == targetNameLower or displayNameLower == targetNameLower then
+			exactMatch = player
+			break -- Langsung hentikan pencarian jika sudah ketemu
+		end
+
+		-- Jika belum ketemu, simpan pemain pertama yang cocok sebagian
+		if not partialMatch then
+			if string.sub(nameLower, 1, #targetNameLower) == targetNameLower then
+				partialMatch = player
+			elseif string.sub(displayNameLower, 1, #targetNameLower) == targetNameLower then
+				partialMatch = player
+			end
+		end
+	end
+	
+	local playerToTeleport = exactMatch or partialMatch -- Gunakan exact match jika ada, jika tidak, gunakan partial match
+	
+	if playerToTeleport then
+		teleportToPlayer(playerToTeleport)
+	else
+		showNotification("Gagal: Pemain '" .. targetName .. "' tidak ditemukan.", false)
+	end
+end
+
+-- KONEKSI EVENT --
+closeButton.MouseButton1Click:Connect(function()
+	mainGui.Enabled = false
+end)
+
+local isMinimized = false
+minimizeButton.MouseButton1Click:Connect(function()
+	isMinimized = not isMinimized
+	contentFrame.Visible = not isMinimized
+	
+	local targetSize = isMinimized and UDim2.new(0, 250, 0, 30) or UDim2.new(0, 250, 0, 350)
+	mainFrame:TweenSize(targetSize, Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+	minimizeButton.Text = isMinimized and "+" or "-"
+end)
+
+teleportInput.FocusLost:Connect(function(enterPressed)
+	if enterPressed then
+		attemptTeleportFromInput()
+	end
+end)
+
+-- Inisialisasi dan koneksi update
+Players.PlayerAdded:Connect(updatePlayerList)
+Players.PlayerRemoving:Connect(updatePlayerList)
+
+updatePlayerList()
+
+mainGui.Parent = playerGui
