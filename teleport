@@ -1,0 +1,249 @@
+-- Teleport GUI - bulat, transparan, + teleport acak
+repeat task.wait() until game:IsLoaded()
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+repeat task.wait() until player and player:FindFirstChild("PlayerGui")
+
+-- hapus GUI lama
+if player.PlayerGui:FindFirstChild("TeleportGUI") then
+	player.PlayerGui.TeleportGUI:Destroy()
+end
+
+local screenGui = Instance.new("ScreenGui", player.PlayerGui)
+screenGui.Name = "TeleportGUI"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- FRAME UTAMA
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 240, 0, 140)
+mainFrame.Position = UDim2.new(0.7, 0, 0.35, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+mainFrame.BackgroundTransparency = 0.5
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 20)
+
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1, -70, 0, 28)
+title.Position = UDim2.new(0, 10, 0, 4)
+title.BackgroundTransparency = 1
+title.Text = "Teleport by (RISTAN)"
+title.TextColor3 = Color3.new(1,1,1)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 18
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Tombol close
+local closeBtn = Instance.new("TextButton", mainFrame)
+closeBtn.Size = UDim2.new(0,26,0,26)
+closeBtn.Position = UDim2.new(1, -32, 0, 4)
+closeBtn.Text = "✕"
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.TextSize = 16
+closeBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+closeBtn.BackgroundTransparency = 0.3
+closeBtn.TextColor3 = Color3.fromRGB(255,255,255)
+closeBtn.BorderSizePixel = 0
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 0)
+
+-- Tombol minimize
+local minimizeBtn = Instance.new("TextButton", mainFrame)
+minimizeBtn.Size = UDim2.new(0,26,0,26)
+minimizeBtn.Position = UDim2.new(1, -64, 0, 4)
+minimizeBtn.Text = "–"
+minimizeBtn.Font = Enum.Font.SourceSansBold
+minimizeBtn.TextSize = 18
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+minimizeBtn.BackgroundTransparency = 0.8
+minimizeBtn.TextColor3 = Color3.fromRGB(255,255,255)
+minimizeBtn.BorderSizePixel = 0
+Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(1, 0)
+
+-- Input box
+local inputBox = Instance.new("TextBox", mainFrame)
+inputBox.Size = UDim2.new(1, -20, 0, 36)
+inputBox.Position = UDim2.new(0, 10, 0, 40)
+inputBox.PlaceholderText = "Nama pemain atau ketik 'random'"
+inputBox.Font = Enum.Font.SourceSans
+inputBox.TextSize = 16
+inputBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+inputBox.BackgroundTransparency = 0.4
+inputBox.TextColor3 = Color3.new(1,1,1)
+inputBox.BorderSizePixel = 0
+Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0, 12)
+
+-- Tombol teleport
+local tpBtn = Instance.new("TextButton", mainFrame)
+tpBtn.Size = UDim2.new(1, -20, 0, 34)
+tpBtn.Position = UDim2.new(0, 10, 0, 86)
+tpBtn.Text = "Teleport"
+tpBtn.Font = Enum.Font.SourceSansBold
+tpBtn.TextSize = 16
+tpBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
+tpBtn.BackgroundTransparency = 0.4
+tpBtn.TextColor3 = Color3.new(1,1,1)
+tpBtn.BorderSizePixel = 0
+Instance.new("UICorner", tpBtn).CornerRadius = UDim.new(0, 16)
+
+-- Status teks
+local status = Instance.new("TextLabel", mainFrame)
+status.Size = UDim2.new(1, -20, 0, 24)
+status.Position = UDim2.new(0, 10, 0, 124)
+status.BackgroundTransparency = 1
+status.Text = "Ready"
+status.TextColor3 = Color3.fromRGB(200,200,200)
+status.Font = Enum.Font.SourceSans
+status.TextSize = 14
+status.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Tombol kecil (bulat) saat minimize
+local miniBtn = Instance.new("TextButton", screenGui)
+miniBtn.Size = UDim2.new(0,56,0,56)
+miniBtn.Position = UDim2.new(0.88, 0, 0.45, 0)
+miniBtn.Text = "TP"
+miniBtn.Font = Enum.Font.SourceSansBold
+miniBtn.TextSize = 20
+miniBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
+miniBtn.BackgroundTransparency = 0.3
+miniBtn.TextColor3 = Color3.new(1,1,1)
+miniBtn.BorderSizePixel = 0
+miniBtn.Visible = false
+miniBtn.Active = true
+miniBtn.Draggable = true
+Instance.new("UICorner", miniBtn).CornerRadius = UDim.new(1, 0)
+
+-- ===== Fungsi Teleport ===== --
+local function setStatus(txt, color)
+	status.Text = txt or ""
+	status.TextColor3 = color or Color3.fromRGB(200,200,200)
+end
+
+local function notify(title, text, time)
+	pcall(function()
+		game.StarterGui:SetCore("SendNotification", {Title = title, Text = text or "", Duration = time or 2})
+	end)
+end
+
+local function findPlayerByPartial(name)
+	if not name or name:match("^%s*$") then return nil end
+	local lower = string.lower(name)
+	for _,p in ipairs(Players:GetPlayers()) do
+		if string.lower(p.Name) == lower then return p end
+	end
+	for _,p in ipairs(Players:GetPlayers()) do
+		local dn = (p.DisplayName or p.Name)
+		if string.lower(dn) == lower then return p end
+	end
+	for _,p in ipairs(Players:GetPlayers()) do
+		if string.find(string.lower(p.Name), lower) then return p end
+		local dn = (p.DisplayName or p.Name)
+		if string.find(string.lower(dn), lower) then return p end
+	end
+	return nil
+end
+
+local function getRoot(char)
+	return char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso"))
+end
+
+local function getRandomPlayer()
+	local all = Players:GetPlayers()
+	local available = {}
+	for _,p in ipairs(all) do
+		if p ~= player then
+			table.insert(available, p)
+		end
+	end
+	if #available == 0 then return nil end
+	return available[math.random(1, #available)]
+end
+
+local function robustTeleportTo(targetPlayer)
+	if not targetPlayer then
+		setStatus("Player tidak ditemukan", Color3.fromRGB(255,120,120))
+		notify("Teleport", "Player tidak ditemukan", 2)
+		return false
+	end
+
+	setStatus("Menunggu karakter target...", Color3.fromRGB(255,215,0))
+	local timeout, elapsed = 6, 0
+	local targetChar = targetPlayer.Character
+	while elapsed < timeout and (not targetChar or not getRoot(targetChar)) do
+		task.wait(0.5)
+		elapsed += 0.5
+		targetChar = targetPlayer.Character
+	end
+	if not targetChar then
+		setStatus("Target belum spawn", Color3.fromRGB(255,120,120))
+		return false
+	end
+
+	local targetRoot = getRoot(targetChar)
+	if not targetRoot then
+		setStatus("Root target tidak ada", Color3.fromRGB(255,120,120))
+		return false
+	end
+
+	local myChar = player.Character or player.CharacterAdded:Wait()
+	local myRoot = getRoot(myChar)
+	if not myRoot then return false end
+
+	for i=1,6 do
+		local ok = pcall(function()
+			myRoot.CFrame = targetRoot.CFrame + Vector3.new(3,1,0)
+		end)
+		if ok then
+			setStatus("Teleport ke "..targetPlayer.Name.." berhasil!", Color3.fromRGB(120,255,120))
+			notify("Teleport", "Berhasil ke "..targetPlayer.Name, 2)
+			return true
+		end
+		task.wait(0.15)
+	end
+	setStatus("Teleport gagal", Color3.fromRGB(255,120,120))
+	return false
+end
+
+-- Tombol teleport ditekan
+tpBtn.MouseButton1Click:Connect(function()
+	local name = string.lower(inputBox.Text or "")
+	if name == "" then
+		setStatus("Masukkan nama dulu", Color3.fromRGB(255,200,0))
+		return
+	end
+	
+	local target
+	if name == "random" or name == "acak" or name == "rnd" then
+		setStatus("Memilih pemain acak...", Color3.fromRGB(255,215,0))
+		target = getRandomPlayer()
+		if not target then
+			setStatus("Tidak ada pemain lain!", Color3.fromRGB(255,120,120))
+			return
+		end
+	else
+		target = findPlayerByPartial(name)
+	end
+
+	if not target then
+		setStatus("Pemain tidak ditemukan", Color3.fromRGB(255,120,120))
+	else
+		setStatus("Teleport ke " .. target.Name .. "...")
+		robustTeleportTo(target)
+	end
+end)
+
+closeBtn.MouseButton1Click:Connect(function()
+	screenGui:Destroy()
+end)
+minimizeBtn.MouseButton1Click:Connect(function()
+	mainFrame.Visible = false
+	miniBtn.Visible = true
+end)
+miniBtn.MouseButton1Click:Connect(function()
+	mainFrame.Visible = true
+	miniBtn.Visible = false
+end)
+
+print("[TeleportGUI] Aktif - Bulat, Transparan, + Random Teleport")
