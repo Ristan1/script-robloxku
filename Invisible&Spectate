@@ -1,8 +1,9 @@
 --[[
-    Skrip Gabungan: Invisible & Spectate (ROMBAK ULANG)
+    Skrip Gabungan: Invisible & Spectate (ROMBAK ULANG + MINIMIZE)
     - GUI di-rework total untuk stabilitas dan tampilan yang rapi.
     - Memperbaiki semua masalah fungsi dan elemen yang hilang.
     - Fitur Invisible di atas, Spectate di bawah.
+    - Menambahkan fitur minimize menjadi tombol bulat kecil (👁).
 ]]
 
 -- =================================================================
@@ -29,6 +30,9 @@ local invisDied
 -- Variabel status untuk Spectate
 local isSpectating = false
 local spectateConnections = {}
+
+-- Variabel status untuk GUI
+local isMinimized = false
 
 -- =================================================================
 -- SECTION 2: FUNGSI LOGIKA (INVISIBILITY & SPECTATE)
@@ -221,6 +225,25 @@ mainFrame.ClipsDescendants = false
 local corner = Instance.new("UICorner", mainFrame)
 corner.CornerRadius = UDim.new(0, 8)
 
+-- Tombol Minimized (Bulat dengan Ikon Mata)
+local minimizedButton = Instance.new("TextButton")
+minimizedButton.Name = "MinimizedButton"
+minimizedButton.Parent = screenGui
+minimizedButton.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+minimizedButton.BorderColor3 = Color3.fromRGB(85, 85, 127)
+minimizedButton.BorderSizePixel = 1
+minimizedButton.Position = mainFrame.Position
+minimizedButton.Size = UDim2.new(0, 45, 0, 45)
+minimizedButton.Font = Enum.Font.SourceSansBold
+minimizedButton.Text = "👁"
+minimizedButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+minimizedButton.TextSize = 24
+minimizedButton.Visible = false -- Sembunyikan saat awal
+minimizedButton.Draggable = true
+minimizedButton.Active = true
+local minimizedCorner = Instance.new("UICorner", minimizedButton)
+minimizedCorner.CornerRadius = UDim.new(1, 0) -- 1 = 100% radius (lingkaran)
+
 local titleBar = Instance.new("Frame")
 titleBar.Name = "TitleBar"
 titleBar.Parent = mainFrame
@@ -250,6 +273,18 @@ closeButton.Text = "X"
 closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 local closeCorner = Instance.new("UICorner", closeButton)
 closeCorner.CornerRadius = UDim.new(0, 4)
+
+-- Tombol Minimize
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Parent = titleBar
+minimizeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+minimizeButton.Position = UDim2.new(1, -55, 0.5, -10) -- Geser ke kiri dari tombol close
+minimizeButton.Size = UDim2.new(0, 20, 0, 20)
+minimizeButton.Font = Enum.Font.SourceSansBold
+minimizeButton.Text = "—"
+minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+local minimizeCorner = Instance.new("UICorner", minimizeButton)
+minimizeCorner.CornerRadius = UDim.new(0, 4)
 
 local contentFrame = Instance.new("Frame")
 contentFrame.Name = "ContentFrame"
@@ -377,6 +412,21 @@ suggestionsListLayout.Padding = UDim.new(0, 2)
 -- SECTION 4: LOGIKA DAN INTERAKSI GUI
 -- =================================================================
 
+local function toggleMinimize()
+    isMinimized = not isMinimized
+    if isMinimized then
+        -- Simpan posisi frame utama, lalu sembunyikan
+        minimizedButton.Position = mainFrame.Position
+        mainFrame.Visible = false
+        minimizedButton.Visible = true
+    else
+        -- Kembalikan posisi frame utama dari posisi tombol bulat, lalu tampilkan
+        mainFrame.Position = minimizedButton.Position
+        mainFrame.Visible = true
+        minimizedButton.Visible = false
+    end
+end
+
 function updateSuggestions()
     for _, child in pairs(suggestionsFrame:GetChildren()) do
         if child:IsA("TextButton") then child:Destroy() end
@@ -442,10 +492,13 @@ playerNameInput.FocusLost:Connect(function(enterPressed)
     if suggestionsFrame.Visible then suggestionsFrame.Visible = false end
 end)
 
+-- Menghubungkan tombol kontrol window (Close & Minimize)
+minimizeButton.MouseButton1Click:Connect(toggleMinimize)
+minimizedButton.MouseButton1Click:Connect(toggleMinimize)
+
 closeButton.MouseButton1Click:Connect(function()
     unview()
     TurnVisible()
     screenGui:Destroy()
 end)
 
--- Tombol minimize tidak disertakan untuk menjaga kesederhanaan, jika Anda ingin menambahkannya kembali, beri tahu saya.
