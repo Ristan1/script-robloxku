@@ -15,7 +15,7 @@ local Player = Players.LocalPlayer
 local splashConfig = {
     namaPembuat = "dibuat oleh Ristan",
     idGambar = "rbxassetid://75384310624665", -- << GANTI DENGAN ID GAMBAR ANDA
-    durasi = 4 -- detik
+    durasi = 2 -- detik
 }
 
 --[[
