@@ -1,0 +1,199 @@
+-- WalkSpeed GUI - by (RISTAN)
+repeat task.wait() until game:IsLoaded()
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+repeat task.wait() until player and player:FindFirstChild("PlayerGui")
+
+-- Hapus GUI lama
+if player.PlayerGui:FindFirstChild("SpeedGUI") then
+	player.PlayerGui.SpeedGUI:Destroy()
+end
+
+local screenGui = Instance.new("ScreenGui", player.PlayerGui)
+screenGui.Name = "SpeedGUI"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- FRAME UTAMA
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Size = UDim2.new(0, 240, 0, 160)
+mainFrame.Position = UDim2.new(0.7, 0, 0.35, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+mainFrame.BackgroundTransparency = 0.5
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 20)
+
+-- JUDUL
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1, -70, 0, 28)
+title.Position = UDim2.new(0, 10, 0, 4)
+title.BackgroundTransparency = 1
+title.Text = "WalkSpeed by (RISTAN)"
+title.TextColor3 = Color3.new(1,1,1)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 18
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Tombol CLOSE
+local closeBtn = Instance.new("TextButton", mainFrame)
+closeBtn.Size = UDim2.new(0,26,0,26)
+closeBtn.Position = UDim2.new(1, -32, 0, 4)
+closeBtn.Text = "✕"
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.TextSize = 16
+closeBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+closeBtn.BackgroundTransparency = 0.3
+closeBtn.TextColor3 = Color3.fromRGB(255,255,255)
+closeBtn.BorderSizePixel = 0
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 0)
+
+-- Tombol MINIMIZE
+local minimizeBtn = Instance.new("TextButton", mainFrame)
+minimizeBtn.Size = UDim2.new(0,26,0,26)
+minimizeBtn.Position = UDim2.new(1, -64, 0, 4)
+minimizeBtn.Text = "–"
+minimizeBtn.Font = Enum.Font.SourceSansBold
+minimizeBtn.TextSize = 18
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+minimizeBtn.BackgroundTransparency = 0.8
+minimizeBtn.TextColor3 = Color3.fromRGB(255,255,255)
+minimizeBtn.BorderSizePixel = 0
+Instance.new("UICorner", minimizeBtn).CornerRadius = UDim.new(1, 0)
+
+-- INPUT SPEED
+local inputBox = Instance.new("TextBox", mainFrame)
+inputBox.Size = UDim2.new(1, -20, 0, 36)
+inputBox.Position = UDim2.new(0, 10, 0, 40)
+inputBox.PlaceholderText = "Masukkan angka kecepatannya"
+inputBox.Font = Enum.Font.SourceSans
+inputBox.TextSize = 16
+inputBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+inputBox.BackgroundTransparency = 0.4
+inputBox.TextColor3 = Color3.new(1,1,1)
+inputBox.BorderSizePixel = 0
+Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0, 12)
+
+-- Tombol SET SPEED
+local setBtn = Instance.new("TextButton", mainFrame)
+setBtn.Size = UDim2.new(1, -20, 0, 34)
+setBtn.Position = UDim2.new(0, 10, 0, 86)
+setBtn.Text = "Set Speed"
+setBtn.Font = Enum.Font.SourceSansBold
+setBtn.TextSize = 16
+setBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
+setBtn.BackgroundTransparency = 0.4
+setBtn.TextColor3 = Color3.new(1,1,1)
+setBtn.BorderSizePixel = 0
+Instance.new("UICorner", setBtn).CornerRadius = UDim.new(0, 16)
+
+-- Tombol RANDOM SPEED
+local randomBtn = Instance.new("TextButton", mainFrame)
+randomBtn.Size = UDim2.new(0.48, -10, 0, 30)
+randomBtn.Position = UDim2.new(0, 10, 0, 126)
+randomBtn.Text = "Random"
+randomBtn.Font = Enum.Font.SourceSansBold
+randomBtn.TextSize = 14
+randomBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
+randomBtn.BackgroundTransparency = 0.3
+randomBtn.TextColor3 = Color3.new(0,0,0)
+randomBtn.BorderSizePixel = 0
+Instance.new("UICorner", randomBtn).CornerRadius = UDim.new(0, 12)
+
+-- Tombol RESET SPEED
+local resetBtn = Instance.new("TextButton", mainFrame)
+resetBtn.Size = UDim2.new(0.48, -10, 0, 30)
+resetBtn.Position = UDim2.new(0.52, 0, 0, 126)
+resetBtn.Text = "Reset"
+resetBtn.Font = Enum.Font.SourceSansBold
+resetBtn.TextSize = 14
+resetBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
+resetBtn.BackgroundTransparency = 0.3
+resetBtn.TextColor3 = Color3.new(1,1,1)
+resetBtn.BorderSizePixel = 0
+Instance.new("UICorner", resetBtn).CornerRadius = UDim.new(0, 12)
+
+-- Status teks
+local status = Instance.new("TextLabel", mainFrame)
+status.Size = UDim2.new(1, -20, 0, 24)
+status.Position = UDim2.new(0, 10, 0, 156)
+status.BackgroundTransparency = 1
+status.Text = "Ready"
+status.TextColor3 = Color3.fromRGB(200,200,200)
+status.Font = Enum.Font.SourceSans
+status.TextSize = 14
+status.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Tombol kecil (bulat) saat minimize
+local miniBtn = Instance.new("TextButton", screenGui)
+miniBtn.Size = UDim2.new(0,56,0,56)
+miniBtn.Position = UDim2.new(0.88, 0, 0.45, 0)
+miniBtn.Text = "SPD"
+miniBtn.Font = Enum.Font.SourceSansBold
+miniBtn.TextSize = 20
+miniBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
+miniBtn.BackgroundTransparency = 0.3
+miniBtn.TextColor3 = Color3.new(1,1,1)
+miniBtn.BorderSizePixel = 0
+miniBtn.Visible = false
+miniBtn.Active = true
+miniBtn.Draggable = true
+Instance.new("UICorner", miniBtn).CornerRadius = UDim.new(1, 0)
+
+-- ===== FUNGSI =====
+local function setStatus(text, color)
+	status.Text = text
+	status.TextColor3 = color or Color3.fromRGB(200,200,200)
+end
+
+local function getHumanoid()
+	local char = player.Character or player.CharacterAdded:Wait()
+	return char:FindFirstChildOfClass("Humanoid")
+end
+
+local function setWalkSpeed(speed)
+	local hum = getHumanoid()
+	if hum then
+		hum.WalkSpeed = speed
+		setStatus("WalkSpeed diatur ke "..speed, Color3.fromRGB(120,255,120))
+	else
+		setStatus("Humanoid tidak ditemukan", Color3.fromRGB(255,120,120))
+	end
+end
+
+-- Tombol set speed ditekan
+setBtn.MouseButton1Click:Connect(function()
+	local val = tonumber(inputBox.Text)
+	if not val then
+		setStatus("Masukkan angka kecepatan!", Color3.fromRGB(255,200,0))
+		return
+	end
+	setWalkSpeed(val)
+end)
+
+-- Tombol random speed
+randomBtn.MouseButton1Click:Connect(function()
+	local rnd = math.random(20, 200)
+	setWalkSpeed(rnd)
+end)
+
+-- Tombol reset speed
+resetBtn.MouseButton1Click:Connect(function()
+	setWalkSpeed(16)
+end)
+
+-- Tombol close & minimize
+closeBtn.MouseButton1Click:Connect(function()
+	screenGui:Destroy()
+end)
+minimizeBtn.MouseButton1Click:Connect(function()
+	mainFrame.Visible = false
+	miniBtn.Visible = true
+end)
+miniBtn.MouseButton1Click:Connect(function()
+	mainFrame.Visible = true
+	miniBtn.Visible = false
+end)
+
+print("[SpeedGUI] by RISTAN aktif - bulat, transparan, bisa atur kecepatan")
