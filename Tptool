@@ -1,0 +1,60 @@
+--[[
+  Script Teleport Tool
+  Deskripsi: Memberikan sebuah alat ke dalam Backpack pemain.
+             Saat digunakan (diklik), pemain akan berteleportasi
+             ke lokasi kursor mouse.
+--]]
+
+-- Variabel untuk pemain lokal
+local player = game:GetService("Players").LocalPlayer
+local backpack = player:WaitForChild("Backpack")
+
+-- Fungsi untuk mengirim notifikasi
+local function kirimNotifikasi(judul, teks, durasi)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = judul,
+        Text = teks,
+        Duration = durasi or 5
+    })
+end
+
+-- Cek jika pemain sudah punya tool ini agar tidak duplikat
+if backpack:FindFirstChild("Teleport Tool") or (player.Character and player.Character:FindFirstChild("Teleport Tool")) then
+    kirimNotifikasi("Gagal", "Anda sudah memiliki Teleport Tool.", 5)
+    return
+end
+
+-- Membuat Tool baru
+local tpTool = Instance.new("Tool")
+tpTool.Name = "Teleport Tool"
+tpTool.ToolTip = "Klik di mana saja untuk teleportasi!"
+tpTool.RequiresHandle = false -- Tidak memerlukan part "Handle"
+tpTool.TextureId = "rbxassetid://13086848540" -- Icon agar lebih menarik
+tpTool.Parent = backpack
+
+-- Fungsi yang akan berjalan saat tool diaktifkan (diklik)
+tpTool.Activated:Connect(function()
+    local mouse = player:GetMouse()
+    local character = player.Character
+    local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+
+    -- Memastikan karakter dan HumanoidRootPart ada
+    if not humanoidRootPart then
+        warn("Teleport Tool Error: Karakter atau HumanoidRootPart tidak ditemukan.")
+        return
+    end
+    
+    -- Mendapatkan posisi target dari kursor mouse
+    local targetPosition = mouse.Hit.p
+    
+    -- Mendapatkan komponen rotasi dari CFrame karakter saat ini
+    -- agar karakter tidak berputar saat teleportasi
+    local _, _, _, R00, R01, R02, R10, R11, R12, R20, R21, R22 = humanoidRootPart.CFrame:components()
+    
+    -- Mengatur CFrame karakter ke posisi target dengan tambahan ketinggian 3 stud
+    -- agar tidak terjebak di dalam tanah
+    humanoidRootPart.CFrame = CFrame.new(targetPosition.X, targetPosition.Y + 3, targetPosition.Z, R00, R01, R02, R10, R11, R12, R20, R21, R22)
+end)
+
+-- Memberi notifikasi bahwa tool berhasil dibuat (SESUAI PERMINTAAN)
+kirimNotifikasi("Berhasil!", "Tptool ada di Inventaris.", 7)
