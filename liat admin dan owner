@@ -1,0 +1,271 @@
+--  Online Admin/Owner List GUI (Optimized & Combined Detection)
+-- Dibuat oleh: Gemini
+-- Fitur: Mendeteksi dari UserID, Grup, DAN tag tulisan di atas kepala.
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+-- ==================================
+-- KONFIGURASI (Silakan ubah bagian ini)
+-- ==================================
+local adminUserIds = {12345678, 87654321} -- Ganti dengan UserID admin kustom Anda
+local groupId = nil                         -- Ganti dengan GroupID jika ingin cek admin dari grup
+local minGroupRank = 200                    -- Rank minimal untuk dianggap admin grup
+
+-- Warna untuk tag di map & list
+local ownerColor = Color3.fromRGB(255, 200, 0)      -- Emas
+local adminColor = Color3.fromRGB(50, 150, 255)       -- Biru
+local groupAdminColor = Color3.fromRGB(0, 200, 100) -- Hijau
+local detectedAdminColor = Color3.fromRGB(255, 90, 90) -- Merah muda (untuk admin yg terdeteksi dari tag)
+
+
+-- ==================================
+-- BAGIAN INTI (Jangan diubah jika tidak paham)
+-- ==================================
+
+-- (BARU) Helper function untuk memindai tag di atas kepala karakter
+local function scanCharacterForTag(character)
+	if not character or not character:FindFirstChild("Head") then return nil end
+	local head = character.Head
+
+	-- GetDescendants akan mencari di semua sub-folder di dalam 'head'
+	for _, descendant in ipairs(head:GetDescendants()) do
+		if descendant:IsA("TextLabel") then
+			local text = string.lower(descendant.Text)
+			-- Periksa kata kunci (tidak case-sensitive)
+			if text:match("admin") then
+				return "Detected Admin"
+			elseif text:match("owner") then
+				return "Detected Owner"
+			elseif text:match("moderator") or text:match("mod") then
+				return "Detected Mod"
+			end
+		end
+	end
+	return nil -- Tidak ada tag yang ditemukan
+end
+
+-- Fungsi utama untuk mendapatkan status pemain (dengan logika baru)
+local function getPlayerStatus(targetPlayer)
+	if not targetPlayer then return nil end
+
+	-- 1. Cek Owner Game (prioritas tertinggi)
+	if game.CreatorType == Enum.CreatorType.User then
+		if targetPlayer.UserId == game.CreatorId then return "Owner", ownerColor end
+	elseif game.CreatorType == Enum.CreatorType.Group then
+		if targetPlayer:GetRankInGroup(game.CreatorId) >= 255 then return "Owner", ownerColor end
+	end
+
+	-- 2. Cek dari daftar admin kustom
+	for _, id in ipairs(adminUserIds) do
+		if id == targetPlayer.UserId then return "Admin", adminColor end
+	end
+
+	-- 3. Cek admin dari grup (jika diatur)
+	if groupId then
+		local success, rank = pcall(function() return targetPlayer:GetRankInGroup(groupId) end)
+		if success and rank and rank >= minGroupRank then return "Group Admin", groupAdminColor end
+	end
+	
+	-- 4. (BARU) Jika tidak ada di daftar, coba pindai tag di atas kepala karakter
+	local character = targetPlayer.Character
+	if character then
+		local detectedStatus = scanCharacterForTag(character)
+		if detectedStatus then
+			return detectedStatus, detectedAdminColor
+		end
+	end
+
+	return nil -- Jika bukan siapa-siapa
+end
+
+-- Hapus GUI lama untuk menghindari duplikasi
+if player.PlayerGui:FindFirstChild("AdminListGUI") then
+	player.PlayerGui.AdminListGUI:Destroy()
+end
+
+-- ==================================
+-- PEMBUATAN GUI (Tampilan)
+-- ==================================
+local screenGui = Instance.new("ScreenGui", player.PlayerGui)
+screenGui.Name = "AdminListGUI"
+screenGui.ResetOnSpawn = false
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 250, 0, 300)
+frame.Position = UDim2.new(0.5, -125, 0.3, 0)
+frame.BackgroundTransparency = 0.2
+frame.BackgroundColor3 = Color3.fromRGB(30, 32, 36)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.AnchorPoint = Vector2.new(0.5, 0.5)
+frame.Parent = screenGui
+local corner = Instance.new("UICorner", frame)
+corner.CornerRadius = UDim.new(0, 8)
+
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, -90, 0, 35)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "Online Admin/Owner"
+title.Font = Enum.Font.GothamBold
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 18
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+local scrollingFrame = Instance.new("ScrollingFrame", frame)
+scrollingFrame.Size = UDim2.new(1, -20, 1, -45)
+scrollingFrame.Position = UDim2.new(0, 10, 0, 40)
+scrollingFrame.BackgroundTransparency = 0.5
+scrollingFrame.BackgroundColor3 = Color3.fromRGB(22, 23, 26)
+scrollingFrame.BorderSizePixel = 0
+scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollingFrame.ScrollBarThickness = 6
+local scrollCorner = Instance.new("UICorner", scrollingFrame)
+scrollCorner.CornerRadius = UDim.new(0, 4)
+
+local listLayout = Instance.new("UIListLayout", scrollingFrame)
+listLayout.Padding = UDim.new(0, 5)
+
+-- Tombol Close & Minimize
+local closeBtn = Instance.new("TextButton", frame)
+closeBtn.Size = UDim2.new(0, 25, 0, 25)
+closeBtn.Position = UDim2.new(1, -30, 0, 5)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+local closeCorner = Instance.new("UICorner", closeBtn)
+closeCorner.CornerRadius = UDim.new(0, 4)
+
+local minBtn = Instance.new("TextButton", frame)
+minBtn.Size = UDim2.new(0, 25, 0, 25)
+minBtn.Position = UDim2.new(1, -60, 0, 5)
+minBtn.Text = "-"
+minBtn.Font = Enum.Font.GothamBold
+minBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+local minCorner = Instance.new("UICorner", minBtn)
+minCorner.CornerRadius = UDim.new(0, 4)
+
+-- ==================================
+-- FUNGSI UTAMA (LOGIKA & EVENT)
+-- ==================================
+
+-- Fungsi untuk mengupdate list di dalam GUI
+function updateAdminListGUI()
+	for _, child in ipairs(scrollingFrame:GetChildren()) do
+		if child:IsA("TextLabel") then child:Destroy() end
+	end
+
+	for _, p in ipairs(Players:GetPlayers()) do
+		local status, statusColor = getPlayerStatus(p)
+		if status then
+			local label = Instance.new("TextLabel")
+			label.Size = UDim2.new(1, 0, 0, 25)
+			label.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+			label.TextColor3 = statusColor
+			label.Font = Enum.Font.Gotham
+			label.TextSize = 14
+			label.Text = string.format(" %s (@%s) [%s]", p.DisplayName, p.Name, status)
+			label.TextXAlignment = Enum.TextXAlignment.Left
+			label.Parent = scrollingFrame
+			local labelCorner = Instance.new("UICorner", label)
+			labelCorner.CornerRadius = UDim.new(0, 4)
+		end
+	end
+	
+	scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, #scrollingFrame:GetChildren() * 30)
+end
+
+-- Fungsi ini HANYA untuk membuat tag di atas kepala admin yg ada di daftar UserID kita
+function setupOverheadTag(targetPlayer)
+	local function createOrUpdateTag(character)
+		if not character or not character:FindFirstChild("Head") then return end
+		local head = character.Head
+		if head:FindFirstChild("AdminStatusTag") then head.AdminStatusTag:Destroy() end
+
+		-- Kita hanya membuat tag untuk admin yg 'pasti', bukan yang terdeteksi
+		local status, statusColor = getPlayerStatus(targetPlayer)
+		if not status or status:match("Detected") then return end
+
+		local billboardGui = Instance.new("BillboardGui", head)
+		billboardGui.Name = "AdminStatusTag"
+		billboardGui.Adornee = head
+		billboardGui.Size = UDim2.new(0, 200, 0, 60)
+		billboardGui.StudsOffset = Vector3.new(0, 2.5, 0)
+		billboardGui.AlwaysOnTop = true
+
+		local nameLabel = Instance.new("TextLabel", billboardGui)
+		nameLabel.Size = UDim2.new(1, 0, 0.5, 0)
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.Text = string.format("%s (@%s)", targetPlayer.DisplayName, targetPlayer.Name)
+		nameLabel.Font = Enum.Font.GothamBold
+		nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		nameLabel.TextScaled = true
+
+		local statusLabel = Instance.new("TextLabel", billboardGui)
+		statusLabel.Size = UDim2.new(0.8, 0, 0.4, 0)
+		statusLabel.Position = UDim2.new(0.1, 0, 0.5, 0)
+		statusLabel.BackgroundColor3 = statusColor
+		statusLabel.Text = status
+		statusLabel.Font = Enum.Font.GothamBold
+		statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+		statusLabel.TextScaled = true
+		local statusCorner = Instance.new("UICorner", statusLabel)
+		statusCorner.CornerRadius = UDim.new(0, 8)
+	end
+
+	targetPlayer.CharacterAdded:Connect(createOrUpdateTag)
+	if targetPlayer.Character then createOrUpdateTag(targetPlayer.Character) end
+end
+
+-- ==================================
+-- KONEKSI & EKSEKUSI AWAL
+-- ==================================
+updateAdminListGUI()
+for _, p in ipairs(Players:GetPlayers()) do
+	setupOverheadTag(p)
+	-- Atur agar list diupdate saat karakter pemain muncul (untuk mendeteksi tag)
+	p.CharacterAdded:Connect(function()
+		task.wait(2) -- Beri waktu 2 detik agar tag dari game lain sempat muncul
+		updateAdminListGUI()
+	end)
+end
+
+Players.PlayerAdded:Connect(function(newPlayer)
+	setupOverheadTag(newPlayer)
+	newPlayer.CharacterAdded:Connect(function()
+		task.wait(2)
+		updateAdminListGUI()
+	end)
+	-- Update list saat pemain baru masuk
+	task.wait(0.1)
+	updateAdminListGUI()
+end)
+
+Players.PlayerRemoving:Connect(function(removedPlayer)
+	task.wait(0.1)
+	updateAdminListGUI()
+end)
+
+-- Logika tombol
+local miniGui = Instance.new("TextButton", screenGui)
+miniGui.Name = "ShowAdminListButton"
+miniGui.Size = UDim2.new(0, 80, 0, 30)
+miniGui.Position = UDim2.new(1, -90, 0, 10)
+miniGui.Text = "STAFF"
+miniGui.Font = Enum.Font.GothamBold
+miniGui.TextSize = 16
+miniGui.TextColor3 = Color3.fromRGB(255, 255, 255)
+miniGui.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+miniGui.Visible = false
+local miniGuiCorner = Instance.new("UICorner", miniGui)
+miniGuiCorner.CornerRadius = UDim.new(0, 8)
+
+minBtn.MouseButton1Click:Connect(function() frame.Visible = false; miniGui.Visible = true end)
+miniGui.MouseButton1Click:Connect(function() frame.Visible = true; miniGui.Visible = false end)
+closeBtn.MouseButton1Click:Connect(function() screenGui:Destroy() end)
+
+print("[Admin/Owner List GUI] Loaded Successfully with Tag Detection!")
