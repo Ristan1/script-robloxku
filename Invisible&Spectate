@@ -1,9 +1,9 @@
 --[[
-    Skrip Gabungan: Invisible & Spectate (ROMBAK ULANG + MINIMIZE)
-    - GUI di-rework total untuk stabilitas dan tampilan yang rapi.
-    - Memperbaiki semua masalah fungsi dan elemen yang hilang.
-    - Fitur Invisible di atas, Spectate di bawah.
-    - Menambahkan fitur minimize menjadi tombol bulat kecil (👁).
+    Skrip Gabungan: Invisible & Spectate (FINAL V7 - Perbaikan Debounce Drag Berulang)
+    
+    PERUBAHAN V7:
+    1. Logika debounce diperkuat: Debounce diaktifkan setiap kali mouse/jari dilepas dari minimizedButton saat sedang di-drag.
+    2. Menggunakan InputBegan/InputEnded untuk deteksi drag yang lebih andal, memastikan isDragDebouncing dihormati pada klik.
 ]]
 
 -- =================================================================
@@ -30,15 +30,20 @@ local invisDied
 -- Variabel status untuk Spectate
 local isSpectating = false
 local spectateConnections = {}
+local spectatablePlayers = {}
+local currentPlayerIndex = 0
 
 -- Variabel status untuk GUI
 local isMinimized = false
+local SpectateOverlay
+local isDragDebouncing = false -- VARIABEL UNTUK DEBOUNCE KLIK SETELAH DRAG
+local isCurrentlyDragging = false -- VARIABEL UNTUK MELACAK APAKAH DRAG SEDANG BERLANGSUNG
 
 -- =================================================================
 -- SECTION 2: FUNGSI LOGIKA (INVISIBILITY & SPECTATE)
+-- (Tidak ada perubahan)
 -- =================================================================
 
--- Fungsi Invisibility
 local function TurnVisible()
     if not IsInvis then return end
     if invisDied then invisDied:Disconnect(); invisDied = nil end
@@ -157,7 +162,22 @@ local function ActivateToolInvisible()
     end)
 end
 
--- Fungsi Spectate
+function updateSpectatablePlayers()
+    spectatablePlayers = {}
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character.Parent == workspace then
+            table.insert(spectatablePlayers, player)
+        end
+    end
+end
+
+function getPlayerIndex(player)
+    for i, p in ipairs(spectatablePlayers) do
+        if p == player then return i end
+    end
+    return 0
+end
+
 function clearSpectateConnections()
     for _, conn in pairs(spectateConnections) do conn:Disconnect() end
     table.clear(spectateConnections)
@@ -167,26 +187,54 @@ function unview()
     if isSpectating then
         CurrentCamera.CameraSubject = originalCameraSubject
         isSpectating = false
+        currentPlayerIndex = 0
         clearSpectateConnections()
+        if SpectateOverlay then SpectateOverlay.Visible = false end
     end
 end
 
 function spectatePlayer(targetPlayer)
-    if not targetPlayer or not targetPlayer.Character then
-        warn("Pemain atau karakter tidak ditemukan.")
+    if not targetPlayer or not targetPlayer.Character or targetPlayer.Character.Parent ~= workspace then
+        warn("Pemain atau karakter tidak ditemukan atau keluar dari map.")
+        if isSpectating then
+            updateSpectatablePlayers()
+            if #spectatablePlayers > 0 then
+                spectatePlayer(spectatablePlayers[1]) 
+            else
+                unview()
+            end
+        end
         return
     end
+    
     unview()
+    
+    updateSpectatablePlayers()
+    currentPlayerIndex = getPlayerIndex(targetPlayer)
+    
     originalCameraSubject = LocalPlayer.Character or CurrentCamera.CameraSubject
     CurrentCamera.CameraSubject = targetPlayer.Character
     CurrentCamera.CameraType = Enum.CameraType.Custom
     isSpectating = true
+    if SpectateOverlay then SpectateOverlay.Visible = true end
+    
     spectateConnections.playerRemoving = Players.PlayerRemoving:Connect(function(player)
-        if player == targetPlayer then unview() end
+        if player == targetPlayer then 
+            unview() 
+        end
     end)
     spectateConnections.characterAdded = targetPlayer.CharacterAdded:Connect(function(newCharacter)
         CurrentCamera.CameraSubject = newCharacter
     end)
+    spectateConnections.characterRemoving = targetPlayer.CharacterRemoving:Connect(function(oldCharacter)
+        task.delay(0.5, function() 
+            if not targetPlayer.Character then
+                spectateNextPlayer(1) 
+            end
+        end)
+    end)
+    
+    playerNameInput.Text = targetPlayer.Name 
 end
 
 function findPartialPlayer(query)
@@ -199,6 +247,69 @@ function findPartialPlayer(query)
         if player.DisplayName:lower():sub(1, #query) == query or player.Name:lower():sub(1, #query) == query then return player end
     end
     return nil
+end
+
+function spectateNextPlayer(direction)
+    if not isSpectating then return end
+    
+    updateSpectatablePlayers()
+    
+    local numPlayers = #spectatablePlayers
+    if numPlayers == 0 then unview(); return end
+    
+    local newIndex = currentPlayerIndex + direction
+    
+    if newIndex > numPlayers then
+        newIndex = 1
+    elseif newIndex < 1 then
+        newIndex = numPlayers
+    end
+    
+    local targetPlayer = spectatablePlayers[newIndex]
+    if targetPlayer then
+        spectatePlayer(targetPlayer)
+    else
+        unview()
+    end
+end
+
+function spectateRandomPlayer()
+    updateSpectatablePlayers()
+    
+    local numPlayers = #spectatablePlayers
+    if numPlayers == 0 then unview(); return end
+    
+    local randomIndex = math.random(1, numPlayers)
+    local targetPlayer = spectatablePlayers[randomIndex]
+    
+    if targetPlayer then
+        spectatePlayer(targetPlayer)
+    end
+end
+
+local function teleportToSpectatedPlayer()
+    if not isSpectating or currentPlayerIndex == 0 then
+        warn("Tidak sedang mengamati pemain atau pemain tidak valid.")
+        return
+    end
+
+    local targetPlayer = spectatablePlayers[currentPlayerIndex]
+    local character = LocalPlayer.Character
+    
+    if targetPlayer and targetPlayer.Character and character and character:FindFirstChild("HumanoidRootPart") then
+        local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if targetHRP then
+            local teleportPos = targetHRP.CFrame + Vector3.new(0, 5, 0)
+            
+            if IsInvis and InvisibleCharacter and InvisibleCharacter:FindFirstChild("HumanoidRootPart") then
+                InvisibleCharacter:SetPrimaryPartCFrame(teleportPos)
+            elseif character then
+                character:SetPrimaryPartCFrame(teleportPos)
+            end
+        end
+    end
+    
+    unview()
 end
 
 -- =================================================================
@@ -217,7 +328,7 @@ mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 mainFrame.BorderColor3 = Color3.fromRGB(85, 85, 127)
 mainFrame.BorderSizePixel = 1
 mainFrame.Position = UDim2.new(0.5, -125, 0.2, 0)
-mainFrame.Size = UDim2.new(0, 250, 0, 255) -- Ukuran disesuaikan
+mainFrame.Size = UDim2.new(0, 250, 0, 255)
 mainFrame.Draggable = true
 mainFrame.Active = true
 mainFrame.ClipsDescendants = false
@@ -225,7 +336,6 @@ mainFrame.ClipsDescendants = false
 local corner = Instance.new("UICorner", mainFrame)
 corner.CornerRadius = UDim.new(0, 8)
 
--- Tombol Minimized (Bulat dengan Ikon Mata)
 local minimizedButton = Instance.new("TextButton")
 minimizedButton.Name = "MinimizedButton"
 minimizedButton.Parent = screenGui
@@ -238,11 +348,11 @@ minimizedButton.Font = Enum.Font.SourceSansBold
 minimizedButton.Text = "👁"
 minimizedButton.TextColor3 = Color3.fromRGB(220, 220, 220)
 minimizedButton.TextSize = 24
-minimizedButton.Visible = false -- Sembunyikan saat awal
+minimizedButton.Visible = false
 minimizedButton.Draggable = true
 minimizedButton.Active = true
 local minimizedCorner = Instance.new("UICorner", minimizedButton)
-minimizedCorner.CornerRadius = UDim.new(1, 0) -- 1 = 100% radius (lingkaran)
+minimizedCorner.CornerRadius = UDim.new(1, 0)
 
 local titleBar = Instance.new("Frame")
 titleBar.Name = "TitleBar"
@@ -274,11 +384,10 @@ closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 local closeCorner = Instance.new("UICorner", closeButton)
 closeCorner.CornerRadius = UDim.new(0, 4)
 
--- Tombol Minimize
 local minimizeButton = Instance.new("TextButton")
 minimizeButton.Parent = titleBar
 minimizeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
-minimizeButton.Position = UDim2.new(1, -55, 0.5, -10) -- Geser ke kiri dari tombol close
+minimizeButton.Position = UDim2.new(1, -55, 0.5, -10)
 minimizeButton.Size = UDim2.new(0, 20, 0, 20)
 minimizeButton.Font = Enum.Font.SourceSansBold
 minimizeButton.Text = "—"
@@ -391,7 +500,6 @@ unviewButton.TextSize = 14
 local unviewCorner = Instance.new("UICorner", unviewButton)
 unviewCorner.CornerRadius = UDim.new(0, 4)
 
--- Frame Saran Pemain
 local suggestionsFrame = Instance.new("ScrollingFrame")
 suggestionsFrame.Name = "SuggestionsFrame"
 suggestionsFrame.Parent = spectateFrame
@@ -408,24 +516,139 @@ suggestionsCorner.CornerRadius = UDim.new(0, 4)
 local suggestionsListLayout = Instance.new("UIListLayout", suggestionsFrame)
 suggestionsListLayout.Padding = UDim.new(0, 2)
 
+
 -- =================================================================
--- SECTION 4: LOGIKA DAN INTERAKSI GUI
+-- SECTION 4: PEMBUATAN SPECTATE OVERLAY
+-- (Tidak ada perubahan)
+-- =================================================================
+
+SpectateOverlay = Instance.new("Frame")
+SpectateOverlay.Name = "SpectateNavOverlay"
+SpectateOverlay.Parent = screenGui
+SpectateOverlay.Visible = false
+SpectateOverlay.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+SpectateOverlay.BorderColor3 = Color3.fromRGB(85, 85, 127)
+SpectateOverlay.BorderSizePixel = 1
+SpectateOverlay.Position = UDim2.new(0.5, -90, 0.6, 0) 
+SpectateOverlay.Size = UDim2.new(0, 200, 0, 35)
+SpectateOverlay.Draggable = true
+SpectateOverlay.Active = true
+local overlayCorner = Instance.new("UICorner", SpectateOverlay)
+overlayCorner.CornerRadius = UDim.new(0, 8)
+
+local navLayout = Instance.new("UIListLayout", SpectateOverlay)
+navLayout.FillDirection = Enum.FillDirection.Horizontal
+navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+navLayout.Padding = UDim.new(0, 6)
+navLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+local leftButton = Instance.new("TextButton")
+leftButton.Name = "LeftButton"
+leftButton.Parent = SpectateOverlay
+leftButton.Size = UDim2.new(0.20, -5, 1, 0) 
+leftButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+leftButton.Font = Enum.Font.SourceSansBold
+leftButton.Text = "⬅️"
+leftButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+leftButton.TextSize = 18
+local leftCorner = Instance.new("UICorner", leftButton)
+leftCorner.CornerRadius = UDim.new(0, 4)
+
+local randomButton = Instance.new("TextButton")
+randomButton.Name = "RandomButton"
+randomButton.Parent = SpectateOverlay
+randomButton.Size = UDim2.new(0.30, -5, 1, 0) 
+randomButton.BackgroundColor3 = Color3.fromRGB(220, 160, 60)
+randomButton.Font = Enum.Font.SourceSansBold
+randomButton.Text = "Random"
+randomButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+randomButton.TextSize = 14
+local randomCorner = Instance.new("UICorner", randomButton)
+randomCorner.CornerRadius = UDim.new(0, 4)
+
+local teleportButton = Instance.new("TextButton")
+teleportButton.Name = "TeleportButton"
+teleportButton.Parent = SpectateOverlay
+teleportButton.Size = UDim2.new(0.30, -5, 1, 0) 
+teleportButton.BackgroundColor3 = Color3.fromRGB(50, 150, 255) 
+teleportButton.Font = Enum.Font.SourceSansBold
+teleportButton.Text = "Teleport"
+teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+teleportButton.TextSize = 14
+local teleportCorner = Instance.new("UICorner", teleportButton)
+teleportCorner.CornerRadius = UDim.new(0, 4)
+
+local rightButton = Instance.new("TextButton")
+rightButton.Name = "RightButton"
+rightButton.Parent = SpectateOverlay
+rightButton.Size = UDim2.new(0.20, -5, 1, 0) 
+rightButton.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+rightButton.Font = Enum.Font.SourceSansBold
+rightButton.Text = "➡️"
+rightButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+rightButton.TextSize = 18
+local rightCorner = Instance.new("UICorner", rightButton)
+rightCorner.CornerRadius = UDim.new(0, 4)
+
+
+-- =================================================================
+-- SECTION 5: LOGIKA DAN INTERAKSI GUI (Disesuaikan untuk Debounce Drag yang Akurat)
 -- =================================================================
 
 local function toggleMinimize()
+    if isDragDebouncing then return end -- Abaikan klik jika sedang dalam masa debounce
+
     isMinimized = not isMinimized
     if isMinimized then
-        -- Simpan posisi frame utama, lalu sembunyikan
         minimizedButton.Position = mainFrame.Position
         mainFrame.Visible = false
         minimizedButton.Visible = true
     else
-        -- Kembalikan posisi frame utama dari posisi tombol bulat, lalu tampilkan
         mainFrame.Position = minimizedButton.Position
         mainFrame.Visible = true
         minimizedButton.Visible = false
     end
 end
+
+-- LOGIKA DEBOUNCE DRAG YANG DIPERBAIKI
+-- Gunakan InputBegan dan InputEnded pada minimizedButton.
+-- Properti 'Draggable' dari tombol sudah menangani perpindahan posisi secara otomatis.
+
+-- Deteksi awal seret (drag)
+minimizedButton.InputBegan:Connect(function(input)
+    if isMinimized and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+        isCurrentlyDragging = true
+        -- Penting: Jika debounce sudah aktif, jangan reset, biarkan tetap aktif.
+        -- Jika belum aktif, kita tidak perlu melakukan apa-apa karena isDragDebouncing akan diatur pada InputEnded.
+    end
+end)
+
+-- Deteksi akhir seret (mouse/jari dilepas)
+minimizedButton.InputEnded:Connect(function(input)
+    if isMinimized and isCurrentlyDragging and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
+        isCurrentlyDragging = false
+        
+        -- Terapkan debounce setelah drag selesai, HANYA JIKA tombol sudah digeser
+        -- Karena tombol 'Draggable', kita asumsikan jika InputEnded dipicu, tombol mungkin telah dipindahkan.
+        
+        isDragDebouncing = true
+        task.delay(0.2, function() -- Waktu debounce 0.2 detik (dapat disesuaikan)
+            isDragDebouncing = false
+        end)
+    end
+end)
+
+-- PENTING: Gunakan MouseButton1Click yang secara intrinsik mendeteksi *tekan* vs. *seret*
+-- Tombol di Roblox secara otomatis memicu MouseButton1Click hanya jika tidak ada pergerakan posisi yang signifikan.
+-- Namun, untuk amannya, kita akan memfilter *klik* dengan *debounce* kita.
+minimizedButton.MouseButton1Click:Connect(function()
+    toggleMinimize()
+end)
+
+-- Kita hapus koneksi MouseButton1Click lama yang terpisah, dan biarkan koneksi yang di atas (yang memanggil toggleMinimize)
+-- tetap ada, tetapi fungsi toggleMinimize sekarang memfilter klik saat isDragDebouncing aktif.
+
+minimizeButton.MouseButton1Click:Connect(toggleMinimize) -- Tombol Minimize di Frame Utama TIDAK memiliki debounce drag
 
 function updateSuggestions()
     for _, child in pairs(suggestionsFrame:GetChildren()) do
@@ -481,6 +704,19 @@ spectateButton.MouseButton1Click:Connect(function()
     if target then spectatePlayer(target) end
     suggestionsFrame.Visible = false
 end)
+
+-- LOGIKA KLIK TOMBOL NAVIGASI OVERLAY
+leftButton.MouseButton1Click:Connect(function()
+    spectateNextPlayer(-1)
+end)
+
+rightButton.MouseButton1Click:Connect(function()
+    spectateNextPlayer(1)
+end)
+
+randomButton.MouseButton1Click:Connect(spectateRandomPlayer)
+teleportButton.MouseButton1Click:Connect(teleportToSpectatedPlayer)
+
 playerNameInput.Focused:Connect(updateSuggestions)
 playerNameInput:GetPropertyChangedSignal("Text"):Connect(updateSuggestions)
 playerNameInput.FocusLost:Connect(function(enterPressed)
@@ -492,13 +728,12 @@ playerNameInput.FocusLost:Connect(function(enterPressed)
     if suggestionsFrame.Visible then suggestionsFrame.Visible = false end
 end)
 
--- Menghubungkan tombol kontrol window (Close & Minimize)
-minimizeButton.MouseButton1Click:Connect(toggleMinimize)
-minimizedButton.MouseButton1Click:Connect(toggleMinimize)
-
 closeButton.MouseButton1Click:Connect(function()
     unview()
     TurnVisible()
     screenGui:Destroy()
 end)
 
+updateSpectatablePlayers()
+Players.PlayerAdded:Connect(updateSpectatablePlayers)
+Players.PlayerRemoving:Connect(updateSpectatablePlayers)
