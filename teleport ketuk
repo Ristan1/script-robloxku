@@ -385,7 +385,7 @@ mainGui.Parent = playerGui
 
 -- [DIUBAH & DIOPTIMALKAN] Loop ini sekarang HANYA berjalan jika GUI sedang aktif
 coroutine.wrap(function()
-	while task.wait(0.5) do
+	while task.wait(5.0) do
 		-- Hanya jalankan kode di bawah jika jendela GUI sedang terlihat/aktif
 		if mainGui.Enabled then
 			for _, entryFrame in ipairs(playerList:GetChildren()) do
