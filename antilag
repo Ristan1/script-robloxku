@@ -642,21 +642,21 @@ local function updateAntiLagButtonDisplay()
     
     -- V1 (Status Global)
     if _G.antiLagV1Active then
-        buttonV1.Text = "V1 AKTIF (Grafis Penuh)"
+        buttonV1.Text = "V1 AKTIF (kecil)"
         buttonV1.BackgroundColor3 = COLOR_GREEN_ACTIVE
     else
-        buttonV1.Text = "Anti-Lag V1 (Grafis Penuh)"
+        buttonV1.Text = "Anti-Lag V1 (kecil)"
         buttonV1.BackgroundColor3 = COLOR_BLUE_CALM
     end
 
     -- V2 (Status Global)
     if _G.antiLagV2Active then
-        buttonV2.Text = "V2 AKTIF (FPS BOOSTER)"
+        buttonV2.Text = "V2 AKTIF (sedang)"
         buttonV2.BackgroundColor3 = COLOR_GREEN_ACTIVE
         buttonV2.Active = false
         buttonV2.Selectable = false
     else
-        buttonV2.Text = "Anti-Lag V2 (FPS Booster)"
+        buttonV2.Text = "Anti-Lag V2 (sedang)"
         buttonV2.BackgroundColor3 = COLOR_BLUE_CALM
         buttonV2.Active = true
         buttonV2.Selectable = true
@@ -664,12 +664,12 @@ local function updateAntiLagButtonDisplay()
 
     -- V3 (Status Global)
     if _G.antiLagV3Active then
-        buttonV3.Text = "V3 AKTIF (BLOXX STORE)"
+        buttonV3.Text = "V3 AKTIF (ekstrim)"
         buttonV3.BackgroundColor3 = COLOR_GREEN_ACTIVE
         buttonV3.Active = false
         buttonV3.Selectable = false
     else
-        buttonV3.Text = "Anti-Lag V3 (FPS Booster BloxStore)"
+        buttonV3.Text = "Anti-Lag V3 (ekstrim)"
         buttonV3.BackgroundColor3 = COLOR_BLUE_CALM
         buttonV3.Active = true
         buttonV3.Selectable = true
