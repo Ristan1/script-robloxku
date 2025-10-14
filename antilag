@@ -1,6 +1,6 @@
 -- ====================================================================
--- SCRIPT UTAMA: KOMBINASI ANTI-LAG & BOOMBOX MUTE/UNMUTE
---              (FIXED: FITUR AKTIF TIDAK MATI SAAT GUI DITUTUP)
+-- SCRIPT UTAMA: KOMBINASI ANTI-LAG V1, V2, V3 & BOOMBOX MUTE/UNMUTE
+-- (FINAL FIXED: SEMUA STATUS PERSISTEN MESKI GUI DIBUKA/DITUTUP)
 -- ====================================================================
 
 -- ################
@@ -16,20 +16,31 @@ local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local MaterialService = game:GetService("MaterialService")
+local Terrain = Workspace:FindFirstChildOfClass("Terrain")
 
--- Variabel Status
-local antiLagV1Active = false -- Status untuk Anti-Lag V1 (Grafis Penuh)
-local antiLagV2Active = false -- Status untuk Anti-Lag V2 (FPS Booster)
-local isBoomboxMuted = false
+-- Variabel Status Global Persisten (BARU: V1 dan Boombox dipindahkan ke _G)
+if _G.antiLagV1Active == nil then _G.antiLagV1Active = false end -- Status V1
+if _G.isBoomboxMuted == nil then _G.isBoomboxMuted = false end    -- Status Boombox
+if _G.antiLagV2Active == nil then _G.antiLagV2Active = false end
+if _G.antiLagV3Active == nil then _G.antiLagV3Active = false end
+
+-- Variabel Status Lokal (Hanya untuk koneksi internal dan referensi)
 local activeConnections = {}
-local V1DescendantConnection -- Untuk koneksi DescendantAdded dari V1 baru
+local V1DescendantConnection 
+local V2_CONNECTION_DESCENDANT
+local V3_CONNECTION_DESCENDANT
 
--- Variabel Global FPS Booster (Diambil dari skrip baru)
+-- Variabel Global FPS Booster (Digunakan oleh V2)
 if not _G.Ignore then _G.Ignore = {} end
 if _G.SendNotifications == nil then _G.SendNotifications = true end
 if _G.ConsoleLogs == nil then _G.ConsoleLogs = false end
 if not _G.Settings then
-    _G.Settings = {
+    _G.Settings = {}
+end
+
+-- Pengaturan V2 (Jika belum ada)
+if not _G.Settings.V2 then
+    _G.Settings.V2 = {
         Players = {["Ignore Me"] = true, ["Ignore Others"] = true, ["Ignore Tools"] = true},
         Meshes = {NoMesh = false, NoTexture = false, Destroy = false},
         Images = {Invisible = true, Destroy = false},
@@ -45,6 +56,37 @@ if not _G.Settings then
         }
     }
 end
+
+-- Pengaturan V3 (Diambil dari skrip baru)
+if not _G.Settings.V3 then
+    _G.Settings.V3 = {
+        Graphics = {
+            FPS = 120,
+            QualityLevel = 1,
+            MeshPartDetail = 1,
+            WaterQuality = 0,
+            ShadowQuality = 0,
+            MaterialQuality = 0,
+            RemoveSky = true,
+            RemoveAtmosphere = true,
+            RemoveClouds = true
+        },
+        Optimizations = {
+            RemoveClothing = true,
+            RemoveAccessories = true,
+            RemoveParticles = true,
+            RemoveEffects = true,
+            RemoveTextures = true,
+            RemoveMeshes = false,
+            RemoveExplosions = true,
+            RemovePostEffects = true,
+            RemoveLights = true,
+            RemoveDecals = true
+        },
+        Notifications = true
+    }
+end
+
 
 -- Warna Kunci
 local COLOR_BLUE_CALM = Color3.fromRGB(59, 115, 173)
@@ -65,11 +107,10 @@ local function kirimNotifikasi(judul, teks, durasi)
 end
 
 -- ####################################
--- III. FUNGSI ANTI-LAG V1 (LAMA)
+-- III. FUNGSI ANTI-LAG V1
 -- ####################################
 
 local function applyAntiLagV1()
-    local Terrain = Workspace:FindFirstChildWhichIsA("Terrain")
     if Terrain then
         Terrain.WaterWaveSize = 0
         Terrain.WaterWaveSpeed = 0
@@ -80,7 +121,7 @@ local function applyAntiLagV1()
     Lighting.GlobalShadows = false
     Lighting.FogEnd = 9e9
     Lighting.FogStart = 9e9
-    pcall(function() settings().Rendering.QualityLevel = 1 end) -- Level 1
+    pcall(function() settings().Rendering.QualityLevel = 1 end)
     
     for _, v in pairs(game:GetDescendants()) do
         if v:IsA("BasePart") then
@@ -98,9 +139,10 @@ local function applyAntiLagV1()
         end
     end
     
-    if antiLagV1Active and not V1DescendantConnection then
+    -- Menggunakan _G.antiLagV1Active
+    if _G.antiLagV1Active and not V1DescendantConnection then
         V1DescendantConnection = Workspace.DescendantAdded:Connect(function(child)
-            if not antiLagV1Active then return end
+            if not _G.antiLagV1Active then return end
             task.spawn(function()
                 if child:IsA("BasePart") then
                     child.CastShadow = false
@@ -125,35 +167,29 @@ local function restoreGraphicsV1()
     pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level10 end)
 
     if V1DescendantConnection and V1DescendantConnection.Connected then
-        -- Hapus koneksi V1 DescendantAdded saat dinonaktifkan
         V1DescendantConnection:Disconnect()
         V1DescendantConnection = nil
-        for i, conn in ipairs(activeConnections) do
-            if conn == V1DescendantConnection then
-                table.remove(activeConnections, i)
-                break
-            end
-        end
+        -- Tidak perlu menghapus dari activeConnections karena V1DescendantConnection bisa aktif/nonaktif
     end
 end
 
 local function toggleAntiLagV1(shouldActivate)
+    -- Menggunakan status global
     if shouldActivate then
-        if antiLagV1Active then return end
-        antiLagV1Active = true
+        if _G.antiLagV1Active then return end
+        _G.antiLagV1Active = true
         applyAntiLagV1()
         kirimNotifikasi("Anti-Lag V1 Diaktifkan", "Mode performa penuh telah aktif (Grafis Rendah, Efek Mati).", 7)
     else
-        if not antiLagV1Active then return end
-        antiLagV1Active = false
+        if not _G.antiLagV1Active then return end
+        _G.antiLagV1Active = false
         restoreGraphicsV1()
         kirimNotifikasi("Anti-Lag V1 Dinonaktifkan", "Pengaturan grafis dasar dipulihkan.", 5)
     end
 end
 
-
 -- ####################################
--- IV. FUNGSI ANTI-LAG V2 (FPS BOOSTER BARU)
+-- IV. FUNGSI ANTI-LAG V2 (Status Global digunakan)
 -- ####################################
 
 local ME = Players.LocalPlayer
@@ -171,58 +207,59 @@ local function DescendantOfIgnore(Inst)
     end
     return false
 end
-local function CheckIfBad(Inst)
-    local isIgnored = (_G.Settings.Players["Ignore Others"] and not PartOfCharacter(Inst))
-                      or (_G.Settings.Players["Ignore Me"] and ME.Character and not Inst:IsDescendantOf(ME.Character))
-                      or (_G.Settings.Players["Ignore Tools"] and not Inst:IsA("BackpackItem") and not Inst:FindFirstAncestorWhichIsA("BackpackItem"))
+local function CheckIfBadV2(Inst)
+    local Settings = _G.Settings.V2
+    local isIgnored = (Settings.Players["Ignore Others"] and not PartOfCharacter(Inst))
+                      or (Settings.Players["Ignore Me"] and ME.Character and not Inst:IsDescendantOf(ME.Character))
+                      or (Settings.Players["Ignore Tools"] and not Inst:IsA("BackpackItem") and not Inst:FindFirstAncestorWhichIsA("BackpackItem"))
                       or (_G.Ignore and not table.find(_G.Ignore, Inst) and not DescendantOfIgnore(Inst))
 
     if not Inst:IsDescendantOf(Players) and not isIgnored then
         if Inst:IsA("DataModelMesh") then
             if Inst:IsA("SpecialMesh") then
-                if _G.Settings.Meshes.NoMesh then Inst.MeshId = "" end
-                if _G.Settings.Meshes.NoTexture then Inst.TextureId = "" end
+                if Settings.Meshes.NoMesh then Inst.MeshId = "" end
+                if Settings.Meshes.NoTexture then Inst.TextureId = "" end
             end
-            if _G.Settings.Meshes.Destroy or _G.Settings["No Meshes"] then Inst:Destroy() end
+            if Settings.Meshes.Destroy or Settings["No Meshes"] then Inst:Destroy() end
         elseif Inst:IsA("FaceInstance") then
-            if _G.Settings.Images.Invisible then Inst.Transparency = 1; Inst.Shiny = 1 end
-            if _G.Settings.Images.LowDetail then Inst.Shiny = 1 end
-            if _G.Settings.Images.Destroy then Inst:Destroy() end
+            if Settings.Images.Invisible then Inst.Transparency = 1; Inst.Shiny = 1 end
+            if Settings.Images.LowDetail then Inst.Shiny = 1 end
+            if Settings.Images.Destroy then Inst:Destroy() end
         elseif Inst:IsA("ShirtGraphic") then
-            if _G.Settings.Images.Invisible then Inst.Graphic = "" end
-            if _G.Settings.Images.Destroy then Inst:Destroy() end
+            if Settings.Images.Invisible then Inst.Graphic = "" end
+            if Settings.Images.Destroy then Inst:Destroy() end
         elseif table.find(CanBeEnabled, Inst.ClassName) then
-            if _G.Settings.Particles.Invisible then Inst.Enabled = false end
-            if _G.Settings.Particles.Destroy then Inst:Destroy() end
-        elseif Inst:IsA("PostEffect") and _G.Settings.Other["No Camera Effects"] then Inst.Enabled = false
+            if Settings.Particles.Invisible then Inst.Enabled = false end
+            if Settings.Particles.Destroy then Inst:Destroy() end
+        elseif Inst:IsA("PostEffect") and Settings.Other["No Camera Effects"] then Inst.Enabled = false
         elseif Inst:IsA("Explosion") then
-            if _G.Settings.Explosions.Smaller then Inst.BlastPressure = 1; Inst.BlastRadius = 1 end
-            if _G.Settings.Explosions.Invisible then Inst.BlastPressure = 1; Inst.BlastRadius = 1; Inst.Visible = false end
-            if _G.Settings.Explosions.Destroy then Inst:Destroy() end
+            if Settings.Explosions.Smaller then Inst.BlastPressure = 1; Inst.BlastRadius = 1 end
+            if Settings.Explosions.Invisible then Inst.BlastPressure = 1; Inst.BlastRadius = 1; Inst.Visible = false end
+            if Settings.Explosions.Destroy then Inst:Destroy() end
         elseif Inst:IsA("Clothing") or Inst:IsA("SurfaceAppearance") or Inst:IsA("BaseWrap") then
-            if _G.Settings.Other["No Clothes"] then Inst:Destroy() end
+            if Settings.Other["No Clothes"] then Inst:Destroy() end
         elseif Inst:IsA("BasePart") and not Inst:IsA("MeshPart") then
-            if _G.Settings.Other["Low Quality Parts"] then Inst.Material = Enum.Material.Plastic; Inst.Reflectance = 0 end
+            if Settings.Other["Low Quality Parts"] then Inst.Material = Enum.Material.Plastic; Inst.Reflectance = 0 end
         elseif Inst:IsA("TextLabel") and Inst:IsDescendantOf(workspace) then
-            if _G.Settings.TextLabels.LowerQuality then Inst.Font = Enum.Font.SourceSans; Inst.TextScaled = false; Inst.RichText = false; Inst.TextSize = 14 end
-            if _G.Settings.TextLabels.Invisible then Inst.Visible = false end
-            if _G.Settings.TextLabels.Destroy then Inst:Destroy() end
+            if Settings.TextLabels.LowerQuality then Inst.Font = Enum.Font.SourceSans; Inst.TextScaled = false; Inst.RichText = false; Inst.TextSize = 14 end
+            if Settings.TextLabels.Invisible then Inst.Visible = false end
+            if Settings.TextLabels.Destroy then Inst:Destroy() end
         elseif Inst:IsA("Model") then
-            if _G.Settings.Other["Low Quality Models"] then Inst.LevelOfDetail = 1 end
+            if Settings.Other["Low Quality Models"] then Inst.LevelOfDetail = 1 end
         elseif Inst:IsA("MeshPart") then
-            if _G.Settings.MeshParts.LowerQuality then Inst.RenderFidelity = 2; Inst.Reflectance = 0; Inst.Material = Enum.Material.Plastic end
-            if _G.Settings.MeshParts.Invisible then Inst.Transparency = 1; Inst.RenderFidelity = 2; Inst.Reflectance = 0; Inst.Material = Enum.Material.Plastic end
-            if _G.Settings.MeshParts.NoTexture then Inst.TextureID = "" end
-            if _G.Settings.MeshParts.NoMesh then Inst.MeshId = "" end
-            if _G.Settings.MeshParts.Destroy then Inst:Destroy() end
+            if Settings.MeshParts.LowerQuality then Inst.RenderFidelity = 2; Inst.Reflectance = 0; Inst.Material = Enum.Material.Plastic end
+            if Settings.MeshParts.Invisible then Inst.Transparency = 1; Inst.RenderFidelity = 2; Inst.Reflectance = 0; Inst.Material = Enum.Material.Plastic end
+            if Settings.MeshParts.NoTexture then Inst.TextureID = "" end
+            if Settings.MeshParts.NoMesh then Inst.MeshId = "" end
+            if Settings.MeshParts.Destroy then Inst:Destroy() end
         end
     end
 end
 
-local V2_CONNECTION_DESCENDANT
 local function aktifkanAntiLagV2()
-    if antiLagV2Active then return end
-    antiLagV2Active = true
+    if _G.antiLagV2Active then return end
+    _G.antiLagV2Active = true 
+    local Settings = _G.Settings.V2
     
     if not game:IsLoaded() then
         repeat task.wait() until game:IsLoaded()
@@ -230,38 +267,35 @@ local function aktifkanAntiLagV2()
     
     -- Penerapan Global Settings
     coroutine.wrap(pcall)(function()
-        if _G.Settings.Other["Low Water Graphics"] then
-            local terrain = Workspace:FindFirstChildOfClass("Terrain")
-            if terrain then
-                terrain.WaterWaveSize = 0; terrain.WaterWaveSpeed = 0; terrain.WaterReflectance = 0; terrain.WaterTransparency = 0
-                kirimNotifikasi("V2 Booster", "Low Water Graphics Enabled", 5)
-            end
+        if Settings.Other["Low Water Graphics"] and Terrain then
+            Terrain.WaterWaveSize = 0; Terrain.WaterWaveSpeed = 0; Terrain.WaterReflectance = 0; Terrain.WaterTransparency = 0
+            kirimNotifikasi("V2 Booster", "Low Water Graphics Enabled", 5)
         end
     end)
     coroutine.wrap(pcall)(function()
-        if _G.Settings.Other["No Shadows"] then
+        if Settings.Other["No Shadows"] then
             Lighting.GlobalShadows = false; Lighting.FogEnd = 9e9; Lighting.ShadowSoftness = 0
             kirimNotifikasi("V2 Booster", "No Shadows Enabled", 5)
         end
     end)
     coroutine.wrap(pcall)(function()
-        if _G.Settings.Other["Low Rendering"] then
+        if Settings.Other["Low Rendering"] then
             settings().Rendering.QualityLevel = 1
             settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04
             kirimNotifikasi("V2 Booster", "Low Rendering Enabled", 5)
         end
     end)
     coroutine.wrap(pcall)(function()
-        if _G.Settings.Other["Reset Materials"] then
+        if Settings.Other["Reset Materials"] then
             for i, v in pairs(MaterialService:GetChildren()) do v:Destroy() end
             MaterialService.Use2022Materials = false
             kirimNotifikasi("V2 Booster", "Reset Materials Enabled", 5)
         end
     end)
     coroutine.wrap(pcall)(function()
-        if _G.Settings.Other["FPS Cap"] then
+        if Settings.Other["FPS Cap"] then
             if setfpscap then
-                setfpscap(1e6) -- Uncap FPS
+                setfpscap(1e6)
                 kirimNotifikasi("V2 Booster", "FPS Uncapped", 5)
             else
                 kirimNotifikasi("V2 Booster", "FPS Cap Failed", 5)
@@ -269,7 +303,7 @@ local function aktifkanAntiLagV2()
         end
     end)
     coroutine.wrap(pcall)(function()
-        if _G.Settings.Other["ClearNilInstances"] and getnilinstances then
+        if Settings.Other["ClearNilInstances"] and getnilinstances then
             for _, v in pairs(getnilinstances()) do pcall(v.Destroy, v) end
             kirimNotifikasi("V2 Booster", "Cleared Nil Instances", 5)
         end
@@ -279,13 +313,14 @@ local function aktifkanAntiLagV2()
     local descendants = game:GetDescendants()
     kirimNotifikasi("V2 Booster", "Checking " .. #descendants .. " Instances...", 10)
     for i, v in pairs(descendants) do
-        CheckIfBad(v)
+        CheckIfBadV2(v)
     end
 
     -- Koneksi untuk Instance Baru
     V2_CONNECTION_DESCENDANT = game.DescendantAdded:Connect(function(value)
+        if not _G.antiLagV2Active then return end
         task.wait(_G.LoadedWait or 0.1)
-        CheckIfBad(value)
+        CheckIfBadV2(value)
     end)
     table.insert(activeConnections, V2_CONNECTION_DESCENDANT)
     
@@ -293,7 +328,178 @@ local function aktifkanAntiLagV2()
 end
 
 -- ####################################
--- V. FUNGSI MUSIK/BOOMBOX (TIDAK DIUBAH)
+-- V. FUNGSI ANTI-LAG V3 (Status Global digunakan)
+-- ####################################
+
+local function showV3Notification(title, text, duration)
+    if not _G.Settings.V3.Notifications then return end
+    
+    StarterGui:SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = duration or 5,
+        Button1 = "Okay"
+    })
+end
+
+local function optimizeGraphicsV3()
+    local Settings = _G.Settings.V3.Graphics
+    showV3Notification("FPS Booster V3", "Starting optimizations...", 2)
+    task.wait(0.5)
+    
+    -- Set FPS
+    local success, err = pcall(function()
+        if setfpscap then
+            showV3Notification("FPS Booster V3", "Setting FPS to " .. Settings.FPS, 2)
+            setfpscap(Settings.FPS)
+        else
+            showV3Notification("FPS Booster V3", "FPS Cap (setfpscap) not supported by executor.", 3)
+        end
+    end)
+    if not success then
+        showV3Notification("FPS Booster V3", "Error setting FPS: " .. err, 3)
+    end
+    task.wait(0.5)
+    
+    -- Optimize rendering
+    showV3Notification("FPS Booster V3", "Optimizing rendering quality...", 2)
+    settings().Rendering.QualityLevel = Settings.QualityLevel
+    settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+    task.wait(0.5)
+    
+    -- Optimize lighting
+    showV3Notification("FPS Booster V3", "Removing shadows and fog...", 2)
+    Lighting.GlobalShadows = false
+    Lighting.ShadowSoftness = 0
+    Lighting.FogEnd = 9e9
+    task.wait(0.5)
+    
+    -- Optimize terrain
+    if Terrain then
+        showV3Notification("FPS Booster V3", "Optimizing water effects...", 2)
+        Terrain.WaterWaveSize = Settings.WaterQuality
+        Terrain.WaterWaveSpeed = 0
+        Terrain.WaterReflectance = 0
+        Terrain.WaterTransparency = 0
+        pcall(sethiddenproperty, Terrain, "Decoration", false)
+        task.wait(0.5)
+    end
+
+    -- Aggressively remove Sky, Atmosphere, and Clouds
+    if Settings.RemoveSky then
+        showV3Notification("FPS Booster V3", "Removing sky elements...", 2)
+        for _, v in pairs(Lighting:GetDescendants()) do
+            if v:IsA("Sky") or v:IsA("Atmosphere") or v:IsA("Clouds") then v:Destroy() end
+        end
+        for _, v in pairs(Workspace:GetDescendants()) do
+            if v:IsA("Sky") or v:IsA("Atmosphere") or v:IsA("Clouds") then v:Destroy() end
+        end
+        task.wait(0.5)
+    end
+end
+
+local function optimizeInstanceV3(instance)
+    if not instance or not _G.antiLagV3Active then return end
+    local Settings = _G.Settings.V3.Optimizations
+    
+    if Settings.RemoveClothing and (instance:IsA("Clothing") or instance:IsA("SurfaceAppearance")) then
+        instance:Destroy()
+        return
+    end
+    
+    if Settings.RemoveParticles and (instance:IsA("ParticleEmitter") or instance:IsA("Trail") or instance:IsA("Smoke") or instance:IsA("Fire") or instance:IsA("Sparkles")) then
+        instance.Enabled = false
+        return
+    end
+    
+    if Settings.RemoveTextures and instance:IsA("Texture") then
+        instance.Transparency = 1
+        return
+    end
+    
+    if Settings.RemoveMeshes and instance:IsA("SpecialMesh") then
+        instance.MeshId = ""
+        return
+    end
+    
+    if Settings.RemoveExplosions and instance:IsA("Explosion") then
+        instance.BlastPressure = 1
+        instance.BlastRadius = 1
+        instance.Visible = false
+        return
+    end
+    
+    if Settings.RemovePostEffects and instance:IsA("PostEffect") then
+        instance.Enabled = false
+        return
+    end
+
+    if Settings.RemoveLights and (instance:IsA("SpotLight") or instance:IsA("PointLight") or instance:IsA("SurfaceLight")) then
+        instance.Enabled = false
+        instance:Destroy()
+        return
+    end
+
+    if Settings.RemoveEffects and instance:IsA("Beam") then
+        instance.Enabled = false
+        return
+    end
+
+    if Settings.RemoveDecals and instance:IsA("Decal") then
+        instance.Transparency = 1
+        instance:Destroy()
+        return
+    end
+    
+    if instance:IsA("BasePart") then
+        instance.Material = Enum.Material.Plastic
+        instance.Reflectance = 0
+    end
+
+    if _G.Settings.V3.Graphics.RemoveSky and (instance:IsA("Sky") or instance:IsA("Atmosphere") or instance:IsA("Clouds")) then
+        instance:Destroy()
+        return
+    end
+end
+
+local function aktifkanAntiLagV3()
+    if _G.antiLagV3Active then return end
+    _G.antiLagV3Active = true
+
+    showV3Notification("FPS Booster V3", "Loading FPS Booster...", math.huge)
+    task.wait(1)
+
+    local success, err = pcall(function()
+        optimizeGraphicsV3()
+        
+        -- Optimize existing instances
+        showV3Notification("FPS Booster V3", "Optimizing existing game objects...", 2)
+        for _, instance in pairs(game:GetDescendants()) do
+            optimizeInstanceV3(instance)
+        end
+        task.wait(0.5)
+        
+        -- Optimize new instances
+        showV3Notification("FPS Booster V3", "Monitoring new game objects...", 2)
+        V3_CONNECTION_DESCENDANT = game.DescendantAdded:Connect(optimizeInstanceV3)
+        table.insert(activeConnections, V3_CONNECTION_DESCENDANT)
+        task.wait(0.5)
+        
+        -- Final progress notification
+        showV3Notification("FPS Booster V3", "Optimizations completed successfully!", 2)
+        task.wait(2)
+
+        showV3Notification("FPS Booster V3", "FPS BOOSTED BY BLOXSTORE", 7)
+
+    end)
+    if not success then
+        _G.antiLagV3Active = false
+        showV3Notification("FPS Booster V3", "Script Failed: " .. err, 5)
+    end
+end
+
+-- ####################################
+-- VI. FUNGSI MUSIK/BOOMBOX (Status Global digunakan)
 -- ####################################
 
 local BOOMBOX_KEYWORDS = {"boombox", "radio", "music", "audio", "sound"}
@@ -316,7 +522,7 @@ local function setBoomboxVolume(descendant, volume)
 end
 
 local function toggleBoombox(shouldMute)
-    isBoomboxMuted = shouldMute
+    _G.isBoomboxMuted = shouldMute -- Tulis status ke Global
     local targetVolume = shouldMute and 0 or 1
     
     for _, obj in ipairs(game:GetDescendants()) do
@@ -326,16 +532,20 @@ local function toggleBoombox(shouldMute)
     game:GetService("SoundService").RespectFilteringEnabled = false 
 end
 
+-- Koneksi DescendantAdded Boombox harus selalu ada dan membaca status Global
 local descendantAddedConnectionBoombox = game.DescendantAdded:Connect(function(descendant)
-    if isBoomboxMuted then
+    if _G.isBoomboxMuted then -- Baca status dari Global
         setBoomboxVolume(descendant, 0)
     end
 end)
 table.insert(activeConnections, descendantAddedConnectionBoombox)
 
+-- APLIKASIKAN STATUS BOOMBOX SAAT SCRIPT DIMUAT ULANG
+toggleBoombox(_G.isBoomboxMuted)
+
 
 -- ####################################
--- VI. PEMBUATAN GUI UTAMA
+-- VII. PEMBUATAN GUI UTAMA
 -- ####################################
 
 local screenGui = Instance.new("ScreenGui")
@@ -344,8 +554,8 @@ screenGui.Parent = PlayerGui
 screenGui.ResetOnSpawn = false
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 260, 0, 205) 
-mainFrame.Position = UDim2.new(0.5, -130, 0.5, -102.5) 
+mainFrame.Size = UDim2.new(0, 260, 0, 258)
+mainFrame.Position = UDim2.new(0.5, -130, 0.5, -129) 
 mainFrame.BackgroundColor3 = COLOR_FRAME_BG 
 mainFrame.BorderSizePixel = 1
 mainFrame.BorderColor3 = COLOR_TITLE_BG
@@ -409,15 +619,17 @@ end
 
 local buttonV1 = createButton("ButtonV1", "Anti-Lag V1 (Grafis Penuh)")
 local buttonV2 = createButton("ButtonV2", "Anti-Lag V2 (FPS Booster)")
+local buttonV3 = createButton("ButtonV3", "Anti-Lag V3 (FPS Booster BloxStore)")
 local buttonBoombox = createButton("ButtonBoombox", "Musik & Boombox: MUTE")
 
 
 -- ####################################
--- VII. KONEKSI EVENT
+-- VIII. KONEKSI EVENT
 -- ####################################
 
 local function updateBoomboxButtonDisplay()
-    if isBoomboxMuted then
+    -- Baca status dari Global
+    if _G.isBoomboxMuted then
         buttonBoombox.Text = "Musik & Boombox: UNMUTE"
         buttonBoombox.BackgroundColor3 = COLOR_GREEN_ACTIVE
     else
@@ -427,7 +639,9 @@ local function updateBoomboxButtonDisplay()
 end
 
 local function updateAntiLagButtonDisplay()
-    if antiLagV1Active then
+    
+    -- V1 (Status Global)
+    if _G.antiLagV1Active then
         buttonV1.Text = "V1 AKTIF (Grafis Penuh)"
         buttonV1.BackgroundColor3 = COLOR_GREEN_ACTIVE
     else
@@ -435,7 +649,8 @@ local function updateAntiLagButtonDisplay()
         buttonV1.BackgroundColor3 = COLOR_BLUE_CALM
     end
 
-    if antiLagV2Active then
+    -- V2 (Status Global)
+    if _G.antiLagV2Active then
         buttonV2.Text = "V2 AKTIF (FPS BOOSTER)"
         buttonV2.BackgroundColor3 = COLOR_GREEN_ACTIVE
         buttonV2.Active = false
@@ -446,13 +661,27 @@ local function updateAntiLagButtonDisplay()
         buttonV2.Active = true
         buttonV2.Selectable = true
     end
+
+    -- V3 (Status Global)
+    if _G.antiLagV3Active then
+        buttonV3.Text = "V3 AKTIF (BLOXX STORE)"
+        buttonV3.BackgroundColor3 = COLOR_GREEN_ACTIVE
+        buttonV3.Active = false
+        buttonV3.Selectable = false
+    else
+        buttonV3.Text = "Anti-Lag V3 (FPS Booster BloxStore)"
+        buttonV3.BackgroundColor3 = COLOR_BLUE_CALM
+        buttonV3.Active = true
+        buttonV3.Selectable = true
+    end
 end
 
 updateBoomboxButtonDisplay()
 updateAntiLagButtonDisplay()
 
 buttonV1.MouseButton1Click:Connect(function()
-    if antiLagV1Active then
+    -- Menggunakan status Global
+    if _G.antiLagV1Active then
         toggleAntiLagV1(false)
     else
         toggleAntiLagV1(true)
@@ -461,13 +690,22 @@ buttonV1.MouseButton1Click:Connect(function()
 end)
 
 buttonV2.MouseButton1Click:Connect(function()
-    if antiLagV2Active then return end
-    aktifkanAntiLagV2()
+    if not _G.antiLagV2Active then
+        aktifkanAntiLagV2()
+    end
+    updateAntiLagButtonDisplay()
+end)
+
+buttonV3.MouseButton1Click:Connect(function()
+    if not _G.antiLagV3Active then
+        aktifkanAntiLagV3()
+    end
     updateAntiLagButtonDisplay()
 end)
 
 buttonBoombox.MouseButton1Click:Connect(function()
-    if isBoomboxMuted then
+    -- Menggunakan status Global
+    if _G.isBoomboxMuted then
         toggleBoombox(false)
         kirimNotifikasi("Boombox", "Musik Boombox Dinyalakan 🔊", 3)
     else
@@ -478,10 +716,6 @@ buttonBoombox.MouseButton1Click:Connect(function()
 end)
 
 closeButton.MouseButton1Click:Connect(function()
-    -- !!! PERBAIKAN DITERAPKAN DI SINI !!!
-    -- Skrip yang sedang aktif TIDAK akan dimatikan.
-    
-    -- Hanya hancurkan GUI. Koneksi event (Anti-Lag V1/V2/Boombox) akan terus berjalan
-    -- karena sudah disimpulkan di luar fungsi ini dan tidak diputus secara paksa.
+    -- Semua status (V1, V2, V3, Boombox) persisten.
     screenGui:Destroy()
 end)
