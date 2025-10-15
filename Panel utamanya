@@ -33,6 +33,7 @@ local ScriptsToLoad = {
     {Name = "Lari Cepat",    URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/lari%20cepat"},
     {Name = "Tembus Tembok dan lampu",    URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Tembus%20tembok%20dan%20lampu"},
     {Name = "Infinite Yeild",    URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/infiniteyield"},
+    {Name = "Private Server",    URL = "https://pastefy.app/FE6yAQW4/raw"},
 }
 
 --================================================================
