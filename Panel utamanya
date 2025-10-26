@@ -579,7 +579,7 @@ local function createWeaponWheel()
     local tweenIn = TweenService:Create(notif, TweenInfo.new(0.5), {Position = UDim2.new(0.5, 0, 0, 20)})
     tweenIn:Play()
     
-    task.wait(4)
+    task.wait(6)
     local tweenOut = TweenService:Create(notif, TweenInfo.new(0.5), {Position = UDim2.new(0.5, 0, 0, -60)})
     tweenOut:Play()
     tweenOut.Completed:Wait()
