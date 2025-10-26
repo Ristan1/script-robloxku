@@ -1,9 +1,8 @@
 --================================================================
--- GTA 5 Style Weapon Wheel Script Loader - Mobile Version (MODIFIED V18 - FIX SUARA KLIK)
+-- GTA 5 Style Weapon Wheel Script Loader - Mobile Version (MODIFIED V22 - FIX Double Click/Sound)
 -- Modifikasi: 
--- 1. MENGGANTI SOUND ID sesuai permintaan: 126903179934303.
--- 2. Menambahkan suara saat tombol DITEKAN (MouseButton1Click / TouchTap) dan HOVER (MouseEnter).
--- 3. Mempertahankan DIMMER_TRANSPARENCY = 1 (Invisible).
+-- 1. MENAMBAHKAN DEBOUNCE: Menerapkan flag `isSelectionDebounced` di fungsi klik item untuk mencegah eksekusi ganda (double-click/double-sound) saat MouseButton1Click dan TouchTap terpicu bersamaan.
+-- 2. Mempertahankan mekanisme penutupan wheel yang cepat (0.1 detik) dan memainkan suara buka/tutup yang benar.
 -- Dibuat oleh Ristan, Dimodifikasi oleh Gemini & Claude, Disesuaikan oleh Gemini
 --================================================================
 
@@ -17,8 +16,11 @@ local Mouse = Player:GetMouse()
 --================================================================
 -- KONFIGURASI ENHANCEMENTS BARU
 --================================================================
--- ID Suara Baru dari pengguna: 126903179934303. Pastikan Sound ID benar dan publik.
-local SELECTION_SOUND_ID = "rbxassetid://6042054037" 
+-- ID Suara Baru dari pengguna: 
+local SELECTION_SOUND_ID = "rbxassetid://6042054037" -- Suara Hover/Klik
+local OPEN_SOUND_ID = "rbxassetid://1293433423"      -- Suara BUKA (New)
+local CLOSE_SOUND_ID = "rbxassetid://116271631941040" -- Suara TUTUP (New)
+local CLOSE_SOUND_VOLUME = 1                         -- Volume penuh untuk suara tutup (New)
 local DIMMER_TRANSPARENCY = 1 -- Sesuai permintaan: Transparansi 1 = sepenuhnya tidak terlihat (invisible).
 local DEFAULT_CENTER_TEXT = "PILIH\nSCRIPT"
 
@@ -132,6 +134,20 @@ local function createWeaponWheel()
     selectionSound.Parent = screenGui
     selectionSound.Volume = 0.6
     
+    -- Sound Buka (OPEN)
+    local openSound = Instance.new("Sound")
+    openSound.Name = "OpenSound"
+    openSound.SoundId = OPEN_SOUND_ID
+    openSound.Parent = screenGui
+    openSound.Volume = 0.8 -- Volume wajar
+    
+    -- Sound Tutup (CLOSE)
+    local closeSound = Instance.new("Sound")
+    closeSound.Name = "CloseSound"
+    closeSound.SoundId = CLOSE_SOUND_ID
+    closeSound.Parent = screenGui
+    closeSound.Volume = CLOSE_SOUND_VOLUME -- Volume penuh
+    
     -- TOMBOL MINIMIZE BULAT 
     local minimizeButton = Instance.new("TextButton")
     minimizeButton.Name = "MinimizeButton"
@@ -229,6 +245,73 @@ local function createWeaponWheel()
     
     local radius = 90 
     
+    -- FUNGSI KONTROL INTERAKSI MOUSE (Didefinisikan lebih awal)
+    local function setWheelActive(isActive)
+        for _, btn in ipairs(mainWheelButtons) do
+            btn.Active = isActive
+        end
+        for _, btn in ipairs(outerWheelButtons) do
+            btn.Active = isActive
+        end
+        centerCircle.Active = isActive
+    end
+
+    -- FUNGSI ANIMASI DAN LOGIKA BUKA/TUTUP (Didefinisikan lebih awal)
+    local isWheelOpen = false
+    local function toggleWheel()
+        isWheelOpen = not isWheelOpen
+        
+        if isWheelOpen then
+            -- Buka: Dimmer -> Roda Utama -> Roda Kedua
+            openSound:Play() -- Suara BUKA
+            setWheelActive(true)
+            
+            -- 1. Dimmer Background (Muncul Duluan)
+            dimmerFrame.Visible = true
+            TweenService:Create(dimmerFrame, TweenInfo.new(0.3, Enum.EasingStyle.Linear), {BackgroundTransparency = DIMMER_TRANSPARENCY}):Play()
+
+            -- 2. Roda Utama 
+            wheelContainer.Size = UDim2.new(0, 0, 0, 0)
+            wheelContainer.Visible = true
+            local tweenInfoMain = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+            TweenService:Create(wheelContainer, tweenInfoMain, {Size = UDim2.new(0, 250, 0, 250)}):Play() 
+            
+            -- 3. Roda Kedua (Terlambat Muncul)
+            if #ScriptsInMore > 0 then
+                task.wait(0.15) 
+                outerWheelContainer.Size = UDim2.new(0, 0, 0, 0)
+                outerWheelContainer.Visible = true 
+                local tweenInfoOuter = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+                TweenService:Create(outerWheelContainer, tweenInfoOuter, {Size = UDim2.new(0, 400, 0, 400)}):Play()
+            end
+            
+        else
+            -- Tutup: Roda -> Dimmer
+            closeSound:Play() -- Suara TUTUP
+            setWheelActive(false) 
+            
+            local tweenInfoOut = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+            
+            -- 1. Tutup Roda Utama & Kedua
+            TweenService:Create(wheelContainer, tweenInfoOut, {Size = UDim2.new(0, 0, 0, 0)}):Play()
+            local tweenOuter = TweenService:Create(outerWheelContainer, tweenInfoOut, {Size = UDim2.new(0, 0, 0, 0)})
+            tweenOuter:Play()
+            
+            -- 2. Tutup Dimmer
+            task.wait(0.05)
+            local tweenDimmer = TweenService:Create(dimmerFrame, tweenInfoOut, {BackgroundTransparency = 1})
+            tweenDimmer:Play()
+            
+            tweenDimmer.Completed:Wait() 
+            wheelContainer.Visible = false
+            outerWheelContainer.Visible = false
+            dimmerFrame.Visible = false 
+        end
+    end
+    
+    -- VARIABEL DEBOUNCE GLOBAL UNTUK MENCEGAH DOUBLE-KLIK PADA SELEKSI ITEM
+    local isSelectionDebounced = false
+
     -- Logika untuk item script di roda utama
     local numScripts = #ScriptsInWheel
     local angleStep = (2 * math.pi) / numScripts
@@ -290,27 +373,37 @@ local function createWeaponWheel()
         
         table.insert(mainWheelButtons, button)
         
-        -- === LOGIKA PADA SAAT DI KLIK/TAP ===
+        -- === LOGIKA PADA SAAT DI KLIK/TAP (DEBOUNCE DITERAPKAN) ===
         local function onSelectionClick()
-            selectionSound:Play() -- SUARA SAAT DIPILIH
+            if isSelectionDebounced then return end -- KELUAR jika sedang dalam proses
+            isSelectionDebounced = true 
+            
+            selectionSound:Play() -- SUARA SAAT DIPILIH (Hanya sekali)
             centerLabel.Text = "Loading..."
-            if loadScriptFromURL(scriptInfo.URL, scriptInfo.Name) then
-                centerLabel.Text = "âœ… Loaded"
+            
+            local loadSuccess = loadScriptFromURL(scriptInfo.URL, scriptInfo.Name)
+            if loadSuccess then
+                centerLabel.Text = "✅ Loaded"
                 itemFrame.BackgroundColor3 = Color3.fromRGB(80, 250, 123)
                 itemStroke.Color = Color3.fromRGB(80, 250, 123)
             else
-                centerLabel.Text = "âŒ Error"
+                centerLabel.Text = "❌ Error"
                 itemFrame.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
                 itemStroke.Color = Color3.fromRGB(255, 85, 85)
             end
-            task.wait(1.5)
-            wheelContainer.Visible = false
-            outerWheelContainer.Visible = false 
-            dimmerFrame.Visible = false 
-            isWheelOpen = false
-            centerLabel.Text = DEFAULT_CENTER_TEXT
+            
+            task.wait(0.1) -- Delay singkat agar status loading terlihat
+            
+            -- Reset warna item dan tutup wheel
             itemFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
             itemStroke.Color = Color3.fromRGB(150, 150, 150)
+            
+            if isWheelOpen then
+                toggleWheel() -- Tutup wheel (termasuk closeSound)
+            end
+            
+            centerLabel.Text = DEFAULT_CENTER_TEXT -- Reset center text
+            isSelectionDebounced = false -- Debounce direset agar klik berikutnya bisa dilakukan
         end
         
         button.MouseButton1Click:Connect(onSelectionClick)
@@ -320,7 +413,7 @@ local function createWeaponWheel()
         local isHovered = false
         
         button.MouseEnter:Connect(function()
-            if not isHovered then
+            if not isHovered and not isSelectionDebounced then
                 isHovered = true
                 selectionSound:Play() -- SUARA SAAT DI-HOVER
                 
@@ -428,27 +521,36 @@ local function createWeaponWheel()
         
         table.insert(outerWheelButtons, button)
 
-        -- === LOGIKA PADA SAAT DI KLIK/TAP ===
+        -- === LOGIKA PADA SAAT DI KLIK/TAP (DEBOUNCE DITERAPKAN) ===
         local function onSelectionClickOuter()
-            selectionSound:Play() -- SUARA SAAT DIPILIH
+            if isSelectionDebounced then return end -- KELUAR jika sedang dalam proses
+            isSelectionDebounced = true 
+
+            selectionSound:Play() -- SUARA SAAT DIPILIH (Hanya sekali)
             centerLabel.Text = "Loading..." 
-            if loadScriptFromURL(scriptInfo.URL, scriptInfo.Name) then
-                centerLabel.Text = "âœ… Loaded"
+            local loadSuccess = loadScriptFromURL(scriptInfo.URL, scriptInfo.Name)
+            if loadSuccess then
+                centerLabel.Text = "✅ Loaded"
                 itemFrame.BackgroundColor3 = Color3.fromRGB(80, 250, 123)
                 itemStroke.Color = Color3.fromRGB(80, 250, 123)
             else
-                centerLabel.Text = "âŒ Error"
+                centerLabel.Text = "❌ Error"
                 itemFrame.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
                 itemStroke.Color = Color3.fromRGB(255, 85, 85)
             end
-            task.wait(1.5)
-            outerWheelContainer.Visible = false
-            wheelContainer.Visible = false 
-            dimmerFrame.Visible = false
-            isWheelOpen = false
-            centerLabel.Text = DEFAULT_CENTER_TEXT
+            
+            task.wait(0.1) -- Delay singkat agar status loading terlihat
+            
+            -- Reset warna item dan tutup wheel
             itemFrame.BackgroundColor3 = Color3.fromRGB(80, 50, 50)
             itemStroke.Color = Color3.fromRGB(200, 100, 100)
+            
+            if isWheelOpen then
+                toggleWheel() -- Tutup wheel (termasuk closeSound)
+            end
+            
+            centerLabel.Text = DEFAULT_CENTER_TEXT -- Reset center text
+            isSelectionDebounced = false -- Debounce direset agar klik berikutnya bisa dilakukan
         end
         
         button.MouseButton1Click:Connect(onSelectionClickOuter)
@@ -458,7 +560,7 @@ local function createWeaponWheel()
         local isHoveredOuter = false
 
         button.MouseEnter:Connect(function()
-            if not isHoveredOuter then
+            if not isHoveredOuter and not isSelectionDebounced then
                 isHoveredOuter = true
                 selectionSound:Play() -- SUARA SAAT DI-HOVER
                 
@@ -484,69 +586,6 @@ local function createWeaponWheel()
         end)
     end
     
-    -- FUNGSI KONTROL INTERAKSI MOUSE
-    local function setWheelActive(isActive)
-        for _, btn in ipairs(mainWheelButtons) do
-            btn.Active = isActive
-        end
-        for _, btn in ipairs(outerWheelButtons) do
-            btn.Active = isActive
-        end
-        centerCircle.Active = isActive
-    end
-
-    -- FUNGSI ANIMASI DAN LOGIKA BUKA/TUTUP
-    local isWheelOpen = false
-    
-    local function toggleWheel()
-        isWheelOpen = not isWheelOpen
-        
-        if isWheelOpen then
-            -- Buka: Dimmer -> Roda Utama -> Roda Kedua
-            setWheelActive(true)
-            
-            -- 1. Dimmer Background (Muncul Duluan)
-            dimmerFrame.Visible = true
-            TweenService:Create(dimmerFrame, TweenInfo.new(0.3, Enum.EasingStyle.Linear), {BackgroundTransparency = DIMMER_TRANSPARENCY}):Play()
-
-            -- 2. Roda Utama 
-            wheelContainer.Size = UDim2.new(0, 0, 0, 0)
-            wheelContainer.Visible = true
-            local tweenInfoMain = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-            TweenService:Create(wheelContainer, tweenInfoMain, {Size = UDim2.new(0, 250, 0, 250)}):Play() 
-            
-            -- 3. Roda Kedua (Terlambat Muncul)
-            if #ScriptsInMore > 0 then
-                task.wait(0.15) 
-                outerWheelContainer.Size = UDim2.new(0, 0, 0, 0)
-                outerWheelContainer.Visible = true 
-                local tweenInfoOuter = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-                TweenService:Create(outerWheelContainer, tweenInfoOuter, {Size = UDim2.new(0, 400, 0, 400)}):Play()
-            end
-            
-        else
-            -- Tutup: Roda -> Dimmer
-            setWheelActive(false) 
-            
-            local tweenInfoOut = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-            
-            -- 1. Tutup Roda Utama & Kedua
-            TweenService:Create(wheelContainer, tweenInfoOut, {Size = UDim2.new(0, 0, 0, 0)}):Play()
-            local tweenOuter = TweenService:Create(outerWheelContainer, tweenInfoOut, {Size = UDim2.new(0, 0, 0, 0)})
-            tweenOuter:Play()
-            
-            -- 2. Tutup Dimmer
-            task.wait(0.05)
-            local tweenDimmer = TweenService:Create(dimmerFrame, tweenInfoOut, {BackgroundTransparency = 1})
-            tweenDimmer:Play()
-            
-            tweenDimmer.Completed:Wait() 
-            wheelContainer.Visible = false
-            outerWheelContainer.Visible = false
-            dimmerFrame.Visible = false 
-        end
-    end
-
     centerCircle.Active = false 
 
     minimizeButton.MouseButton1Click:Connect(toggleWheel)
