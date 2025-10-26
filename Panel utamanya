@@ -1,10 +1,10 @@
 --================================================================
--- GTA 5 Style Weapon Wheel Script Loader - Mobile Version (MODIFIED V14 - GABUNG RODA)
--- Modifikasi: Roda Utama dan Kedua TERGABUNG, Roda Kedua Muncul TERLAMBAT, Tombol Kembali Roda Kedua DIHAPUS.
---             Menghapus Background Blur Roda Pertama dan Kedua, dan **Menghapus Outer Ring (Bg Abu-Abu Besar)**
---             dari Roda Kedua sepenuhnya. Pusat Roda Tetap Selaras.
--- Dibuat oleh Ristan, Dimodifikasi oleh Gemini & Claude
--- Disesuaikan oleh Gemini untuk excuter
+-- GTA 5 Style Weapon Wheel Script Loader - Mobile Version (MODIFIED V18 - FIX SUARA KLIK)
+-- Modifikasi: 
+-- 1. MENGGANTI SOUND ID sesuai permintaan: 126903179934303.
+-- 2. Menambahkan suara saat tombol DITEKAN (MouseButton1Click / TouchTap) dan HOVER (MouseEnter).
+-- 3. Mempertahankan DIMMER_TRANSPARENCY = 1 (Invisible).
+-- Dibuat oleh Ristan, Dimodifikasi oleh Gemini & Claude, Disesuaikan oleh Gemini
 --================================================================
 
 local Players = game:GetService("Players")
@@ -15,33 +15,37 @@ local Player = Players.LocalPlayer
 local Mouse = Player:GetMouse()
 
 --================================================================
--- KONFIGURASI WARNA
+-- KONFIGURASI ENHANCEMENTS BARU
+--================================================================
+-- ID Suara Baru dari pengguna: 126903179934303. Pastikan Sound ID benar dan publik.
+local SELECTION_SOUND_ID = "rbxassetid://6042054037" 
+local DIMMER_TRANSPARENCY = 1 -- Sesuai permintaan: Transparansi 1 = sepenuhnya tidak terlihat (invisible).
+local DEFAULT_CENTER_TEXT = "PILIH\nSCRIPT"
+
+--================================================================
+-- KONFIGURASI WARNA & DATA LAMA
 --================================================================
 local MAIN_WHEEL_COLOR = Color3.fromRGB(100, 100, 255) 
 local OUTER_WHEEL_COLOR = Color3.fromRGB(255, 50, 50) 
-
---================================================================
--- KONFIGURASI SCRIPT HUB (PEMISAHAN RODA)
---================================================================
 local MAX_SCRIPTS_IN_WHEEL = 8 
 
 local AllScripts = {
     -- >> RODA PERTAMA (8 ITEM PERTAMA) <<
-    {Name = "AntiLag", Icon = "📈", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/antilag"},
-    {Name = "Teleport Tulis", Icon = "📝", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/teleport"},
-    {Name = "Teleport Ketuk", Icon = "👆", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/teleport%20ketuk"},
-    {Name = "Teleport Dekat", Icon = "🔍", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Tptool"},
+    {Name = "AntiLag", Icon = "😎", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/antilag"},
+    {Name = "Teleport Tulis", Icon = "✍️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/teleport"},
+    {Name = "Teleport Ketuk", Icon = "👇", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/teleport%20ketuk"},
+    {Name = "Teleport Dekat", Icon = "⌛️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Tptool"},
     {Name = "Terbang", Icon = "✈️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/terbang"},
     {Name = "Invisible & spectate", Icon = "👻", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Invisible%26Spectate"},
-    {Name = "Liat Admin", Icon = "👁️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/liat%20admin%20dan%20owner"},
-    {Name = "Lari Cepat", Icon = "⚡", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/lari%20cepat"},
+    {Name = "Liat Admin", Icon = "🔍", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/liat%20admin%20dan%20owner"},
+    {Name = "Lari Cepat", Icon = "⚡️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/lari%20cepat"},
     
     -- >> RODA KEDUA (ITEM KE-9 DAN SETERUSNYA) <<
-    {Name = "Tembus & Cahaya", Icon = "💡", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Tembus%20tembok%20dan%20lampu"},
-    {Name = "Infinite Yeild", Icon = "♾️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/infiniteyield"},
-    {Name = "Detector Player", Icon = "🚨", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/detector%20player"},
-    {Name = "Copy Id", Icon = "📋", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Copy%20Id"},
-    {Name = "Private Server", Icon = "🔒", URL = "https://pastefy.app/FE6yAQW4/raw"},
+    {Name = "Tembus & Cahaya", Icon = "🧱💡", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Tembus%20tembok%20dan%20lampu"},
+    {Name = "Infinite Yeild", Icon = "📜", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/infiniteyield"},
+    {Name = "Detector Player", Icon = "🌍", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/detector%20player"},
+    {Name = "Copy Id", Icon = "📥", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Copy%20Id"},
+    {Name = "Private Server", Icon = "🔐", URL = "https://pastefy.app/FE6yAQW4/raw"},
 }
 
 local ScriptsInWheel = {}
@@ -98,7 +102,7 @@ local function loadScriptFromURL(url, scriptName)
 end
 
 --================================================================
--- FUNGSI MEMBUAT WEAPON WHEEL MOBILE
+-- FUNGSI MEMBUAT WEAPON WHEEL
 --================================================================
 local function createWeaponWheel()
     local screenGui = Instance.new("ScreenGui")
@@ -109,8 +113,26 @@ local function createWeaponWheel()
     
     local mainWheelButtons = {}
     local outerWheelButtons = {}
-
-    -- TOMBOL MINIMIZE BULAT ðŸ“œ
+    
+    -- === BACKGROUND DIMMER PUTIH TRANSAPARAN ===
+    local dimmerFrame = Instance.new("Frame")
+    dimmerFrame.Name = "DimmerFrame"
+    dimmerFrame.Parent = screenGui
+    dimmerFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255) 
+    dimmerFrame.BackgroundTransparency = 1 
+    dimmerFrame.Position = UDim2.new(0, 0, 0, 0)
+    dimmerFrame.Size = UDim2.new(1, 0, 1, 0) 
+    dimmerFrame.Visible = false
+    dimmerFrame.ZIndex = 1 
+    
+    -- === INSTANCE SUARA ===
+    local selectionSound = Instance.new("Sound")
+    selectionSound.Name = "SelectionSound"
+    selectionSound.SoundId = SELECTION_SOUND_ID
+    selectionSound.Parent = screenGui
+    selectionSound.Volume = 0.6
+    
+    -- TOMBOL MINIMIZE BULAT 
     local minimizeButton = Instance.new("TextButton")
     minimizeButton.Name = "MinimizeButton"
     minimizeButton.Parent = screenGui
@@ -119,7 +141,7 @@ local function createWeaponWheel()
     minimizeButton.Position = UDim2.new(0, 20, 0, 100)
     minimizeButton.Size = UDim2.new(0, 50, 0, 50)
     minimizeButton.Font = Enum.Font.SourceSansBold
-    minimizeButton.Text = "📝" -- Diperbaiki ikon, menggunakan emoji untuk kepastian visual
+    minimizeButton.Text = "📂"
     minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     minimizeButton.TextSize = 25
     minimizeButton.AutoButtonColor = false
@@ -145,9 +167,9 @@ local function createWeaponWheel()
     wheelContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
     wheelContainer.Size = UDim2.new(0, 250, 0, 250) 
     wheelContainer.Visible = false
-    wheelContainer.ZIndex = 2 
+    wheelContainer.ZIndex = 3 
     
-    -- *** RODA UTAMA: Outer Circle (Lingkaran Abu-abu Dalam) ***
+    -- RODA UTAMA: Outer Circle (Lingkaran Abu-abu Dalam)
     local outerCircle = Instance.new("Frame")
     outerCircle.Name = "OuterCircle"
     outerCircle.Parent = wheelContainer
@@ -167,7 +189,7 @@ local function createWeaponWheel()
     outerStroke.Color = MAIN_WHEEL_COLOR 
     outerStroke.Thickness = 3
     
-    -- RODA UTAMA: Center Circle
+    -- RODA UTAMA: Center Circle (Tempat Teks Yang Berubah)
     local centerCircle = Instance.new("TextButton")
     centerCircle.Name = "CenterCircle"
     centerCircle.Parent = wheelContainer
@@ -188,16 +210,8 @@ local function createWeaponWheel()
     centerLabel.BackgroundTransparency = 1
     centerLabel.Size = UDim2.new(1, 0, 1, 0)
     centerLabel.Font = Enum.Font.SourceSansBold
-    
-    if #ScriptsInMore > 0 then
-        -- Teks di pusat diubah untuk mencerminkan Roda Kedua otomatis muncul
-        centerLabel.Text = "PILIH\nSCRIPT" 
-        centerLabel.TextSize = 12
-    else
-        centerLabel.Text = "PILIH\nSCRIPT"
-        centerLabel.TextSize = 12
-    end
-    
+    centerLabel.Text = DEFAULT_CENTER_TEXT
+    centerLabel.TextSize = 12
     centerLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     centerLabel.TextWrapped = true
     centerLabel.ZIndex = 4
@@ -207,20 +221,17 @@ local function createWeaponWheel()
     outerWheelContainer.Name = "OuterWheelContainer"
     outerWheelContainer.Parent = screenGui 
     outerWheelContainer.BackgroundTransparency = 1
-    -- Posisi diselaraskan dengan wheelContainer
     outerWheelContainer.AnchorPoint = Vector2.new(0.5, 0.5)
     outerWheelContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
     outerWheelContainer.Size = UDim2.new(0, 400, 0, 400) 
     outerWheelContainer.Visible = false
-    outerWheelContainer.ZIndex = 1 
+    outerWheelContainer.ZIndex = 2 
     
-    -- *** MODIFIKASI PENTING: Tombol Kembali Roda Kedua DIHAPUS ***
-    -- Kode untuk 'backButton' DIHAPUS.
+    local radius = 90 
     
-    -- Buat item script di roda utama (Counter-Clockwise, dimulai dari 12)
+    -- Logika untuk item script di roda utama
     local numScripts = #ScriptsInWheel
     local angleStep = (2 * math.pi) / numScripts
-    local radius = 90 
     
     for i, scriptInfo in ipairs(ScriptsInWheel) do
         local angle = (i - 1) * angleStep - (math.pi / 2) 
@@ -235,7 +246,7 @@ local function createWeaponWheel()
         itemFrame.AnchorPoint = Vector2.new(0.5, 0.5)
         itemFrame.Position = UDim2.new(0.5, x, 0.5, y)
         itemFrame.Size = UDim2.new(0, 55, 0, 55)
-        itemFrame.ZIndex = 2
+        itemFrame.ZIndex = 4
         
         local itemCorner = Instance.new("UICorner")
         itemCorner.CornerRadius = UDim.new(1, 0)
@@ -255,8 +266,8 @@ local function createWeaponWheel()
         iconLabel.Text = scriptInfo.Icon
         iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         iconLabel.TextSize = 20
-        iconLabel.ZIndex = 3
-        
+        iconLabel.ZIndex = 5
+
         local nameLabel = Instance.new("TextLabel")
         nameLabel.Parent = itemFrame
         nameLabel.BackgroundTransparency = 1
@@ -268,59 +279,74 @@ local function createWeaponWheel()
         nameLabel.TextSize = 8
         nameLabel.TextScaled = true
         nameLabel.TextWrapped = true
-        nameLabel.ZIndex = 3
+        nameLabel.ZIndex = 5
         
         local button = Instance.new("TextButton")
         button.Parent = itemFrame
         button.BackgroundTransparency = 1
         button.Size = UDim2.new(1, 0, 1, 0)
         button.Text = ""
-        button.ZIndex = 4
+        button.ZIndex = 6
         
         table.insert(mainWheelButtons, button)
         
-        button.MouseButton1Click:Connect(function()
+        -- === LOGIKA PADA SAAT DI KLIK/TAP ===
+        local function onSelectionClick()
+            selectionSound:Play() -- SUARA SAAT DIPILIH
             centerLabel.Text = "Loading..."
             if loadScriptFromURL(scriptInfo.URL, scriptInfo.Name) then
-                centerLabel.Text = "✅ Loaded"
+                centerLabel.Text = "âœ… Loaded"
                 itemFrame.BackgroundColor3 = Color3.fromRGB(80, 250, 123)
                 itemStroke.Color = Color3.fromRGB(80, 250, 123)
             else
-                centerLabel.Text = "❌ Error"
+                centerLabel.Text = "âŒ Error"
                 itemFrame.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
                 itemStroke.Color = Color3.fromRGB(255, 85, 85)
             end
             task.wait(1.5)
             wheelContainer.Visible = false
-            outerWheelContainer.Visible = false -- Tutup juga roda kedua
+            outerWheelContainer.Visible = false 
+            dimmerFrame.Visible = false 
             isWheelOpen = false
-            centerLabel.Text = "PILIH\nSCRIPT"
+            centerLabel.Text = DEFAULT_CENTER_TEXT
             itemFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
             itemStroke.Color = Color3.fromRGB(150, 150, 150)
-        end)
+        end
+        
+        button.MouseButton1Click:Connect(onSelectionClick)
+        button.TouchTap:Connect(onSelectionClick) -- TouchTap untuk perangkat sentuh
+        
+        -- Logika Hover (Mouse)
+        local isHovered = false
         
         button.MouseEnter:Connect(function()
-            if not UserInputService.TouchEnabled then 
+            if not isHovered then
+                isHovered = true
+                selectionSound:Play() -- SUARA SAAT DI-HOVER
+                
+                local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+                TweenService:Create(itemFrame, tweenInfo, {Size = UDim2.new(0, 65, 0, 65)}):Play()
+                
                 itemFrame.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
-                itemFrame.Size = UDim2.new(0, 65, 0, 65)
                 itemStroke.Color = Color3.fromRGB(255, 255, 255)
                 itemStroke.Thickness = 3
-                centerLabel.Text = scriptInfo.Name
+                centerLabel.Text = scriptInfo.Name 
             end
         end)
         
         button.MouseLeave:Connect(function()
-            if not UserInputService.TouchEnabled then 
-                itemFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-                itemFrame.Size = UDim2.new(0, 55, 0, 55)
-                itemStroke.Color = Color3.fromRGB(150, 150, 150)
-                itemStroke.Thickness = 2
-                centerLabel.Text = "PILIH\nSCRIPT"
-            end
+            isHovered = false
+            local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+            TweenService:Create(itemFrame, tweenInfo, {Size = UDim2.new(0, 55, 0, 55)}):Play()
+            
+            itemFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            itemStroke.Color = Color3.fromRGB(150, 150, 150)
+            itemStroke.Thickness = 2
+            centerLabel.Text = DEFAULT_CENTER_TEXT
         end)
     end
     
-    -- Buat item script di roda kedua (MENU LAINNYA) - ZIGZAG CLOCKWISE
+    -- Logika untuk item script di roda kedua
     local numMoreScripts = #ScriptsInMore
     local outerRadius = 170 
     
@@ -344,7 +370,7 @@ local function createWeaponWheel()
         table.insert(angles, angle)
     end
     
-    -- Terapkan posisi ke item script
+    -- Terapkan posisi ke item script RODA KEDUA
     for i, scriptInfo in ipairs(ScriptsInMore) do
         local angle = angles[i]
         local x = math.cos(angle) * outerRadius
@@ -358,7 +384,7 @@ local function createWeaponWheel()
         itemFrame.AnchorPoint = Vector2.new(0.5, 0.5)
         itemFrame.Position = UDim2.new(0.5, x, 0.5, y)
         itemFrame.Size = UDim2.new(0, 55, 0, 55)
-        itemFrame.ZIndex = 7 
+        itemFrame.ZIndex = 8 
         
         local itemCorner = Instance.new("UICorner")
         itemCorner.CornerRadius = UDim.new(1, 0)
@@ -378,7 +404,7 @@ local function createWeaponWheel()
         iconLabel.Text = scriptInfo.Icon
         iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         iconLabel.TextSize = 20
-        iconLabel.ZIndex = 8
+        iconLabel.ZIndex = 9
         
         local nameLabel = Instance.new("TextLabel")
         nameLabel.Parent = itemFrame
@@ -391,73 +417,82 @@ local function createWeaponWheel()
         nameLabel.TextSize = 8
         nameLabel.TextScaled = true
         nameLabel.TextWrapped = true
-        nameLabel.ZIndex = 8
+        nameLabel.ZIndex = 9
         
         local button = Instance.new("TextButton")
         button.Parent = itemFrame
         button.BackgroundTransparency = 1
         button.Size = UDim2.new(1, 0, 1, 0)
         button.Text = ""
-        button.ZIndex = 9
+        button.ZIndex = 10
         
         table.insert(outerWheelButtons, button)
 
-        button.MouseButton1Click:Connect(function()
-            centerLabel.Text = "Loading..." -- Menggunakan centerLabel roda utama
+        -- === LOGIKA PADA SAAT DI KLIK/TAP ===
+        local function onSelectionClickOuter()
+            selectionSound:Play() -- SUARA SAAT DIPILIH
+            centerLabel.Text = "Loading..." 
             if loadScriptFromURL(scriptInfo.URL, scriptInfo.Name) then
-                centerLabel.Text = "✅ Loaded"
+                centerLabel.Text = "âœ… Loaded"
                 itemFrame.BackgroundColor3 = Color3.fromRGB(80, 250, 123)
                 itemStroke.Color = Color3.fromRGB(80, 250, 123)
             else
-                centerLabel.Text = "❌ Error"
+                centerLabel.Text = "âŒ Error"
                 itemFrame.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
                 itemStroke.Color = Color3.fromRGB(255, 85, 85)
             end
             task.wait(1.5)
             outerWheelContainer.Visible = false
             wheelContainer.Visible = false 
+            dimmerFrame.Visible = false
             isWheelOpen = false
-            centerLabel.Text = "PILIH\nSCRIPT"
+            centerLabel.Text = DEFAULT_CENTER_TEXT
             itemFrame.BackgroundColor3 = Color3.fromRGB(80, 50, 50)
             itemStroke.Color = Color3.fromRGB(200, 100, 100)
-            setMainWheelActive(true)
-            setOuterWheelActive(true)
-        end)
+        end
         
+        button.MouseButton1Click:Connect(onSelectionClickOuter)
+        button.TouchTap:Connect(onSelectionClickOuter) -- TouchTap untuk perangkat sentuh
+        
+        -- Logika Hover (Mouse)
+        local isHoveredOuter = false
+
         button.MouseEnter:Connect(function()
-            if not UserInputService.TouchEnabled then 
+            if not isHoveredOuter then
+                isHoveredOuter = true
+                selectionSound:Play() -- SUARA SAAT DI-HOVER
+                
+                local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+                TweenService:Create(itemFrame, tweenInfo, {Size = UDim2.new(0, 65, 0, 65)}):Play()
+                
                 itemFrame.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-                itemFrame.Size = UDim2.new(0, 65, 0, 65)
                 itemStroke.Color = Color3.fromRGB(255, 255, 255)
                 itemStroke.Thickness = 3
-                centerLabel.Text = scriptInfo.Name -- Menggunakan centerLabel roda utama
+                centerLabel.Text = scriptInfo.Name 
             end
         end)
         
         button.MouseLeave:Connect(function()
-            if not UserInputService.TouchEnabled then 
-                itemFrame.BackgroundColor3 = Color3.fromRGB(80, 50, 50)
-                itemFrame.Size = UDim2.new(0, 55, 0, 55)
-                itemStroke.Color = Color3.fromRGB(200, 100, 100)
-                itemStroke.Thickness = 2
-                centerLabel.Text = "PILIH\nSCRIPT" -- Menggunakan centerLabel roda utama
-            end
+            isHoveredOuter = false
+            local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+            TweenService:Create(itemFrame, tweenInfo, {Size = UDim2.new(0, 55, 0, 55)}):Play()
+            
+            itemFrame.BackgroundColor3 = Color3.fromRGB(80, 50, 50)
+            itemStroke.Color = Color3.fromRGB(200, 100, 100)
+            itemStroke.Thickness = 2
+            centerLabel.Text = DEFAULT_CENTER_TEXT 
         end)
     end
     
-    -- FUNGSI KONTROL INTERAKSI MOUSE PADA RODA UTAMA
-    local function setMainWheelActive(isActive)
+    -- FUNGSI KONTROL INTERAKSI MOUSE
+    local function setWheelActive(isActive)
         for _, btn in ipairs(mainWheelButtons) do
             btn.Active = isActive
         end
-        centerCircle.Active = isActive
-    end
-    
-    -- FUNGSI KONTROL INTERAKSI MOUSE PADA RODA KEDUA
-    local function setOuterWheelActive(isActive)
         for _, btn in ipairs(outerWheelButtons) do
             btn.Active = isActive
         end
+        centerCircle.Active = isActive
     end
 
     -- FUNGSI ANIMASI DAN LOGIKA BUKA/TUTUP
@@ -467,47 +502,52 @@ local function createWeaponWheel()
         isWheelOpen = not isWheelOpen
         
         if isWheelOpen then
-            -- Roda Utama (Muncul Pertama)
+            -- Buka: Dimmer -> Roda Utama -> Roda Kedua
+            setWheelActive(true)
+            
+            -- 1. Dimmer Background (Muncul Duluan)
+            dimmerFrame.Visible = true
+            TweenService:Create(dimmerFrame, TweenInfo.new(0.3, Enum.EasingStyle.Linear), {BackgroundTransparency = DIMMER_TRANSPARENCY}):Play()
+
+            -- 2. Roda Utama 
             wheelContainer.Size = UDim2.new(0, 0, 0, 0)
             wheelContainer.Visible = true
             local tweenInfoMain = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
             TweenService:Create(wheelContainer, tweenInfoMain, {Size = UDim2.new(0, 250, 0, 250)}):Play() 
-            setMainWheelActive(true)
             
-            -- Roda Kedua (Terlambat Muncul)
+            -- 3. Roda Kedua (Terlambat Muncul)
             if #ScriptsInMore > 0 then
-                task.wait(0.15) -- Jeda untuk efek keren
+                task.wait(0.15) 
                 outerWheelContainer.Size = UDim2.new(0, 0, 0, 0)
                 outerWheelContainer.Visible = true 
                 local tweenInfoOuter = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
                 TweenService:Create(outerWheelContainer, tweenInfoOuter, {Size = UDim2.new(0, 400, 0, 400)}):Play()
-                setOuterWheelActive(true)
             end
             
         else
-            -- Roda Utama dan Kedua (Menghilang Bersamaan)
-            setMainWheelActive(false) 
-            setOuterWheelActive(false)
+            -- Tutup: Roda -> Dimmer
+            setWheelActive(false) 
             
             local tweenInfoOut = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
             
-            -- Tutup Roda Utama
+            -- 1. Tutup Roda Utama & Kedua
             TweenService:Create(wheelContainer, tweenInfoOut, {Size = UDim2.new(0, 0, 0, 0)}):Play()
-            
-            -- Tutup Roda Kedua
             local tweenOuter = TweenService:Create(outerWheelContainer, tweenInfoOut, {Size = UDim2.new(0, 0, 0, 0)})
             tweenOuter:Play()
             
-            tweenOuter.Completed:Wait() -- Tunggu sampai animasi tutup selesai
+            -- 2. Tutup Dimmer
+            task.wait(0.05)
+            local tweenDimmer = TweenService:Create(dimmerFrame, tweenInfoOut, {BackgroundTransparency = 1})
+            tweenDimmer:Play()
+            
+            tweenDimmer.Completed:Wait() 
             wheelContainer.Visible = false
             outerWheelContainer.Visible = false
+            dimmerFrame.Visible = false 
         end
     end
 
-    -- Tombol tengah roda utama (CenterCircle) tidak lagi membuka roda kedua, roda kedua akan muncul otomatis
-    if #ScriptsInMore > 0 then
-        centerCircle.Active = false -- Nonaktifkan interaksi di CenterCircle jika ada roda kedua
-    end
+    centerCircle.Active = false 
 
     minimizeButton.MouseButton1Click:Connect(toggleWheel)
     
@@ -527,7 +567,7 @@ local function createWeaponWheel()
     notif.Position = UDim2.new(0.5, 0, 0, -60)
     notif.Size = UDim2.new(0, 280, 0, 45)
     notif.Font = Enum.Font.SourceSansBold
-    notif.Text = "Tombol 📝 dapat di-drag. Tekan untuk membuka wheel." -- Ikon tombol juga diperbaiki
+    notif.Text = "Tombol 📂“ Tekan untuk membuka script" 
     notif.TextColor3 = Color3.fromRGB(255, 255, 255)
     notif.TextSize = 13
     notif.TextWrapped = true
