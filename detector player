@@ -1,0 +1,498 @@
+-- Player Detector dengan Garis Penunjuk Lokasi dan GUI Kontrol
+-- **FIXED: Masalah Garis Detektor Tidak Bisa Dimatikan**
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local Camera = workspace.CurrentCamera
+
+-- Pastikan LocalPlayer sudah siap
+local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+    repeat wait() until Players.LocalPlayer
+    LocalPlayer = Players.LocalPlayer
+end
+
+-- Konfigurasi Utama
+local CONFIG = {
+    MaxDistance = 1000, 
+    LineThickness = 0.1,
+    LineColor = Color3.fromRGB(255, 0, 0),
+    ShowDistance = true,
+    ShowName = true,
+    MinSearchLength = 2,
+    DetectorActive = true, 
+    Mode = "AllPlayers" 
+}
+
+-- Tabel untuk menyimpan garis dan label setiap player
+local playerLines = {}
+local playerLabels = {}
+local targetUsername = ""
+
+---------------------------------------------------
+-- Fungsi-Fungsi Detektor
+---------------------------------------------------
+
+local function cleanupPlayer(player)
+    -- **Perbaikan Kritikal: Pastikan semua objek dihancurkan**
+    if playerLines[player] then
+        -- Hancurkan Attachment dan Beam
+        if playerLines[player].Attachment0 then playerLines[player].Attachment0:Destroy() end
+        if playerLines[player].Attachment1 then playerLines[player].Attachment1:Destroy() end
+        -- Cek apakah Beam masih ada sebelum dihancurkan
+        if playerLines[player].Parent then 
+            playerLines[player]:Destroy() 
+        end
+        playerLines[player] = nil
+    end
+    if playerLabels[player] then
+        -- Hancurkan BillboardGui (Parent dari TextLabel)
+        local billboardGui = playerLabels[player].Parent
+        if billboardGui then 
+            billboardGui:Destroy() 
+        end
+        playerLabels[player] = nil
+    end
+end
+
+local function cleanupAll()
+    for player, _ in pairs(playerLines) do
+        cleanupPlayer(player)
+    end
+    -- Kosongkan tabel visual yang mungkin tersisa
+    playerLines = {}
+    playerLabels = {}
+end
+
+local function matchesSearch(player)
+    if CONFIG.Mode == "AllPlayers" then
+        return true
+    end
+    
+    if targetUsername == "" or #targetUsername < CONFIG.MinSearchLength then
+        return false 
+    end
+    
+    local searchLower = targetUsername:lower()
+    local usernameLower = player.Name:lower()
+    local displayLower = player.DisplayName:lower()
+    
+    return usernameLower:find(searchLower, 1, true) ~= nil or 
+           displayLower:find(searchLower, 1, true) ~= nil
+end
+
+local function updatePlayerLine(player)
+    -- Pengecekan dasar
+    if player == LocalPlayer then 
+        cleanupPlayer(player) 
+        return 
+    end
+    
+    local character = player.Character
+    local localCharacter = LocalPlayer.Character
+    
+    if not character or not localCharacter then 
+        cleanupPlayer(player)
+        return 
+    end
+    
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local localRootPart = localCharacter:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoidRootPart or not localRootPart then 
+        cleanupPlayer(player)
+        return 
+    end
+    
+    local distance = (humanoidRootPart.Position - localRootPart.Position).Magnitude
+    
+    -- Cek apakah player harus ditampilkan
+    local shouldDisplay = matchesSearch(player) and distance <= CONFIG.MaxDistance
+    
+    if not shouldDisplay then
+        cleanupPlayer(player) -- Bersihkan jika tidak memenuhi syarat
+        return
+    end
+    
+    -- Lanjutkan membuat/memperbarui visual jika shouldDisplay = true
+    
+    -- Update/Create Line (Beam)
+    if not playerLines[player] then
+        local line = Instance.new("Beam")
+        line.FaceCamera = true
+        line.Width0 = CONFIG.LineThickness
+        line.Width1 = CONFIG.LineThickness
+        line.Color = ColorSequence.new(CONFIG.LineColor)
+        line.Transparency = NumberSequence.new(0.3)
+        
+        local attachment0 = Instance.new("Attachment")
+        attachment0.Parent = localRootPart
+        
+        local attachment1 = Instance.new("Attachment")
+        attachment1.Parent = humanoidRootPart
+        
+        line.Attachment0 = attachment0
+        line.Attachment1 = attachment1
+        line.Parent = workspace
+        
+        playerLines[player] = line
+    end
+    
+    -- Update/Create Label (BillboardGui)
+    local showLabel = CONFIG.ShowName or CONFIG.ShowDistance
+    if showLabel then
+        if not playerLabels[player] then
+            local billboardGui = Instance.new("BillboardGui")
+            billboardGui.Adornee = humanoidRootPart
+            billboardGui.Size = UDim2.new(0, 200, 0, 50)
+            billboardGui.StudsOffset = Vector3.new(0, 3, 0)
+            billboardGui.AlwaysOnTop = true
+            billboardGui.ExtentsOffset = Vector3.new(0, 3, 0)
+            billboardGui.Parent = humanoidRootPart
+            
+            local textLabel = Instance.new("TextLabel")
+            textLabel.Size = UDim2.new(1, 0, 1, 0)
+            textLabel.BackgroundTransparency = 1
+            textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            textLabel.TextStrokeTransparency = 0.5
+            textLabel.TextScaled = true
+            textLabel.Font = Enum.Font.SourceSansBold
+            textLabel.Parent = billboardGui
+            
+            playerLabels[player] = textLabel
+        end
+        
+        local labelText = ""
+        if CONFIG.ShowName then
+            labelText = player.DisplayName .. " (@" .. player.Name .. ")"
+        end
+        if CONFIG.ShowDistance then
+            local separator = (CONFIG.ShowName and "\n") or ""
+            labelText = labelText .. separator .. math.floor(distance) .. " studs"
+        end
+        
+        playerLabels[player].Text = labelText
+    else
+        if playerLabels[player] then
+            cleanupPlayer(player)
+        end
+    end
+end
+
+local function updateAllPlayers()
+    -- **Perbaikan Utama: Bersihkan semua jika nonaktif**
+    if not CONFIG.DetectorActive then
+        cleanupAll()
+        return
+    end
+
+    for _, player in pairs(Players:GetPlayers()) do
+        updatePlayerLine(player)
+    end
+end
+
+-- Event Loop
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        wait(0.5) 
+        updatePlayerLine(player)
+    end)
+end)
+
+Players.PlayerRemoving:Connect(cleanupPlayer)
+
+RunService.RenderStepped:Connect(updateAllPlayers)
+
+---------------------------------------------------
+-- Setup GUI
+---------------------------------------------------
+
+local MainFrame
+local GuiVisible = true
+
+local function createGUI()
+    if CoreGui:FindFirstChild("PlayerDetectorGUI") then
+        CoreGui:FindFirstChild("PlayerDetectorGUI"):Destroy()
+    end
+    
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "PlayerDetectorGUI"
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ScreenGui.IgnoreGuiInset = true
+    ScreenGui.Parent = CoreGui 
+
+    MainFrame = Instance.new("Frame")
+    MainFrame.Name = "MainFrame"
+    MainFrame.Size = UDim2.new(0, 300, 0, 280)
+    MainFrame.Position = UDim2.new(0.5, -150, 0.5, -140)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Active = true
+    MainFrame.Draggable = true
+    MainFrame.Parent = ScreenGui
+
+    -- UI Elements setup (Corner, TitleBar, Buttons, Inputs, etc.)
+    -- Menggunakan struktur GUI yang sama dari perbaikan sebelumnya.
+
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = MainFrame
+
+    local TitleBar = Instance.new("Frame")
+    TitleBar.Name = "TitleBar"
+    TitleBar.Size = UDim2.new(1, 0, 0, 30)
+    TitleBar.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    TitleBar.BorderSizePixel = 0
+    TitleBar.Parent = MainFrame
+
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Size = UDim2.new(1, -60, 1, 0)
+    TitleLabel.Position = UDim2.new(0, 0, 0, 0)
+    TitleLabel.Text = "🛡️ Player Detector (Fixed)"
+    TitleLabel.Font = Enum.Font.SourceSansBold
+    TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TitleLabel.TextSize = 18
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.Parent = TitleBar
+    
+    local MinButton = Instance.new("TextButton")
+    MinButton.Name = "MinButton"
+    MinButton.Size = UDim2.new(0, 30, 1, 0)
+    MinButton.Position = UDim2.new(1, -60, 0, 0)
+    MinButton.Text = "—"
+    MinButton.Font = Enum.Font.SourceSans
+    MinButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    MinButton.TextSize = 25
+    MinButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    MinButton.Parent = TitleBar
+    
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Name = "CloseButton"
+    CloseButton.Size = UDim2.new(0, 30, 1, 0)
+    CloseButton.Position = UDim2.new(1, -30, 0, 0)
+    CloseButton.Text = "X"
+    CloseButton.Font = Enum.Font.SourceSans
+    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseButton.TextSize = 18
+    CloseButton.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+    CloseButton.Parent = TitleBar
+
+    local ContentFrame = Instance.new("Frame")
+    ContentFrame.Name = "Content"
+    ContentFrame.Size = UDim2.new(1, 0, 1, -30)
+    ContentFrame.Position = UDim2.new(0, 0, 0, 30)
+    ContentFrame.BackgroundTransparency = 1
+    ContentFrame.Parent = MainFrame
+
+    local UIL = Instance.new("UIListLayout")
+    UIL.Padding = UDim.new(0, 10)
+    UIL.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    UIL.VerticalAlignment = Enum.VerticalAlignment.Top
+    UIL.FillDirection = Enum.FillDirection.Vertical
+    UIL.SortOrder = Enum.SortOrder.LayoutOrder
+    UIL.Parent = ContentFrame
+    
+    local UIP = Instance.new("UIPadding")
+    UIP.PaddingTop = UDim.new(0, 10)
+    UIP.PaddingBottom = UDim.new(0, 10)
+    UIP.Parent = ContentFrame
+
+    local ToggleButton = Instance.new("TextButton")
+    ToggleButton.Name = "ToggleButton"
+    ToggleButton.Size = UDim2.new(0, 280, 0, 35)
+    ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    ToggleButton.Text = "Status: AKTIF"
+    ToggleButton.Font = Enum.Font.SourceSansBold
+    ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleButton.TextSize = 18
+    ToggleButton.Parent = ContentFrame
+    
+    local CornerToggle = Instance.new("UICorner")
+    CornerToggle.CornerRadius = UDim.new(0, 6)
+    CornerToggle.Parent = ToggleButton
+
+    local AllPlayersButton = Instance.new("TextButton")
+    AllPlayersButton.Name = "AllPlayersButton"
+    AllPlayersButton.Size = UDim2.new(0, 280, 0, 35)
+    AllPlayersButton.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+    AllPlayersButton.Text = "Opsi 1: Semua Player (Aktif)"
+    AllPlayersButton.Font = Enum.Font.SourceSans
+    AllPlayersButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    AllPlayersButton.TextSize = 16
+    AllPlayersButton.Parent = ContentFrame
+    
+    local CornerAll = Instance.new("UICorner")
+    CornerAll.CornerRadius = UDim.new(0, 6)
+    CornerAll.Parent = AllPlayersButton
+
+    local SpecificPlayerButton = Instance.new("TextButton")
+    SpecificPlayerButton.Name = "SpecificPlayerButton"
+    SpecificPlayerButton.Size = UDim2.new(0, 280, 0, 35)
+    SpecificPlayerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    SpecificPlayerButton.Text = "Opsi 2: Cari Nama Spesifik (Nonaktif)"
+    SpecificPlayerButton.Font = Enum.Font.SourceSans
+    SpecificPlayerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SpecificPlayerButton.TextSize = 16
+    SpecificPlayerButton.Parent = ContentFrame
+    
+    local CornerSpecific = Instance.new("UICorner")
+    CornerSpecific.CornerRadius = UDim.new(0, 6)
+    CornerSpecific.Parent = SpecificPlayerButton
+
+    local SearchInput = Instance.new("TextBox")
+    SearchInput.Name = "SearchInput"
+    SearchInput.Size = UDim2.new(0, 280, 0, 35)
+    SearchInput.PlaceholderText = "Masukkan nama (username/display name)"
+    SearchInput.Text = ""
+    SearchInput.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    SearchInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SearchInput.Font = Enum.Font.SourceSans
+    SearchInput.TextSize = 16
+    SearchInput.Visible = false
+    SearchInput.Parent = ContentFrame
+    
+    local CornerInput = Instance.new("UICorner")
+    CornerInput.CornerRadius = UDim.new(0, 6)
+    CornerInput.Parent = SearchInput
+    
+    local DistanceInput = Instance.new("TextBox")
+    DistanceInput.Name = "DistanceInput"
+    DistanceInput.Size = UDim2.new(0, 280, 0, 35)
+    DistanceInput.PlaceholderText = "Jarak Maks: " .. CONFIG.MaxDistance .. " studs"
+    DistanceInput.Text = ""
+    DistanceInput.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    DistanceInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    DistanceInput.Font = Enum.Font.SourceSans
+    DistanceInput.TextSize = 16
+    DistanceInput.Visible = true
+    DistanceInput.Parent = ContentFrame
+    
+    local CornerDistance = Instance.new("UICorner")
+    CornerDistance.CornerRadius = UDim.new(0, 6)
+    CornerDistance.Parent = DistanceInput
+
+    return ScreenGui
+end
+
+---------------------------------------------------
+-- Logika GUI
+---------------------------------------------------
+
+local ScreenGui = createGUI()
+local ContentFrame = ScreenGui.MainFrame.Content
+local ToggleButton = ContentFrame.ToggleButton
+local AllPlayersButton = ContentFrame.AllPlayersButton
+local SpecificPlayerButton = ContentFrame.SpecificPlayerButton
+local SearchInput = ContentFrame.SearchInput
+local DistanceInput = ContentFrame.DistanceInput
+local TitleBar = ScreenGui.MainFrame.TitleBar
+local MinButton = TitleBar.MinButton
+local CloseButton = TitleBar.CloseButton
+
+local function updateModeDisplay()
+    if CONFIG.Mode == "AllPlayers" then
+        AllPlayersButton.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+        AllPlayersButton.Text = "Opsi 1: Semua Player (Aktif)"
+        SpecificPlayerButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        SpecificPlayerButton.Text = "Opsi 2: Cari Nama Spesifik (Nonaktif)"
+        SearchInput.Visible = false
+    else
+        AllPlayersButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        AllPlayersButton.Text = "Opsi 1: Semua Player (Nonaktif)"
+        SpecificPlayerButton.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
+        SpecificPlayerButton.Text = "Opsi 2: Cari Nama Spesifik (Aktif)"
+        SearchInput.Visible = true
+        targetUsername = SearchInput.Text
+    end
+    cleanupAll() -- **Penting: Bersihkan visual saat mode berubah**
+end
+
+local function updateStatusDisplay()
+    if CONFIG.DetectorActive then
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+        ToggleButton.Text = "Status: AKTIF"
+        MainFrame.BackgroundTransparency = 0
+    else
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+        ToggleButton.Text = "Status: NONAKTIF"
+        MainFrame.BackgroundTransparency = 0.5
+        -- cleanupAll() tidak perlu dipanggil di sini karena sudah di handle oleh updateAllPlayers di RenderStepped
+    end
+end
+
+-- Event Listeners
+ToggleButton.MouseButton1Click:Connect(function()
+    CONFIG.DetectorActive = not CONFIG.DetectorActive
+    updateStatusDisplay()
+end)
+
+AllPlayersButton.MouseButton1Click:Connect(function()
+    CONFIG.Mode = "AllPlayers"
+    targetUsername = ""
+    updateModeDisplay()
+end)
+
+SpecificPlayerButton.MouseButton1Click:Connect(function()
+    CONFIG.Mode = "SpecificPlayer"
+    updateModeDisplay()
+end)
+
+SearchInput.Changed:Connect(function()
+    if CONFIG.Mode == "SpecificPlayer" then
+        targetUsername = SearchInput.Text
+    end
+end)
+
+DistanceInput.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        local newDist = tonumber(DistanceInput.Text)
+        if newDist and newDist > 0 and newDist <= 10000 then 
+            CONFIG.MaxDistance = newDist
+            DistanceInput.PlaceholderText = "Jarak Maks: " .. CONFIG.MaxDistance .. " studs"
+            DistanceInput.Text = ""
+            cleanupAll()
+        else
+            DistanceInput.Text = "Invalid"
+            wait(1)
+            DistanceInput.Text = ""
+        end
+    end
+end)
+
+MinButton.MouseButton1Click:Connect(function()
+    if GuiVisible then
+        MainFrame.Size = UDim2.new(0, 150, 0, 30)
+        TitleBar.Size = UDim2.new(1, 0, 1, 0)
+        ContentFrame.Visible = false
+        MinButton.Text = "⬜"
+        GuiVisible = false
+    else
+        MainFrame.Size = UDim2.new(0, 300, 0, 280)
+        TitleBar.Size = UDim2.new(1, 0, 0, 30)
+        ContentFrame.Visible = true
+        MinButton.Text = "—"
+        GuiVisible = true
+    end
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+    cleanupAll() -- Pastikan semua garis hilang saat GUI ditutup
+end)
+
+-- Inisialisasi
+updateStatusDisplay()
+updateModeDisplay()
+
+for _, player in pairs(Players:GetPlayers()) do
+    if player.Character then
+        updatePlayerLine(player)
+    end
+    player.CharacterAdded:Connect(function()
+        wait(0.5)
+        updatePlayerLine(player)
+    end)
+end
+
+print("=== Player Detector GUI Aktif dan Diperbaiki (Garis Permanen) ===")
