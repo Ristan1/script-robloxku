@@ -1,0 +1,245 @@
+-- ================================================================= --
+--         PLAYER INFO & SEARCH SCRIPT (MODERN MOBILE UI - FINAL FIX 2)
+--         ✅ PERBAIKAN: TEXTBOX TENGAH & TOMBOL CLOSE LEBIH KECIL
+-- ================================================================= --
+
+-- Variabel Global
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerList = {}
+
+-- [1] SETUP UI UTAMA (Modern & Centered)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "Mobile_PlayerInfoUI"
+ScreenGui.Parent = game:GetService("CoreGui") 
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0.45, 0, 0.8, 0)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0) 
+MainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35) 
+MainFrame.BorderSizePixel = 0 
+MainFrame.Active = true 
+MainFrame.Draggable = true 
+MainFrame.Parent = ScreenGui
+
+-- Tambahkan Sudut Membulat pada Frame Utama
+local MainFrameCorner = Instance.new("UICorner")
+MainFrameCorner.CornerRadius = UDim.new(0, 15) 
+MainFrameCorner.Parent = MainFrame
+
+-- Tambahkan Padding di dalam Frame Utama
+local MainFramePadding = Instance.new("UIPadding")
+MainFramePadding.PaddingTop = UDim.new(0, 10)
+MainFramePadding.PaddingBottom = UDim.new(0, 10)
+MainFramePadding.PaddingLeft = UDim.new(0, 10)
+MainFramePadding.PaddingRight = UDim.new(0, 10)
+MainFramePadding.Parent = MainFrame
+
+-- UIListLayout untuk menata item utama
+local UIL = Instance.new("UIListLayout")
+UIL.Padding = UDim.new(0, 10) 
+UIL.SortOrder = Enum.SortOrder.LayoutOrder
+UIL.Parent = MainFrame
+
+-- [2] JUDUL UTAMA & TOMBOL TUTUP
+local HeaderFrame = Instance.new("Frame")
+HeaderFrame.Size = UDim2.new(1, 0, 0, 30)
+HeaderFrame.BackgroundTransparency = 1
+HeaderFrame.Parent = MainFrame
+HeaderFrame.LayoutOrder = 1 
+
+local TitleHLayout = Instance.new("UIListLayout")
+TitleHLayout.FillDirection = Enum.FillDirection.Horizontal
+TitleHLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+TitleHLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+TitleHLayout.Parent = HeaderFrame
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Name = "TitleLabel"
+TitleLabel.Text = "SALIN ID, USERNAME, DISPLAYNAME"
+-- ✅ PERBAIKAN: Mengisi sisa ruang setelah tombol Close dikecilkan (misal 90%)
+TitleLabel.Size = UDim2.new(0.9, 0, 1, 0) 
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+TitleLabel.Font = Enum.Font.SourceSansBold
+TitleLabel.TextSize = 16
+TitleLabel.Parent = HeaderFrame
+
+-- Tombol TUTUP 'X' Merah (Background Biru)
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton_X"
+CloseButton.Text = "❌" 
+-- ✅ PERBAIKAN: Mengubah ukuran dari 0.2 menjadi 0.1 (latar belakang dikecilkan)
+CloseButton.Size = UDim2.new(0.1, 0, 1, 0) 
+CloseButton.BackgroundColor3 = Color3.fromRGB(0, 122, 255) 
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.SourceSansBold
+CloseButton.TextSize = 18
+CloseButton.Parent = HeaderFrame
+CloseButton.LayoutOrder = 2 
+
+Instance.new("UICorner").Parent = CloseButton
+
+-- [3] SCROLLING FRAME UNTUK DAFTAR PEMAIN
+local ListContainer = Instance.new("ScrollingFrame")
+ListContainer.Size = UDim2.new(1, 0, 1, -85) 
+ListContainer.CanvasSize = UDim2.new(0, 0, 0, 0) 
+ListContainer.BackgroundColor3 = Color3.fromRGB(45, 45, 45) 
+ListContainer.BorderSizePixel = 0
+ListContainer.Parent = MainFrame
+ListContainer.LayoutOrder = 2 
+
+local ListContainerCorner = Instance.new("UICorner")
+ListContainerCorner.CornerRadius = UDim.new(0, 8) 
+ListContainerCorner.Parent = ListContainer
+
+local ListPadding = Instance.new("UIPadding")
+ListPadding.PaddingTop = UDim.new(0, 5)
+ListPadding.PaddingBottom = UDim.new(0, 5)
+ListPadding.Parent = ListContainer
+
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.Padding = UDim.new(0, 5)
+ListLayout.Parent = ListContainer
+
+-- [4] ELEMEN UI PENCARIAN
+local SearchBox = Instance.new("TextBox")
+SearchBox.Name = "SearchBox"
+SearchBox.Size = UDim2.new(1, 0, 0, 30)
+SearchBox.PlaceholderText = "Cari Nama atau DisplayName..."
+SearchBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+SearchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+-- ✅ PERBAIKAN: Membuat tulisan (text/placeholder) berada di tengah
+SearchBox.TextXAlignment = Enum.TextXAlignment.Center 
+SearchBox.Text = "" 
+SearchBox.Parent = MainFrame
+SearchBox.LayoutOrder = 3 
+
+Instance.new("UICorner").Parent = SearchBox
+
+-- ================================================================= --
+--                          FUNGSI UTAMA
+-- ================================================================= --
+
+local function CollectPlayerData()
+    table.clear(PlayerList)
+    for _, Player in ipairs(Players:GetPlayers()) do
+        table.insert(PlayerList, {
+            UserId = Player.UserId,
+            Username = Player.Name,
+            DisplayName = Player.DisplayName
+        })
+    end
+end
+
+local function PopulateList(Data)
+    for _, item in ipairs(ListContainer:GetChildren()) do
+        if item:IsA("Frame") then
+            item:Destroy()
+        end
+    end
+
+    local itemHeight = 40
+
+    for i, PlayerData in ipairs(Data) do
+        local PlayerFrame = Instance.new("Frame")
+        PlayerFrame.Size = UDim2.new(1, 0, 0, itemHeight)
+        PlayerFrame.BackgroundTransparency = 0
+        PlayerFrame.BackgroundColor3 = Color3.fromRGB(65, 65, 65)
+        PlayerFrame.Parent = ListContainer
+
+        Instance.new("UICorner").Parent = PlayerFrame
+        
+        local HLayout = Instance.new("UIListLayout")
+        HLayout.FillDirection = Enum.FillDirection.Horizontal
+        HLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+        HLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+        HLayout.Padding = UDim.new(0, 5)
+        HLayout.Parent = PlayerFrame
+        
+        local ItemPadding = Instance.new("UIPadding")
+        ItemPadding.PaddingLeft = UDim.new(0, 5)
+        ItemPadding.Parent = PlayerFrame
+
+        local NameLabel = Instance.new("TextLabel")
+        NameLabel.Text = string.format("%s (%s)", PlayerData.DisplayName, PlayerData.Username)
+        NameLabel.Size = UDim2.new(0.4, 0, 1, 0)
+        NameLabel.BackgroundTransparency = 1
+        NameLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+        NameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        NameLabel.Parent = PlayerFrame
+        
+        local function CreateCopyButton(text, valueToCopy, color)
+            local Button = Instance.new("TextButton")
+            Button.Text = text
+            Button.Size = UDim2.new(0.18, 0, 1, -10)
+            Button.BackgroundColor3 = color
+            Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+            Button.Font = Enum.Font.SourceSansSemibold
+            Button.TextSize = 12
+            Button.Parent = PlayerFrame
+            
+            Instance.new("UICorner").Parent = Button
+
+            Button.MouseButton1Click:Connect(function()
+                setclipboard(tostring(valueToCopy))
+            end)
+        end
+        
+        CreateCopyButton("ID", PlayerData.UserId, Color3.fromRGB(0, 122, 255)) 
+        CreateCopyButton("User", PlayerData.Username, Color3.fromRGB(0, 180, 0)) 
+        CreateCopyButton("Display", PlayerData.DisplayName, Color3.fromRGB(255, 140, 0))
+    end
+    
+    ListContainer.CanvasSize = UDim2.new(0, 0, 0, #Data * (itemHeight + ListLayout.Padding.Offset + 5))
+end
+
+local function HandleSearch(SearchText)
+    local SearchTextLower = string.lower(SearchText)
+    local FilteredPlayers = {}
+    
+    if SearchTextLower == "" then
+        PopulateList(PlayerList)
+        return
+    end
+    
+    for _, PlayerData in ipairs(PlayerList) do
+        local UsernameLower = string.lower(PlayerData.Username)
+        local DisplayNameLower = string.lower(PlayerData.DisplayName)
+        
+        if (string.sub(UsernameLower, 1, #SearchTextLower) == SearchTextLower) or
+           (string.sub(DisplayNameLower, 1, #SearchTextLower) == SearchTextLower) then
+            table.insert(FilteredPlayers, PlayerData)
+        end
+    end
+    
+    PopulateList(FilteredPlayers)
+end
+
+-- ================================================================= --
+--                          LISTENER & INITIALISASI
+-- ================================================================= --
+
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    HandleSearch(SearchBox.Text)
+end)
+
+Players.PlayerAdded:Connect(function()
+    CollectPlayerData()
+    HandleSearch(SearchBox.Text)
+end)
+
+Players.PlayerRemoving:Connect(function()
+    CollectPlayerData()
+    HandleSearch(SearchBox.Text)
+end)
+
+-- INISIALISASI
+CollectPlayerData()
+PopulateList(PlayerList)
