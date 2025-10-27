@@ -1,6 +1,7 @@
 --================================================================
 -- Skrip Noclip & Cahaya Player
 -- VERSI 3: Ditambahkan pembersihan (cleanup) script latar belakang saat Close
+-- PERBAIKAN: GUI sekarang muncul tepat di tengah layar.
 --================================================================
 
 -- Variabel Servis & Player
@@ -20,6 +21,12 @@ local characterAddedConnection = nil -- [[BARU]] Untuk menyimpan koneksi Charact
 -- 1. PEMBUATAN GUI (INTERFACE)
 --================================================================
 
+-- Pengecekan dan Penghancuran Instansi Lama
+if Player.PlayerGui:FindFirstChild("UtilityGui") then
+	Player.PlayerGui.UtilityGui:Destroy()
+	print("[Utility Script] Instansi GUI lama ditemukan dan dihentikan. Membuat instansi baru.")
+end
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "UtilityGui"
 screenGui.Parent = Player:WaitForChild("PlayerGui")
@@ -31,7 +38,10 @@ mainFrame.Parent = screenGui
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BackgroundTransparency = 0.3
 mainFrame.BorderColor3 = Color3.fromRGB(80, 80, 80)
-mainFrame.Position = UDim2.new(0, 10, 0, 10)
+-- PERBAIKAN: Mengatur posisi dan AnchorPoint ke tengah
+mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0) 
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5) 
+-- End Perbaikan
 mainFrame.Size = UDim2.new(0, 150, 0, 110)
 mainFrame.Draggable = true
 mainFrame.Active = true
@@ -57,7 +67,7 @@ minimizeButton.BackgroundTransparency = 0.5
 minimizeButton.Size = UDim2.new(0, 15, 0, 15)
 minimizeButton.Position = UDim2.new(0, 5, 0, 5)
 minimizeButton.Font = Enum.Font.SourceSansBold
-minimizeButton.Text = "-"
+minimizeButton.Text = "—"
 minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 minimizeButton.TextSize = 16
 
@@ -117,7 +127,7 @@ minusButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 minusButton.Position = UDim2.new(0.05, 0, 0, 80)
 minusButton.Size = UDim2.new(0.25, 0, 0, 20)
 minusButton.Font = Enum.Font.SourceSansBold
-minusButton.Text = "-"
+minusButton.Text = "—"
 minusButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 minusButton.TextSize = 18
 
@@ -235,7 +245,7 @@ minimizeButton.MouseButton1Click:Connect(function()
 		minimizeButton.Text = "+"
 	else
 		targetSize = UDim2.new(0, 150, 0, 110) -- Ukuran normal
-		minimizeButton.Text = "-"
+		minimizeButton.Text = "—"
 	end
 
 	-- Sembunyikan/tampilkan semua elemen konten
