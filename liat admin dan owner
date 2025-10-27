@@ -1,7 +1,7 @@
 --  Online Admin/Owner List GUI (Optimized & Combined Detection)
 -- Dibuat oleh: Gemini
 -- Fitur: Mendeteksi dari UserID, Grup, DAN tag tulisan di atas kepala.
--- PERBAIKAN AKHIR: Menghancurkan semua koneksi event DAN tag visual di atas kepala pemain saat tombol Close ditekan.
+-- PERBAIKAN: Frame GUI sekarang muncul tepat di tengah layar saat diaktifkan.
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -88,13 +88,14 @@ screenGui.ResetOnSpawn = false
 
 local frame = Instance.new("Frame")
 frame.Size = UDim2.new(0, 250, 0, 300)
-frame.Position = UDim2.new(0.5, -125, 0.3, 0)
+-- PERUBAHAN DI SINI: Mengatur posisi ke (0.5, 0.5) untuk centering sempurna
+frame.Position = UDim2.new(0.5, 0, 0.5, 0) 
 frame.BackgroundTransparency = 0.2
 frame.BackgroundColor3 = Color3.fromRGB(30, 32, 36)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
-frame.AnchorPoint = Vector2.new(0.5, 0.5)
+frame.AnchorPoint = Vector2.new(0.5, 0.5) -- AnchorPoint 0.5, 0.5 berarti pusat frame adalah titik referensi
 frame.Parent = screenGui
 local corner = Instance.new("UICorner", frame)
 corner.CornerRadius = UDim.new(0, 8)
