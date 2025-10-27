@@ -32,7 +32,7 @@ local BLUR_NAME = "WeaponWheelBlur"
 --================================================================
 local SELECTION_SOUND_ID = "rbxassetid://6042054037" 
 local OPEN_SOUND_ID = "rbxassetid://1293433423"     
-local CLOSE_SOUND_ID = "rbxassetid://116271631941040"
+local CLOSE_SOUND_ID = "rbxassetid://124018322190013"
 local CLOSE_SOUND_VOLUME = 1
 local DIMMER_TRANSPARENCY = 1 
 local DEFAULT_CENTER_TEXT = "PILIH\nSCRIPT"
