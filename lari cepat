@@ -1,8 +1,14 @@
 -- WalkSpeed GUI - by (RISTAN)
+-- VERSI 3.0: Kecepatan Default diambil dari setting Map, Persisten, dan Cleanup saat Close.
 repeat task.wait() until game:IsLoaded()
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 repeat task.wait() until player and player:FindFirstChild("PlayerGui")
+
+-- Variabel Status (Nilai ini akan diisi secara dinamis saat inisialisasi)
+local DEFAULT_SPEED = 16 -- Nilai Fallback, akan ditimpa oleh speed map
+local currentSpeed = DEFAULT_SPEED
+local charAddedConnection = nil 
 
 -- Hapus GUI lama
 if player.PlayerGui:FindFirstChild("SpeedGUI") then
@@ -141,32 +147,53 @@ miniBtn.Active = true
 miniBtn.Draggable = true
 Instance.new("UICorner", miniBtn).CornerRadius = UDim.new(1, 0)
 
--- ===== FUNGSI =====
+-- ===== FUNGSI UTAMA & PERSISTENSI =====
+
 local function setStatus(text, color)
 	status.Text = text
 	status.TextColor3 = color or Color3.fromRGB(200,200,200)
 end
 
+-- Fungsi untuk mendapatkan Humanoid, menunggu jika belum ada
 local function getHumanoid()
 	local char = player.Character or player.CharacterAdded:Wait()
 	return char:FindFirstChildOfClass("Humanoid")
 end
 
+-- Fungsi untuk mengatur kecepatan
 local function setWalkSpeed(speed)
 	local hum = getHumanoid()
 	if hum then
+		-- Simpan kecepatan yang baru disetel
+		currentSpeed = speed 
 		hum.WalkSpeed = speed
 		setStatus("WalkSpeed diatur ke "..speed, Color3.fromRGB(120,255,120))
 	else
-		setStatus("Humanoid tidak ditemukan", Color3.fromRGB(255,120,120))
+		-- Tetap simpan kecepatan meskipun Humanoid belum ada
+		currentSpeed = speed 
+		setStatus("Humanoid tidak ditemukan, kecepatan akan diterapkan saat respawn.", Color3.fromRGB(255,165,0))
+	end
+	
+	-- Update input box agar mencerminkan kecepatan yang disetel
+	inputBox.Text = tostring(currentSpeed) 
+end
+
+-- Fungsi yang dipanggil saat karakter muncul (respawn)
+local function onCharacterAdded(character)
+	local hum = character:WaitForChild("Humanoid")
+	if hum then
+		-- Terapkan kecepatan yang tersimpan (currentSpeed)
+		hum.WalkSpeed = currentSpeed
+		-- Perbarui status di GUI
+		setStatus("Kecepatan ("..currentSpeed..") diterapkan setelah respawn.", Color3.fromRGB(0,200,255))
 	end
 end
 
 -- Tombol set speed ditekan
 setBtn.MouseButton1Click:Connect(function()
 	local val = tonumber(inputBox.Text)
-	if not val then
-		setStatus("Masukkan angka kecepatan!", Color3.fromRGB(255,200,0))
+	if not val or val < 1 then 
+		setStatus("Masukkan angka kecepatan yang valid!", Color3.fromRGB(255,200,0))
 		return
 	end
 	setWalkSpeed(val)
@@ -180,13 +207,32 @@ end)
 
 -- Tombol reset speed
 resetBtn.MouseButton1Click:Connect(function()
-	setWalkSpeed(16)
+	-- Menggunakan DEFAULT_SPEED yang sudah disetel secara dinamis
+	setWalkSpeed(DEFAULT_SPEED) 
 end)
 
 -- Tombol close & minimize
 closeBtn.MouseButton1Click:Connect(function()
+    -- Kembalikan kecepatan ke DEFAULT_SPEED yang diambil dari map saat inisialisasi
+    local char = player.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    
+    if hum then
+        hum.WalkSpeed = DEFAULT_SPEED 
+        print("Kecepatan dikembalikan ke default map ("..DEFAULT_SPEED..")")
+    end
+    
+	-- [[PEMBERSIHAN KRITIS]] Putuskan koneksi CharacterAdded
+	if charAddedConnection then
+		charAddedConnection:Disconnect()
+	end
+	
+	-- Hancurkan GUI 
 	screenGui:Destroy()
+	
+	print("[SpeedGUI] Script dihentikan dan dibersihkan.")
 end)
+
 minimizeBtn.MouseButton1Click:Connect(function()
 	mainFrame.Visible = false
 	miniBtn.Visible = true
@@ -196,4 +242,25 @@ miniBtn.MouseButton1Click:Connect(function()
 	miniBtn.Visible = false
 end)
 
-print("[SpeedGUI] by RISTAN aktif - bulat, transparan, bisa atur kecepatan")
+-- ===== INISIALISASI DINAMIS KRITIS =====
+-- Ambil kecepatan default dari map saat Humanoid pertama kali dimuat
+
+local initialHumanoid = getHumanoid()
+
+if initialHumanoid then
+	-- SET DEFAULT_SPEED dan currentSpeed berdasarkan WalkSpeed Humanoid saat ini
+	DEFAULT_SPEED = initialHumanoid.WalkSpeed
+	currentSpeed = initialHumanoid.WalkSpeed
+	
+	-- Terapkan kecepatan ke karakter pertama kali
+	initialHumanoid.WalkSpeed = currentSpeed
+	print("[SpeedGUI] Speed Default Map Ditemukan dan disetel: " .. DEFAULT_SPEED)
+else
+	-- Fallback jika karakter/Humanoid tidak dapat ditemukan
+	print("[SpeedGUI] Peringatan: Humanoid tidak ditemukan saat inisialisasi. Menggunakan speed default 16.")
+end
+
+-- Hubungkan fungsi ke CharacterAdded dan simpan koneksinya
+charAddedConnection = player.CharacterAdded:Connect(onCharacterAdded)
+
+print("[SpeedGUI] by RISTAN aktif - speed awal: " .. currentSpeed)
