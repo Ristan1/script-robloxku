@@ -45,8 +45,8 @@ local MAIN_WHEEL_COLOR = Color3.fromRGB(100, 100, 255)
 local MAX_SCRIPTS_IN_WHEEL = 8 
 local CENTER_CIRCLE_SIZE = 80 
 local ITEM_SIZE = 55          
-local RAY_LENGTH_UNITS = 65 
-local RAY_OFFSET_UNITS = 35 
+local RAY_LENGTH_UNITS = 108 -- Diperpanjang agar lebih menonjol
+local RAY_OFFSET_UNITS = 56 -- Diubah menjadi 0 agar pusat ray ada di pusat wheel
 
 
 local AllScripts = {
@@ -229,31 +229,33 @@ local function createWeaponWheel()
     wheelContainer.Visible = false
     wheelContainer.ZIndex = 3 
     
-    -- [[ SELECTION RAY ]]
+    -- [[ SELECTION RAY DENGAN MODIFIKASI JARUM JAM ]]
     local selectionRay = Instance.new("Frame")
     selectionRay.Name = "SelectionRay"
     selectionRay.Parent = wheelContainer
     selectionRay.BackgroundColor3 = Color3.fromRGB(255, 255, 255) 
-    selectionRay.BackgroundTransparency = 1 
-    selectionRay.AnchorPoint = Vector2.new(0.5, 1) 
-    selectionRay.Position = UDim2.new(0.5, 0, 0.5, RAY_OFFSET_UNITS) 
-    selectionRay.Size = UDim2.new(0, 10, 0, 0) 
+    selectionRay.BackgroundTransparency = 0.8 -- Dimulai sedikit transparan
+    selectionRay.AnchorPoint = Vector2.new(0.5, 1) -- Anchor point penting: pusat di bawah!
+    selectionRay.Position = UDim2.new(0.5, 0, 0.5, RAY_OFFSET_UNITS) -- RAY_OFFSET_UNITS harus 0
+    selectionRay.Size = UDim2.new(0, 15, 0, 0) -- Lebar sedikit lebih tebal
     selectionRay.ZIndex = 2 
 
+    -- Efek gradien memudar dan warna yang lebih tegas di pangkal jarum
     local rayGradient = Instance.new("UIGradient")
     rayGradient.Name = "RayGradient"
     rayGradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)), -- Ujung (Putih)
+        ColorSequenceKeypoint.new(0.5, MAIN_WHEEL_COLOR),            -- Tengah (Warna Biru Utama)
+        ColorSequenceKeypoint.new(1, MAIN_WHEEL_COLOR)              -- Pangkal (Warna Biru Utama)
     }
     rayGradient.Transparency = NumberSequence.new{
-        NumberSequenceKeypoint.new(0, 0.0), 
-        NumberSequenceKeypoint.new(0.7, 0.1), 
-        NumberSequenceKeypoint.new(1, 1)    
+        NumberSequenceKeypoint.new(0, 0.8), -- Ujung sangat transparan
+        NumberSequenceKeypoint.new(0.5, 0.3), -- Tengah
+        NumberSequenceKeypoint.new(1, 0.0)    -- Pangkal/Pusat tegas
     }
-    rayGradient.Rotation = 0 
+    rayGradient.Rotation = 0 -- Rotasi 0 (gradient vertikal)
     rayGradient.Parent = selectionRay
-    
+
     -- RODA UTAMA: Outer Circle 
     local outerCircle = Instance.new("Frame")
     outerCircle.Name = "OuterCircle"
@@ -279,7 +281,7 @@ local function createWeaponWheel()
     centerCircle.Name = "CenterCircle"
     centerCircle.Parent = wheelContainer
     centerCircle.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    centerCircle.BackgroundTransparency = 0.2
+    centerCircle.BackgroundTransparency = 0.8
     centerCircle.AnchorPoint = Vector2.new(0.5, 0.5)
     centerCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
     centerCircle.Size = UDim2.new(0, CENTER_CIRCLE_SIZE, 0, CENTER_CIRCLE_SIZE)
@@ -324,21 +326,23 @@ local function createWeaponWheel()
     end
     
     local tweenInfoRay = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local tweenInfoRayOut = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+    local tweenInfoRayOut = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
+    -- FUNGSI UPDATE RAY BARU
     local function updateRay(angle)
         local angle_deg = angle * (180 / math.pi)
+        -- Rotasi ray disetel 90 derajat lebih tinggi karena AnchorPoint (0.5, 1) dan Frame 'berdiri' vertikal
         selectionRay.Rotation = angle_deg + 90 
         TweenService:Create(selectionRay, tweenInfoRay, {
-            Size = UDim2.new(0, 10, 0, RAY_LENGTH_UNITS), 
-            BackgroundTransparency = 0.5, 
+            Size = UDim2.new(0, 15, 0, RAY_LENGTH_UNITS), -- Tunjukkan panjang jarum penuh
+            BackgroundTransparency = 0, -- Set transparansi dasar frame ke 0 (gradien yang akan mengontrol tampilan)
         }):Play()
     end
 
     local function hideRay()
         TweenService:Create(selectionRay, tweenInfoRayOut, {
-            Size = UDim2.new(0, 10, 0, 0), 
-            BackgroundTransparency = 1,
+            Size = UDim2.new(0, 15, 0, 0), -- Kecilkan tingginya kembali menjadi 0
+            BackgroundTransparency = 0.8,
         }):Play()
     end
 
