@@ -1,19 +1,20 @@
 --================================================================
 -- Skrip Noclip & Cahaya Player
--- VERSI 2: Ditambahkan tombol Minimize & Close
+-- VERSI 3: Ditambahkan pembersihan (cleanup) script latar belakang saat Close
 --================================================================
 
 -- Variabel Servis & Player
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService") -- Ditambahkan untuk animasi
+local TweenService = game:GetService("TweenService") 
 local Player = Players.LocalPlayer
 
 -- Variabel Status
 local noclipEnabled = false
 local lightEnabled = false
-local isMinimized = false -- Status untuk minimize
+local isMinimized = false
 local noclipConnection = nil
+local characterAddedConnection = nil -- [[BARU]] Untuk menyimpan koneksi CharacterAdded
 
 --================================================================
 -- 1. PEMBUATAN GUI (INTERFACE)
@@ -47,7 +48,7 @@ titleLabel.Text = "♡APAM♡"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 16
 
--- [[BARU]] Tombol Minimize
+-- Tombol Minimize
 local minimizeButton = Instance.new("TextButton")
 minimizeButton.Name = "MinimizeButton"
 minimizeButton.Parent = mainFrame
@@ -60,14 +61,14 @@ minimizeButton.Text = "-"
 minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 minimizeButton.TextSize = 16
 
--- [[BARU]] Tombol Close
+-- Tombol Close
 local closeButton = Instance.new("TextButton")
 closeButton.Name = "CloseButton"
 closeButton.Parent = mainFrame
 closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 closeButton.BackgroundTransparency = 0.5
 closeButton.Size = UDim2.new(0, 15, 0, 15)
-closeButton.Position = UDim2.new(1, -20, 0, 5) -- Ujung kanan
+closeButton.Position = UDim2.new(1, -20, 0, 5)
 closeButton.Font = Enum.Font.SourceSansBold
 closeButton.Text = "X"
 closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -105,7 +106,7 @@ lightRangeLabel.BackgroundTransparency = 1
 lightRangeLabel.Position = UDim2.new(0.3, 0, 0, 80)
 lightRangeLabel.Size = UDim2.new(0.4, 0, 0, 20)
 lightRangeLabel.Font = Enum.Font.SourceSans
-lightRangeLabel.Text = "30" -- Jarak awal
+lightRangeLabel.Text = "30"
 lightRangeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 lightRangeLabel.TextSize = 16
 
@@ -131,7 +132,6 @@ plusButton.Text = "+"
 plusButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 plusButton.TextSize = 18
 
--- [[BARU]] Tabel untuk menyimpan semua elemen konten
 local contentElements = {noclipButton, lightButton, lightRangeLabel, minusButton, plusButton}
 
 --================================================================
@@ -146,6 +146,7 @@ local maxLightRange = 100
 
 -- Fungsi untuk menginisialisasi saat karakter muncul/respawn
 local function onCharacterAdded(character)
+	-- Pastikan cahaya dibuat hanya jika belum ada
 	if not playerLight or not playerLight.Parent then
 		playerLight = Instance.new("PointLight")
 		playerLight.Name = "PlayerLight"
@@ -154,14 +155,27 @@ local function onCharacterAdded(character)
 		playerLight.Range = currentLightRange
 		playerLight.Shadows = true
 		playerLight.Enabled = lightEnabled
-		playerLight.Parent = character:WaitForChild("HumanoidRootPart")
+		-- Pasang cahaya ke HumanoidRootPart
+		local rootPart = character:WaitForChild("HumanoidRootPart")
+		if rootPart then
+			playerLight.Parent = rootPart
+		end
+	end
+	
+	-- Pastikan noclip tetap aktif jika sebelumnya diaktifkan
+	if noclipEnabled then
+		setNoclip(true)
 	end
 end
 
 -- --- Logika Noclip ---
 local function setNoclip(enabled)
+	noclipEnabled = enabled -- Sinkronkan status global
+	
 	if enabled then
-		if noclipConnection then noclipConnection:Disconnect() end
+		if noclipConnection then noclipConnection:Disconnect() end -- Pastikan koneksi lama diputus
+		
+		-- Loop RunService.Stepped untuk Noclip (continuous background script)
 		noclipConnection = RunService.Stepped:Connect(function()
 			local char = Player.Character
 			if char then
@@ -173,9 +187,11 @@ local function setNoclip(enabled)
 			end
 		end)
 	else
+		-- [[CRITICAL]] PUTUSKAN KONEKSI RUNSERVICE UNTUK MENGHENTIKAN LAG
 		if noclipConnection then
 			noclipConnection:Disconnect()
 			noclipConnection = nil
+			-- Kembalikan CanCollide ke true
 			local char = Player.Character
 			if char then
 				for _, part in ipairs(char:GetDescendants()) do
@@ -188,12 +204,28 @@ local function setNoclip(enabled)
 	end
 end
 
--- --- Logika Tombol Close --- [[BARU]]
+-- --- Logika Tombol Close --- [[DIREVISI]]
 closeButton.MouseButton1Click:Connect(function()
+	-- 1. Matikan Noclip (menghentikan koneksi RunService.Stepped)
+	setNoclip(false)
+	
+	-- 2. Hancurkan Cahaya (PointLight) jika ada
+	if playerLight and playerLight.Parent then
+		playerLight:Destroy()
+		playerLight = nil
+	end
+
+	-- 3. Putuskan koneksi CharacterAdded (agar fungsi tidak berjalan saat respawn)
+	if characterAddedConnection then
+		characterAddedConnection:Disconnect()
+		characterAddedConnection = nil
+	end
+
+	-- 4. Hancurkan GUI (ini juga akan memutuskan koneksi tombol-tombol)
 	screenGui:Destroy()
 end)
 
--- --- Logika Tombol Minimize --- [[BARU]]
+-- --- Logika Tombol Minimize ---
 minimizeButton.MouseButton1Click:Connect(function()
 	isMinimized = not isMinimized
 
@@ -219,14 +251,13 @@ end)
 
 -- --- Logika Tombol Noclip ---
 noclipButton.MouseButton1Click:Connect(function()
-	noclipEnabled = not noclipEnabled
-	setNoclip(noclipEnabled)
+	setNoclip(not noclipEnabled)
 	
 	if noclipEnabled then
-		noclipButton.Text = "Noclip: ON"
+		noclipButton.Text = "Tembus Tembok: ON"
 		noclipButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
 	else
-		noclipButton.Text = "Noclip: OFF"
+		noclipButton.Text = "Tembus Tembok: OFF"
 		noclipButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 	end
 end)
@@ -272,5 +303,5 @@ end)
 if Player.Character then
 	onCharacterAdded(Player.Character)
 end
-Player.CharacterAdded:Connect(onCharacterAdded)
-
+-- [[BARU]] Simpan koneksi CharacterAdded agar bisa diputus saat Close
+characterAddedConnection = Player.CharacterAdded:Connect(onCharacterAdded)
