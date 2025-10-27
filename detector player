@@ -1,5 +1,5 @@
 -- Player Detector dengan Garis Penunjuk Lokasi dan GUI Kontrol
--- **FIXED: Masalah Garis Detektor Tidak Bisa Dimatikan**
+-- **FIXED: Mematikan script sepenuhnya saat tombol Close ditekan (Mencegah Lag)**
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -13,7 +13,7 @@ if not LocalPlayer then
     LocalPlayer = Players.LocalPlayer
 end
 
--- Konfigurasi Utama
+-- Variabel Global Persisten (Hanya selama script ini berjalan)
 local CONFIG = {
     MaxDistance = 1000, 
     LineThickness = 0.1,
@@ -21,37 +21,33 @@ local CONFIG = {
     ShowDistance = true,
     ShowName = true,
     MinSearchLength = 2,
-    DetectorActive = true, 
-    Mode = "AllPlayers" 
+    DetectorActive = true,
+    Mode = "AllPlayers",
+    targetUsername = ""
 }
 
 -- Tabel untuk menyimpan garis dan label setiap player
 local playerLines = {}
 local playerLabels = {}
-local targetUsername = ""
+
+-- Tabel untuk menyimpan koneksi event agar bisa di-Disconnect
+local connections = {}
 
 ---------------------------------------------------
--- Fungsi-Fungsi Detektor
+-- Fungsi-Fungsi Detektor (Tidak Ada Perubahan)
 ---------------------------------------------------
 
 local function cleanupPlayer(player)
-    -- **Perbaikan Kritikal: Pastikan semua objek dihancurkan**
+    -- ... (Fungsi cleanupPlayer tetap sama) ...
     if playerLines[player] then
-        -- Hancurkan Attachment dan Beam
         if playerLines[player].Attachment0 then playerLines[player].Attachment0:Destroy() end
         if playerLines[player].Attachment1 then playerLines[player].Attachment1:Destroy() end
-        -- Cek apakah Beam masih ada sebelum dihancurkan
-        if playerLines[player].Parent then 
-            playerLines[player]:Destroy() 
-        end
+        if playerLines[player].Parent then playerLines[player]:Destroy() end
         playerLines[player] = nil
     end
     if playerLabels[player] then
-        -- Hancurkan BillboardGui (Parent dari TextLabel)
         local billboardGui = playerLabels[player].Parent
-        if billboardGui then 
-            billboardGui:Destroy() 
-        end
+        if billboardGui then billboardGui:Destroy() end
         playerLabels[player] = nil
     end
 end
@@ -60,7 +56,6 @@ local function cleanupAll()
     for player, _ in pairs(playerLines) do
         cleanupPlayer(player)
     end
-    -- Kosongkan tabel visual yang mungkin tersisa
     playerLines = {}
     playerLabels = {}
 end
@@ -70,11 +65,11 @@ local function matchesSearch(player)
         return true
     end
     
-    if targetUsername == "" or #targetUsername < CONFIG.MinSearchLength then
+    if CONFIG.targetUsername == "" or #CONFIG.targetUsername < CONFIG.MinSearchLength then
         return false 
     end
     
-    local searchLower = targetUsername:lower()
+    local searchLower = CONFIG.targetUsername:lower()
     local usernameLower = player.Name:lower()
     local displayLower = player.DisplayName:lower()
     
@@ -83,7 +78,7 @@ local function matchesSearch(player)
 end
 
 local function updatePlayerLine(player)
-    -- Pengecekan dasar
+    -- ... (Fungsi updatePlayerLine tetap sama) ...
     if player == LocalPlayer then 
         cleanupPlayer(player) 
         return 
@@ -107,15 +102,12 @@ local function updatePlayerLine(player)
     
     local distance = (humanoidRootPart.Position - localRootPart.Position).Magnitude
     
-    -- Cek apakah player harus ditampilkan
     local shouldDisplay = matchesSearch(player) and distance <= CONFIG.MaxDistance
     
     if not shouldDisplay then
-        cleanupPlayer(player) -- Bersihkan jika tidak memenuhi syarat
+        cleanupPlayer(player)
         return
     end
-    
-    -- Lanjutkan membuat/memperbarui visual jika shouldDisplay = true
     
     -- Update/Create Line (Beam)
     if not playerLines[player] then
@@ -181,7 +173,6 @@ local function updatePlayerLine(player)
 end
 
 local function updateAllPlayers()
-    -- **Perbaikan Utama: Bersihkan semua jika nonaktif**
     if not CONFIG.DetectorActive then
         cleanupAll()
         return
@@ -193,26 +184,29 @@ local function updateAllPlayers()
 end
 
 -- Event Loop
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
+-- ✅ SIMPAN KONEKSI KE VARIABEL
+connections.PlayerAdded = Players.PlayerAdded:Connect(function(player)
+    connections[player] = player.CharacterAdded:Connect(function()
         wait(0.5) 
         updatePlayerLine(player)
     end)
 end)
 
-Players.PlayerRemoving:Connect(cleanupPlayer)
+connections.PlayerRemoving = Players.PlayerRemoving:Connect(cleanupPlayer)
 
-RunService.RenderStepped:Connect(updateAllPlayers)
+connections.RenderStepped = RunService.RenderStepped:Connect(updateAllPlayers)
 
 ---------------------------------------------------
 -- Setup GUI
 ---------------------------------------------------
 
+-- ... (Fungsi createGUI tetap sama) ...
 local MainFrame
 local GuiVisible = true
 
 local function createGUI()
     if CoreGui:FindFirstChild("PlayerDetectorGUI") then
+        -- Jika GUI sudah ada, hancurkan GUI lama agar bisa membuat yang baru
         CoreGui:FindFirstChild("PlayerDetectorGUI"):Destroy()
     end
     
@@ -221,7 +215,8 @@ local function createGUI()
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.IgnoreGuiInset = true
     ScreenGui.Parent = CoreGui 
-
+    
+    -- ... (Sisanya dari setup GUI tetap sama) ...
     MainFrame = Instance.new("Frame")
     MainFrame.Name = "MainFrame"
     MainFrame.Size = UDim2.new(0, 300, 0, 280)
@@ -231,9 +226,6 @@ local function createGUI()
     MainFrame.Active = true
     MainFrame.Draggable = true
     MainFrame.Parent = ScreenGui
-
-    -- UI Elements setup (Corner, TitleBar, Buttons, Inputs, etc.)
-    -- Menggunakan struktur GUI yang sama dari perbaikan sebelumnya.
 
     local Corner = Instance.new("UICorner")
     Corner.CornerRadius = UDim.new(0, 8)
@@ -249,7 +241,7 @@ local function createGUI()
     local TitleLabel = Instance.new("TextLabel")
     TitleLabel.Size = UDim2.new(1, -60, 1, 0)
     TitleLabel.Position = UDim2.new(0, 0, 0, 0)
-    TitleLabel.Text = "🛡️ Player Detector (Fixed)"
+    TitleLabel.Text = "🛡️ Detector"
     TitleLabel.Font = Enum.Font.SourceSansBold
     TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     TitleLabel.TextSize = 18
@@ -380,7 +372,7 @@ end
 ---------------------------------------------------
 
 local ScreenGui = createGUI()
-local ContentFrame = ScreenGui.MainFrame.Content
+local ContentFrame = ScreenGui:FindFirstChild("MainFrame").Content
 local ToggleButton = ContentFrame.ToggleButton
 local AllPlayersButton = ContentFrame.AllPlayersButton
 local SpecificPlayerButton = ContentFrame.SpecificPlayerButton
@@ -389,6 +381,7 @@ local DistanceInput = ContentFrame.DistanceInput
 local TitleBar = ScreenGui.MainFrame.TitleBar
 local MinButton = TitleBar.MinButton
 local CloseButton = TitleBar.CloseButton
+local MainFrame = ScreenGui.MainFrame
 
 local function updateModeDisplay()
     if CONFIG.Mode == "AllPlayers" then
@@ -403,9 +396,9 @@ local function updateModeDisplay()
         SpecificPlayerButton.BackgroundColor3 = Color3.fromRGB(200, 100, 0)
         SpecificPlayerButton.Text = "Opsi 2: Cari Nama Spesifik (Aktif)"
         SearchInput.Visible = true
-        targetUsername = SearchInput.Text
+        CONFIG.targetUsername = SearchInput.Text
     end
-    cleanupAll() -- **Penting: Bersihkan visual saat mode berubah**
+    cleanupAll()
 end
 
 local function updateStatusDisplay()
@@ -417,7 +410,6 @@ local function updateStatusDisplay()
         ToggleButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
         ToggleButton.Text = "Status: NONAKTIF"
         MainFrame.BackgroundTransparency = 0.5
-        -- cleanupAll() tidak perlu dipanggil di sini karena sudah di handle oleh updateAllPlayers di RenderStepped
     end
 end
 
@@ -429,7 +421,7 @@ end)
 
 AllPlayersButton.MouseButton1Click:Connect(function()
     CONFIG.Mode = "AllPlayers"
-    targetUsername = ""
+    CONFIG.targetUsername = ""
     updateModeDisplay()
 end)
 
@@ -440,7 +432,7 @@ end)
 
 SearchInput.Changed:Connect(function()
     if CONFIG.Mode == "SpecificPlayer" then
-        targetUsername = SearchInput.Text
+        CONFIG.targetUsername = SearchInput.Text
     end
 end)
 
@@ -476,23 +468,42 @@ MinButton.MouseButton1Click:Connect(function()
     end
 end)
 
+-- ✅ FUNGSI CLOSE KRITIS: MEMATIKAN SEMUA KONEKSI & SCRIPT
 CloseButton.MouseButton1Click:Connect(function()
+    -- 1. Matikan detektor (penting untuk membersihkan visual)
+    CONFIG.DetectorActive = false
+    cleanupAll()
+
+    -- 2. Putuskan semua koneksi Event (Mencegah lag)
+    for _, connection in pairs(connections) do
+        if connection and typeof(connection) == "RBXScriptConnection" then
+            connection:Disconnect()
+        end
+    end
+
+    -- 3. Hancurkan GUI
     ScreenGui:Destroy()
-    cleanupAll() -- Pastikan semua garis hilang saat GUI ditutup
+    
+    -- 4. Hentikan eksekusi script ini
+    -- Ini biasanya akan menghentikan thread eksekusi di sebagian besar executor.
+    -- Jika executor Anda mendukung 'return' di scope global:
+    return
 end)
 
--- Inisialisasi
+-- Inisialisasi: Perbarui UI sesuai state CONFIG
 updateStatusDisplay()
 updateModeDisplay()
 
+-- Tangani pemain yang sudah ada
 for _, player in pairs(Players:GetPlayers()) do
     if player.Character then
         updatePlayerLine(player)
     end
-    player.CharacterAdded:Connect(function()
+    -- Perluas event CharacterAdded ke pemain yang sudah ada
+    connections[player] = player.CharacterAdded:Connect(function()
         wait(0.5)
         updatePlayerLine(player)
     end)
 end
 
-print("=== Player Detector GUI Aktif dan Diperbaiki (Garis Permanen) ===")
+print("=== Player Detector GUI Aktif. Tombol 'X' akan menghentikan script untuk mencegah lag. ===")
