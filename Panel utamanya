@@ -1,10 +1,7 @@
-
 --================================================================
--- GTA 5 Style Weapon Wheel Script Loader - Mobile Version (MODIFIED V36 - STABILITAS KLIK FINAL)
--- Modifikasi Utama: SINGLETON PATTERN + PANIC MODE ENFORCER + FIX FLICKER
--- 1. FIX KRITIS: Meningkatkan Debounce Time pada tombol folder (0.2s) untuk mencegah flicker/dobel-hitung.
--- 2. Menambahkan indikator visual pada tombol folder saat Panic Mode akan terpicu (>= 3 klik).
--- 3. Memastikan Panic Notification memiliki ZIndex tinggi.
+-- GTA 5 Style Weapon Wheel Script Loader - Mobile Version (MODIFIED V40 - FIX KRITIS STUCK ZOOM)
+-- Modifikasi Utama: Definsi ORIGINAL_FOV disetel ke nilai standar (70) untuk menjamin reset FOV.
+-- Status: Tanpa Mode Panik. Menggunakan Animation Lock untuk stabilitas klik cepat.
 --================================================================
 
 local Players = game:GetService("Players")
@@ -16,20 +13,19 @@ local Camera = workspace.CurrentCamera
 local Mouse = Player:GetMouse()
 
 --================================================================
--- PANIC MODE CONFIGURATION
+-- KONFIGURASI UMUM
 --================================================================
-local PANIC_CLICK_COUNT = 5       -- Jumlah klik cepat untuk memicu Panic Mode
-local PANIC_TIME_WINDOW = 2       -- Waktu maksimum (detik) antar 5 klik
-local PANIC_MODE_ACTIVE = false   -- Flag untuk menonaktifkan semua fungsi
-local ActiveScriptTracker = {}    -- Melacak nama skrip yang berhasil dimuat
+local ActiveScriptTracker = {}    
+local isActionLocked = false      -- Mengunci aksi tombol saat animasi buka/tutup sedang berjalan.
 
 --================================================================
 -- KONFIGURASI EFEK VISUAL (BLUR & ZOOM OUT)
 --================================================================
-local ORIGINAL_FOV = Camera.FieldOfView 
-local ZOOMED_OUT_FOV = 90       -- FOV yang lebih BESAR untuk efek zoom OUT (menjauh)
-local BLUR_SIZE = 20            -- Kekuatan blur (0 = tidak blur, max 24)
-local BLUR_NAME = "WeaponWheelBlur" -- Nama unik untuk BlurEffect
+-- FIX KRITIS: Disetel ke nilai default Roblox (70) agar pasti mereset.
+local ORIGINAL_FOV = 70         
+local ZOOMED_OUT_FOV = 105       
+local BLUR_SIZE = 0            
+local BLUR_NAME = "WeaponWheelBlur" 
 
 --================================================================
 -- KONFIGURASI ENHANCEMENTS LAIN
@@ -40,7 +36,7 @@ local CLOSE_SOUND_ID = "rbxassetid://116271631941040"
 local CLOSE_SOUND_VOLUME = 1
 local DIMMER_TRANSPARENCY = 1 
 local DEFAULT_CENTER_TEXT = "PILIH\nSCRIPT"
-local GUI_NAME = "WeaponWheelGUI" -- Nama unik untuk ScreenGui
+local GUI_NAME = "WeaponWheelGUI" 
 
 --================================================================
 -- KONFIGURASI WARNA & DATA
@@ -84,60 +80,24 @@ for i, scriptInfo in ipairs(AllScripts) do
 end
 
 --================================================================
--- FUNGSI PEMBERSIHAN (CRITICAL FIX FOR DOUBLE-ACTIVE & PANIC)
+-- FUNGSI PEMBERSIHAN INSTANSI LAMA
 --================================================================
-local function cleanupExistingInstances(isPanic)
+local function resetGuiAndCamera()
     local playerGui = Player:WaitForChild("PlayerGui")
     
-    -- 1. Hancurkan GUI lama (Loader)
     local oldGUI = playerGui:FindFirstChild(GUI_NAME)
     if oldGUI then
         oldGUI:Destroy()
-        if isPanic then
-             warn("PANIC MODE: GUI lama (" .. GUI_NAME .. ") dihancurkan.")
-        else
-            warn("Instansi GUI lama (" .. GUI_NAME .. ") dihancurkan.")
-        end
+        warn("Instansi GUI lama (" .. GUI_NAME .. ") dihancurkan.")
     end
     
-    -- 2. Hancurkan BlurEffect lama
     local oldBlur = Camera:FindFirstChild(BLUR_NAME)
     if oldBlur then
         oldBlur:Destroy()
     end
     
-    -- 3. Reset FOV
+    -- Camera akan direset ke 70 (nilai default) jika stuck di 90.
     Camera.FieldOfView = ORIGINAL_FOV 
-    
-    -- 4. Set Panic Flag dan Notifikasi (Hanya saat Panic)
-    if isPanic then
-        PANIC_MODE_ACTIVE = true
-        
-        local notif = Instance.new("TextLabel")
-        notif.Parent = playerGui
-        notif.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        notif.BackgroundTransparency = 0.1
-        notif.AnchorPoint = Vector2.new(0.5, 0.5)
-        notif.Position = UDim2.new(0.5, 0, 0.5, 0)
-        notif.Size = UDim2.new(0, 350, 0, 100)
-        notif.Font = Enum.Font.SourceSansBold
-        notif.Text = "🚨 PANIC MODE AKTIF 🚨\nLoader Telah Dinonaktifkan Secara Paksa."
-        notif.TextColor3 = Color3.fromRGB(255, 255, 255)
-        notif.TextSize = 18
-        notif.ZIndex = 10 -- ZIndex tinggi agar pasti terlihat
-        
-        local corner = Instance.new("UICorner")
-        corner.CornerRadius = UDim.new(0, 15)
-        corner.Parent = notif
-        
-        warn("PERINGATAN: Panic Mode aktif! Skrip yang dimuat sebelumnya MUNGKIN masih berjalan.")
-        print("Skrip yang dimuat sebelum Panic:", table.concat(ActiveScriptTracker, ", "))
-        
-        -- Hancurkan notifikasi setelah 5 detik
-        task.delay(5, function()
-            notif:Destroy()
-        end)
-    end
 end
 
 
@@ -145,11 +105,6 @@ end
 -- FUNGSI LOAD SCRIPT
 --================================================================
 local function loadScriptFromURL(url, scriptName)
-    if PANIC_MODE_ACTIVE then
-        warn("Gagal memuat: Panic Mode aktif.")
-        return false
-    end
-    
     if not pcall(function() return loadstring("") end) then
         warn("loadstring() tidak aktif.")
         return false
@@ -184,7 +139,6 @@ local function loadScriptFromURL(url, scriptName)
         return false
     end
     
-    -- Tambahkan ke pelacak skrip aktif
     table.insert(ActiveScriptTracker, scriptName)
     print(scriptName .. " berhasil dimuat!")
     return true
@@ -391,55 +345,76 @@ local function createWeaponWheel()
     -- FUNGSI ANIMASI DAN LOGIKA BUKA/TUTUP
     local isWheelOpen = false
     local function toggleWheel()
-        if PANIC_MODE_ACTIVE then return end 
-
+        -- Kunci aksi jika animasi sedang berjalan (Mencegah Zoom Stuck)
+        if isActionLocked then return end
+        isActionLocked = true
+        
         isWheelOpen = not isWheelOpen
         
         if isWheelOpen then
             openSound:Play() 
             setWheelActive(true)
             
-            TweenService:Create(Camera, TweenInfo.new(0.3, Enum.EasingStyle.Cubic), {FieldOfView = ZOOMED_OUT_FOV}):Play()
-            TweenService:Create(blurEffect, TweenInfo.new(0.3, Enum.EasingStyle.Cubic), {Size = BLUR_SIZE}):Play()
-            
-            dimmerFrame.Visible = true
-            TweenService:Create(dimmerFrame, TweenInfo.new(0.3, Enum.EasingStyle.Linear), {BackgroundTransparency = DIMMER_TRANSPARENCY}):Play()
+            -- Tweens Pembuka (Open)
+            local tweenFOV = TweenService:Create(Camera, TweenInfo.new(0.3, Enum.EasingStyle.Cubic), {FieldOfView = ZOOMED_OUT_FOV})
+            local tweenBlur = TweenService:Create(blurEffect, TweenInfo.new(0.3, Enum.EasingStyle.Cubic), {Size = BLUR_SIZE})
+            local tweenDimmer = TweenService:Create(dimmerFrame, TweenInfo.new(0.3, Enum.EasingStyle.Linear), {BackgroundTransparency = DIMMER_TRANSPARENCY})
+            local tweenInfoMain = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+            local tweenMainWheel = TweenService:Create(wheelContainer, tweenInfoMain, {Size = UDim2.new(0, 250, 0, 250)})
 
+            dimmerFrame.Visible = true
             wheelContainer.Size = UDim2.new(0, 0, 0, 0)
             wheelContainer.Visible = true
-            local tweenInfoMain = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-            TweenService:Create(wheelContainer, tweenInfoMain, {Size = UDim2.new(0, 250, 0, 250)}):Play() 
+            
+            tweenFOV:Play()
+            tweenBlur:Play()
+            tweenDimmer:Play()
+            tweenMainWheel:Play()
+            
+            -- Tunggu Tween utama selesai sebelum melanjutkan (untuk menghindari desinkronisasi)
+            tweenMainWheel.Completed:Wait() 
             
             if #ScriptsInMore > 0 then
-                task.wait(0.15) 
+                task.wait(0.05) 
                 outerWheelContainer.Size = UDim2.new(0, 0, 0, 0)
                 outerWheelContainer.Visible = true 
                 local tweenInfoOuter = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-                TweenService:Create(outerWheelContainer, tweenInfoOuter, {Size = UDim2.new(0, 400, 0, 400)}):Play()
+                local tweenOuterWheel = TweenService:Create(outerWheelContainer, tweenInfoOuter, {Size = UDim2.new(0, 400, 0, 400)})
+                tweenOuterWheel:Play()
             end
+            
+            isActionLocked = false -- Buka kunci aksi setelah selesai membuka
             
         else
             closeSound:Play() 
             setWheelActive(false) 
             hideRay()
             
-            TweenService:Create(Camera, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {FieldOfView = ORIGINAL_FOV}):Play()
-            TweenService:Create(blurEffect, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = 0}):Play()
-            
             local tweenInfoOut = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+
+            -- Tweens Penutup (Close)
+            local tweenFOV = TweenService:Create(Camera, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {FieldOfView = ORIGINAL_FOV})
+            local tweenBlur = TweenService:Create(blurEffect, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = 0})
+            local tweenMainWheel = TweenService:Create(wheelContainer, tweenInfoOut, {Size = UDim2.new(0, 0, 0, 0)})
+            local tweenOuterWheel = TweenService:Create(outerWheelContainer, tweenInfoOut, {Size = UDim2.new(0, 0, 0, 0)})
             
-            TweenService:Create(wheelContainer, tweenInfoOut, {Size = UDim2.new(0, 0, 0, 0)}):Play()
-            local tweenOuter = TweenService:Create(outerWheelContainer, tweenInfoOut, {Size = UDim2.new(0, 0, 0, 0)})
-            tweenOuter:Play()
-            
+            tweenFOV:Play()
+            tweenBlur:Play()
+            tweenMainWheel:Play()
+            tweenOuterWheel:Play()
+
             task.wait(0.05)
             local tweenDimmer = TweenService:Create(dimmerFrame, tweenInfoOut, {BackgroundTransparency = 1})
             tweenDimmer:Play()
             
+            -- Tunggu Tween Dimmer selesai 
             tweenDimmer.Completed:Wait() 
+            
             wheelContainer.Visible = false
             outerWheelContainer.Visible = false
             dimmerFrame.Visible = false 
+            
+            isActionLocked = false -- Buka kunci aksi setelah selesai menutup
         end
     end
     
@@ -508,7 +483,7 @@ local function createWeaponWheel()
         table.insert(mainWheelButtons, button)
         
         local function onSelectionClick()
-            if isSelectionDebounced or PANIC_MODE_ACTIVE then return end 
+            if isSelectionDebounced then return end 
             isSelectionDebounced = true 
             
             selectionSound:Play() 
@@ -545,7 +520,7 @@ local function createWeaponWheel()
         local isHovered = false
         
         button.MouseEnter:Connect(function()
-            if not isHovered and not isSelectionDebounced and not PANIC_MODE_ACTIVE then
+            if not isHovered and not isSelectionDebounced then
                 isHovered = true
                 selectionSound:Play() 
                 updateRay(angle)
@@ -651,7 +626,7 @@ local function createWeaponWheel()
         table.insert(outerWheelButtons, button)
 
         local function onSelectionClickOuter()
-            if isSelectionDebounced or PANIC_MODE_ACTIVE then return end 
+            if isSelectionDebounced then return end 
             isSelectionDebounced = true 
 
             selectionSound:Play() 
@@ -687,7 +662,7 @@ local function createWeaponWheel()
         local isHoveredOuter = false
 
         button.MouseEnter:Connect(function()
-            if not isHoveredOuter and not isSelectionDebounced and not PANIC_MODE_ACTIVE then
+            if not isHoveredOuter and not isSelectionDebounced then
                 isHoveredOuter = true
                 selectionSound:Play() 
                 updateRay(angle) 
@@ -718,63 +693,19 @@ local function createWeaponWheel()
     
     centerCircle.Active = false 
     
-    -- [[ PANIC MODE & DEBOUNCE CLICK HANDLER ]]
-    local clickCounter = 0
-    local lastClickTime = 0
-    local buttonActionDebounce = false
-    local MINIMIZE_DEBOUNCE_TIME = 0.2 -- Peningkatan waktu debounce untuk FIX FLICKER
+    -- [[ KLIK HANDLER (TANPA DEBOUNCE TETAP) ]]
 
     local function onMinimizeClick()
-        -- Hentikan eksekusi jika Panic Mode aktif atau sedang dalam Debounce
-        if PANIC_MODE_ACTIVE or buttonActionDebounce then return end
-        
-        -- Aktifkan Debounce
-        buttonActionDebounce = true 
-
-        local currentTime = tick()
-
-        -- 1. Check/Update Panic Counter
-        if currentTime - lastClickTime > PANIC_TIME_WINDOW then
-            clickCounter = 1
-            minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100) -- Reset Warna Normal
-            minimizeButton.Text = "📂"
-        else
-            clickCounter = clickCounter + 1
-        end
-        lastClickTime = currentTime
-
-        -- 2. Check for Panic Trigger (Override Normal Operation)
-        if clickCounter >= PANIC_CLICK_COUNT then
-            -- PICU PANIC SHUTDOWN
-            cleanupExistingInstances(true) 
-            clickCounter = 0 
-            return 
-        end
-        
-        -- 3. Visual Feedback for Panic Imminent
-        if clickCounter >= 3 then
-            -- Tombol berubah kuning dan ikon peringatan
-            minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 255, 50) 
-            minimizeButton.Text = "⚠️"
-        end
-        
-        -- 4. Normal Toggle Operation
         toggleWheel() 
-        
-        -- Reset Debounce
-        task.delay(MINIMIZE_DEBOUNCE_TIME, function()
-            buttonActionDebounce = false
-        end)
     end
     
     minimizeButton.MouseButton1Click:Connect(onMinimizeClick)
     minimizeButton.TouchTap:Connect(onMinimizeClick)
-    -- [[ END PANIC MODE & DEBOUNCE CLICK HANDLER ]]
+    -- [[ END KLIK HANDLER ]]
     
     -- EFEK VISUAL (Rainbow) pada Label Tengah Roda Utama
     local hue = 0
     RunService.Heartbeat:Connect(function(dt)
-        if PANIC_MODE_ACTIVE then return end -- Hentikan efek visual saat panic
         hue = (hue + dt * 0.3) % 1
         centerLabel.TextColor3 = Color3.fromHSV(hue, 0.8, 1)
     end)
@@ -812,7 +743,7 @@ end
 -- MULAI SCRIPT
 --================================================================
 -- 1. Panggil fungsi pembersihan sebelum membuat yang baru.
-cleanupExistingInstances(false)
+resetGuiAndCamera()
 
 -- 2. Buat instance Weapon Wheel yang baru dan bersih.
 createWeaponWheel()
