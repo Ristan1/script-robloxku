@@ -1,6 +1,8 @@
 --  Online Admin/Owner List GUI (Optimized & Combined Detection)
 -- Dibuat oleh: Gemini
 -- Fitur: Mendeteksi dari UserID, Grup, DAN tag tulisan di atas kepala.
+-- Perbaikan: Memastikan tombol Close dan Minimize berfungsi dengan benar.
+-- BARU: Logika untuk secara eksplisit menghapus GUI lama sebelum membuat yang baru.
 
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -23,7 +25,7 @@ local detectedAdminColor = Color3.fromRGB(255, 90, 90) -- Merah muda (untuk admi
 -- BAGIAN INTI (Jangan diubah jika tidak paham)
 -- ==================================
 
--- (BARU) Helper function untuk memindai tag di atas kepala karakter
+-- Helper function untuk memindai tag di atas kepala karakter
 local function scanCharacterForTag(character)
 	if not character or not character:FindFirstChild("Head") then return nil end
 	local head = character.Head
@@ -33,10 +35,10 @@ local function scanCharacterForTag(character)
 		if descendant:IsA("TextLabel") then
 			local text = string.lower(descendant.Text)
 			-- Periksa kata kunci (tidak case-sensitive)
-			if text:match("admin") then
-				return "Detected Admin"
-			elseif text:match("owner") then
+			if text:match("owner") then
 				return "Detected Owner"
+			elseif text:match("admin") then
+				return "Detected Admin"
 			elseif text:match("moderator") or text:match("mod") then
 				return "Detected Mod"
 			end
@@ -45,7 +47,7 @@ local function scanCharacterForTag(character)
 	return nil -- Tidak ada tag yang ditemukan
 end
 
--- Fungsi utama untuk mendapatkan status pemain (dengan logika baru)
+-- Fungsi utama untuk mendapatkan status pemain
 local function getPlayerStatus(targetPlayer)
 	if not targetPlayer then return nil end
 
@@ -53,6 +55,7 @@ local function getPlayerStatus(targetPlayer)
 	if game.CreatorType == Enum.CreatorType.User then
 		if targetPlayer.UserId == game.CreatorId then return "Owner", ownerColor end
 	elseif game.CreatorType == Enum.CreatorType.Group then
+		-- Menggunakan Player:GetRankInGroup(0) jika GroupId game tidak valid (walaupun seharusnya tidak terjadi)
 		if targetPlayer:GetRankInGroup(game.CreatorId) >= 255 then return "Owner", ownerColor end
 	end
 
@@ -62,12 +65,12 @@ local function getPlayerStatus(targetPlayer)
 	end
 
 	-- 3. Cek admin dari grup (jika diatur)
-	if groupId then
+	if groupId and groupId > 0 then
 		local success, rank = pcall(function() return targetPlayer:GetRankInGroup(groupId) end)
 		if success and rank and rank >= minGroupRank then return "Group Admin", groupAdminColor end
 	end
 	
-	-- 4. (BARU) Jika tidak ada di daftar, coba pindai tag di atas kepala karakter
+	-- 4. Coba pindai tag di atas kepala karakter
 	local character = targetPlayer.Character
 	if character then
 		local detectedStatus = scanCharacterForTag(character)
@@ -79,10 +82,13 @@ local function getPlayerStatus(targetPlayer)
 	return nil -- Jika bukan siapa-siapa
 end
 
--- Hapus GUI lama untuk menghindari duplikasi
+-- LOGIKA PENTING: Periksa dan Hapus GUI lama sebelum membuat yang baru
 if player.PlayerGui:FindFirstChild("AdminListGUI") then
 	player.PlayerGui.AdminListGUI:Destroy()
+	-- Pesan konfirmasi bahwa skrip lama telah 'dimatikan'
+	print("[Admin/Owner List GUI] Old GUI instance found and terminated. Creating new instance.")
 end
+
 
 -- ==================================
 -- PEMBUATAN GUI (Tampilan)
@@ -97,8 +103,8 @@ frame.Position = UDim2.new(0.5, -125, 0.3, 0)
 frame.BackgroundTransparency = 0.2
 frame.BackgroundColor3 = Color3.fromRGB(30, 32, 36)
 frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
+frame.Active = true -- Penting untuk menerima input/klik
+frame.Draggable = true -- Memungkinkan frame dipindahkan
 frame.AnchorPoint = Vector2.new(0.5, 0.5)
 frame.Parent = screenGui
 local corner = Instance.new("UICorner", frame)
@@ -127,9 +133,12 @@ scrollCorner.CornerRadius = UDim.new(0, 4)
 
 local listLayout = Instance.new("UIListLayout", scrollingFrame)
 listLayout.Padding = UDim.new(0, 5)
+listLayout.FillDirection = Enum.FillDirection.Vertical
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
--- Tombol Close & Minimize
+-- Tombol Close (X)
 local closeBtn = Instance.new("TextButton", frame)
+closeBtn.Name = "CloseButton"
 closeBtn.Size = UDim2.new(0, 25, 0, 25)
 closeBtn.Position = UDim2.new(1, -30, 0, 5)
 closeBtn.Text = "X"
@@ -139,15 +148,31 @@ closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 local closeCorner = Instance.new("UICorner", closeBtn)
 closeCorner.CornerRadius = UDim.new(0, 4)
 
+-- Tombol Minimize (-)
 local minBtn = Instance.new("TextButton", frame)
+minBtn.Name = "MinimizeButton"
 minBtn.Size = UDim2.new(0, 25, 0, 25)
 minBtn.Position = UDim2.new(1, -60, 0, 5)
-minBtn.Text = "-"
+minBtn.Text = "—" -- Menggunakan dash panjang untuk tampilan yang lebih baik
 minBtn.Font = Enum.Font.GothamBold
 minBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 minBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 local minCorner = Instance.new("UICorner", minBtn)
 minCorner.CornerRadius = UDim.new(0, 4)
+
+-- Tombol kecil "STAFF" (Muncul saat Minimize)
+local miniGui = Instance.new("TextButton", screenGui)
+miniGui.Name = "ShowAdminListButton"
+miniGui.Size = UDim2.new(0, 80, 0, 30)
+miniGui.Position = UDim2.new(1, -90, 0, 10)
+miniGui.Text = "STAFF"
+miniGui.Font = Enum.Font.GothamBold
+miniGui.TextSize = 16
+miniGui.TextColor3 = Color3.fromRGB(255, 255, 255)
+miniGui.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+miniGui.Visible = false -- Mulai dalam keadaan tersembunyi
+local miniGuiCorner = Instance.new("UICorner", miniGui)
+miniGuiCorner.CornerRadius = UDim.new(0, 8)
 
 -- ==================================
 -- FUNGSI UTAMA (LOGIKA & EVENT)
@@ -155,13 +180,16 @@ minCorner.CornerRadius = UDim.new(0, 4)
 
 -- Fungsi untuk mengupdate list di dalam GUI
 function updateAdminListGUI()
+	-- Hapus semua label admin yang ada
 	for _, child in ipairs(scrollingFrame:GetChildren()) do
 		if child:IsA("TextLabel") then child:Destroy() end
 	end
 
+	local adminCount = 0
 	for _, p in ipairs(Players:GetPlayers()) do
 		local status, statusColor = getPlayerStatus(p)
 		if status then
+			adminCount = adminCount + 1
 			local label = Instance.new("TextLabel")
 			label.Size = UDim2.new(1, 0, 0, 25)
 			label.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
@@ -176,17 +204,19 @@ function updateAdminListGUI()
 		end
 	end
 	
-	scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, #scrollingFrame:GetChildren() * 30)
+	-- Sesuaikan CanvasSize
+	scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, adminCount * 30 + 5) -- 30 adalah tinggi label + padding
 end
 
--- Fungsi ini HANYA untuk membuat tag di atas kepala admin yg ada di daftar UserID kita
+-- Fungsi untuk membuat/mengupdate tag di atas kepala admin
 function setupOverheadTag(targetPlayer)
 	local function createOrUpdateTag(character)
 		if not character or not character:FindFirstChild("Head") then return end
 		local head = character.Head
-		if head:FindFirstChild("AdminStatusTag") then head.AdminStatusTag:Destroy() end
+		local existingTag = head:FindFirstChild("AdminStatusTag")
+		if existingTag then existingTag:Destroy() end
 
-		-- Kita hanya membuat tag untuk admin yg 'pasti', bukan yang terdeteksi
+		-- Hanya membuat tag untuk admin yang 'pasti' (UserID/Group Owner/Admin), bukan yang terdeteksi
 		local status, statusColor = getPlayerStatus(targetPlayer)
 		if not status or status:match("Detected") then return end
 
@@ -222,12 +252,15 @@ function setupOverheadTag(targetPlayer)
 end
 
 -- ==================================
--- KONEKSI & EKSEKUSI AWAL
+-- KONEKSI EVENT & EKSEKUSI AWAL
 -- ==================================
+
+-- 1. Setup Awal
 updateAdminListGUI()
+
 for _, p in ipairs(Players:GetPlayers()) do
 	setupOverheadTag(p)
-	-- Atur agar list diupdate saat karakter pemain muncul (untuk mendeteksi tag)
+	-- Update list saat karakter pemain muncul/di-respawn (agar deteksi tag akurat)
 	p.CharacterAdded:Connect(function()
 		task.wait(2) -- Beri waktu 2 detik agar tag dari game lain sempat muncul
 		updateAdminListGUI()
@@ -240,7 +273,6 @@ Players.PlayerAdded:Connect(function(newPlayer)
 		task.wait(2)
 		updateAdminListGUI()
 	end)
-	-- Update list saat pemain baru masuk
 	task.wait(0.1)
 	updateAdminListGUI()
 end)
@@ -250,22 +282,23 @@ Players.PlayerRemoving:Connect(function(removedPlayer)
 	updateAdminListGUI()
 end)
 
--- Logika tombol
-local miniGui = Instance.new("TextButton", screenGui)
-miniGui.Name = "ShowAdminListButton"
-miniGui.Size = UDim2.new(0, 80, 0, 30)
-miniGui.Position = UDim2.new(1, -90, 0, 10)
-miniGui.Text = "STAFF"
-miniGui.Font = Enum.Font.GothamBold
-miniGui.TextSize = 16
-miniGui.TextColor3 = Color3.fromRGB(255, 255, 255)
-miniGui.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-miniGui.Visible = false
-local miniGuiCorner = Instance.new("UICorner", miniGui)
-miniGuiCorner.CornerRadius = UDim.new(0, 8)
 
-minBtn.MouseButton1Click:Connect(function() frame.Visible = false; miniGui.Visible = true end)
-miniGui.MouseButton1Click:Connect(function() frame.Visible = true; miniGui.Visible = false end)
-closeBtn.MouseButton1Click:Connect(function() screenGui:Destroy() end)
+-- 2. KONEKSI TOMBOL (Bagian yang diperbaiki)
+-- Tombol Minimize (-)
+minBtn.MouseButton1Click:Connect(function()
+	frame.Visible = false
+	miniGui.Visible = true
+end)
 
-print("[Admin/Owner List GUI] Loaded Successfully with Tag Detection!")
+-- Tombol Restore (STAFF)
+miniGui.MouseButton1Click:Connect(function()
+	frame.Visible = true
+	miniGui.Visible = false
+end)
+
+-- Tombol Close (X)
+closeBtn.MouseButton1Click:Connect(function()
+	screenGui:Destroy()
+end)
+
+print("[Admin/Owner List GUI] Loaded Successfully. Close/Minimize functions connected.")
