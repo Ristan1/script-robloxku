@@ -32,6 +32,8 @@ local playerLabels = {}
 
 -- Tabel untuk menyimpan koneksi event agar bisa di-Disconnect
 local connections = {}
+-- Tabel terpisah untuk koneksi CharacterAdded yang dinamis
+local playerConnections = {} 
 
 ---------------------------------------------------
 -- Fungsi-Fungsi Detektor (Tidak Ada Perubahan)
@@ -49,6 +51,14 @@ local function cleanupPlayer(player)
         local billboardGui = playerLabels[player].Parent
         if billboardGui then billboardGui:Destroy() end
         playerLabels[player] = nil
+    end
+    
+    -- **FIX:** Memutus koneksi CharacterAdded pemain
+    if playerConnections[player] then
+        if typeof(playerConnections[player]) == "RBXScriptConnection" then
+            playerConnections[player]:Disconnect()
+        end
+        playerConnections[player] = nil
     end
 end
 
@@ -186,7 +196,11 @@ end
 -- Event Loop
 -- ✅ SIMPAN KONEKSI KE VARIABEL
 connections.PlayerAdded = Players.PlayerAdded:Connect(function(player)
-    connections[player] = player.CharacterAdded:Connect(function()
+    -- **FIXED:** Simpan koneksi CharacterAdded ke tabel playerConnections
+    if playerConnections[player] then
+        playerConnections[player]:Disconnect() -- Disconnect koneksi lama jika ada (mencegah duplikasi)
+    end
+    playerConnections[player] = player.CharacterAdded:Connect(function()
         wait(0.5) 
         updatePlayerLine(player)
     end)
@@ -413,30 +427,30 @@ local function updateStatusDisplay()
     end
 end
 
--- Event Listeners
-ToggleButton.MouseButton1Click:Connect(function()
+-- Event Listeners GUI (Simpan koneksi GUI ke tabel 'connections' untuk dibersihkan)
+connections.ToggleButton = ToggleButton.MouseButton1Click:Connect(function()
     CONFIG.DetectorActive = not CONFIG.DetectorActive
     updateStatusDisplay()
 end)
 
-AllPlayersButton.MouseButton1Click:Connect(function()
+connections.AllPlayersButton = AllPlayersButton.MouseButton1Click:Connect(function()
     CONFIG.Mode = "AllPlayers"
     CONFIG.targetUsername = ""
     updateModeDisplay()
 end)
 
-SpecificPlayerButton.MouseButton1Click:Connect(function()
+connections.SpecificPlayerButton = SpecificPlayerButton.MouseButton1Click:Connect(function()
     CONFIG.Mode = "SpecificPlayer"
     updateModeDisplay()
 end)
 
-SearchInput.Changed:Connect(function()
+connections.SearchInputChanged = SearchInput.Changed:Connect(function()
     if CONFIG.Mode == "SpecificPlayer" then
         CONFIG.targetUsername = SearchInput.Text
     end
 end)
 
-DistanceInput.FocusLost:Connect(function(enterPressed)
+connections.DistanceInputFocusLost = DistanceInput.FocusLost:Connect(function(enterPressed)
     if enterPressed then
         local newDist = tonumber(DistanceInput.Text)
         if newDist and newDist > 0 and newDist <= 10000 then 
@@ -452,7 +466,7 @@ DistanceInput.FocusLost:Connect(function(enterPressed)
     end
 end)
 
-MinButton.MouseButton1Click:Connect(function()
+connections.MinButton = MinButton.MouseButton1Click:Connect(function()
     if GuiVisible then
         MainFrame.Size = UDim2.new(0, 150, 0, 30)
         TitleBar.Size = UDim2.new(1, 0, 1, 0)
@@ -469,25 +483,26 @@ MinButton.MouseButton1Click:Connect(function()
 end)
 
 -- ✅ FUNGSI CLOSE KRITIS: MEMATIKAN SEMUA KONEKSI & SCRIPT
-CloseButton.MouseButton1Click:Connect(function()
+connections.CloseButton = CloseButton.MouseButton1Click:Connect(function()
     -- 1. Matikan detektor (penting untuk membersihkan visual)
     CONFIG.DetectorActive = false
-    cleanupAll()
+    cleanupAll() -- Membersihkan visual dan memutus koneksi CharacterAdded (playerConnections)
 
     -- 2. Putuskan semua koneksi Event (Mencegah lag)
+    -- Putuskan koneksi event umum
     for _, connection in pairs(connections) do
         if connection and typeof(connection) == "RBXScriptConnection" then
             connection:Disconnect()
         end
     end
+    
+    -- Koneksi playerConnections sudah diputus oleh cleanupAll (melalui cleanupPlayer)
 
     -- 3. Hancurkan GUI
     ScreenGui:Destroy()
     
     -- 4. Hentikan eksekusi script ini
-    -- Ini biasanya akan menghentikan thread eksekusi di sebagian besar executor.
-    -- Jika executor Anda mendukung 'return' di scope global:
-    return
+    return -- Menghentikan thread eksekusi skrip ini
 end)
 
 -- Inisialisasi: Perbarui UI sesuai state CONFIG
@@ -500,7 +515,11 @@ for _, player in pairs(Players:GetPlayers()) do
         updatePlayerLine(player)
     end
     -- Perluas event CharacterAdded ke pemain yang sudah ada
-    connections[player] = player.CharacterAdded:Connect(function()
+    -- **FIXED:** Simpan koneksi CharacterAdded ke tabel playerConnections
+    if playerConnections[player] then
+        playerConnections[player]:Disconnect() 
+    end
+    playerConnections[player] = player.CharacterAdded:Connect(function()
         wait(0.5)
         updatePlayerLine(player)
     end)
