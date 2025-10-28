@@ -1,0 +1,69 @@
+--[[
+    SCRIPT TOGGLE INFINITE JUMP (Versi Sederhana Tanpa RichText)
+    - Menggunakan teks yang jelas dan simbol untuk menunjukkan status.
+]]
+
+-- =========================================================================
+-- Bagian Konfigurasi
+-- =========================================================================
+local PLAYER = game:GetService("Players").LocalPlayer
+local USER_INPUT_SERVICE = game:GetService("UserInputService")
+local STARTER_GUI = game:GetService("StarterGui")
+local JUMP_CONNECTION_NAME = "InfiniteJumpConnection" 
+
+-- =========================================================================
+-- Fungsi Bantuan
+-- =========================================================================
+local function sendNotification(title, text, duration)
+    -- Fungsi ini sekarang HANYA mengirim teks biasa tanpa markup warna
+    STARTER_GUI:SetCore("SendNotification", {
+        Title = title,
+        Text = text,
+        Duration = duration or 4,
+    })
+end
+
+-- =========================================================================
+-- Logika Toggle
+-- =========================================================================
+
+-- 1. Cek status saat ini
+local isCurrentlyActive = _G.InfiniteJumpActive == true
+
+if isCurrentlyActive then
+    -- >> LOGIKA NONAKTIFKAN (MATI) <<
+    
+    -- Putuskan koneksi lompat
+    if _G[JUMP_CONNECTION_NAME] and typeof(_G[JUMP_CONNECTION_NAME]) == "RBXScriptConnection" then
+        _G[JUMP_CONNECTION_NAME]:Disconnect()
+        _G[JUMP_CONNECTION_NAME] = nil
+    end
+    
+    -- Perbarui status global
+    _G.InfiniteJumpActive = false
+    
+    -- Tampilkan notifikasi nonaktif (teks yang lebih menonjol)
+    local NotifText = "Infinite Jump **DINONAKTIFKAN**! ❌"
+    sendNotification("Infinite Jump", NotifText)
+    
+else
+    -- >> LOGIKA AKTIFKAN (HIDUP) <<
+
+    -- Buat koneksi baru dan simpan di _G
+    _G[JUMP_CONNECTION_NAME] = USER_INPUT_SERVICE.JumpRequest:Connect(function()
+        if _G.InfiniteJumpActive == true then
+            local CharHumanoid = PLAYER.Character and PLAYER.Character:FindFirstChildOfClass('Humanoid')
+            if CharHumanoid then
+                CharHumanoid:ChangeState("Jumping")
+            end
+        end
+    end)
+    
+    -- Perbarui status global
+    _G.InfiniteJumpActive = true
+    
+    -- Tampilkan notifikasi aktif (teks yang lebih menonjol)
+    local NotifText = "Infinite Jump **AKTIF**! ✅"
+    sendNotification("Infinite Jump", NotifText)
+    
+end
