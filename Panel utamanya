@@ -35,7 +35,7 @@ local OPEN_SOUND_ID = "rbxassetid://1293433423"
 local CLOSE_SOUND_ID = "rbxassetid://124018322190013"
 local CLOSE_SOUND_VOLUME = 1
 local DIMMER_TRANSPARENCY = 1 
-local DEFAULT_CENTER_TEXT = "PILIH\nSCRIPT"
+local DEFAULT_CENTER_TEXT = "PILIH SCRIPT\nATAU TEKAN\nMENU LAINNYA"
 local GUI_NAME = "WeaponWheelGUI" 
 
 --================================================================
@@ -65,6 +65,7 @@ local AllScripts = {
     {Name = "Infinite Yeild", Icon = "📜", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/infiniteyield"},
     {Name = "Detector Player", Icon = "🌍", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/detector%20player"},
     {Name = "Copy Id", Icon = "📥", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Copy%20Id"},
+    {Name = "Infinite Jump", Icon = "⏫️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/InfinitejumpOnOff"},
     {Name = "Private Server", Icon = "🔐", URL = "https://pastefy.app/FE6yAQW4/raw"},
 }
 
