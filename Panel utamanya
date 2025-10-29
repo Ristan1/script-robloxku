@@ -92,6 +92,7 @@ local AllScripts = {
     {Name = "Detector Player", Icon = "🌍", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/detector%20player"},
     {Name = "Copy Id", Icon = "📥", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Copy%20Id"},
     {Name = "Infinite Jump", Icon = "⏫️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/InfinitejumpOnOff"},
+    {Name = "Tombol Lompat", Icon = "🦶", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/tombol%20lompat"}, 
     {Name = "Private Server", Icon = "🔐", URL = "https://pastefy.app/FE6yAQW4/raw"}, 
 }
 
@@ -956,4 +957,4 @@ end
 resetGuiAndCamera()
 
 -- 2. Buat instance Weapon Wheel yang baru dan bersih.
-createWeaponWheel()
+createWeaponWheel()p
