@@ -1,0 +1,232 @@
+-- 🎮 Touch GUI Settings (Based on Roblox Default JumpButton)
+-- Pasang di StarterPlayerScripts
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- [FIX 1: Persistent Storage]
+-- Menyimpan nilai saat ini. Saat script pertama kali berjalan, ini adalah nilai default.
+local currentSettings = {
+    Size = 80, -- Ukuran default (%)
+    PosX = 53,   -- Posisi Horizontal default
+    PosY = 46    -- Posisi Vertikal default
+}
+
+-- Nilai default yang digunakan untuk tombol reset
+local DEFAULT_SETTINGS = {
+    Size = 57, 
+    PosX = 56,   
+    PosY = 62    
+}
+
+-- 🧩 Fungsi Update JumpButton (Ditaruh di atas agar bisa dipanggil oleh slider)
+local DEFAULT_JUMP_SIZE = UDim2.new(0, 120, 0, 120) -- Ukuran default Roblox Touch JumpButton
+local DEFAULT_JUMP_POSITION = UDim2.new(1, -150, 1, -150) -- Posisi default (kanan bawah)
+
+local function applySettings()
+    local touchGui = playerGui:FindFirstChild("TouchGui")
+    if not touchGui then return end
+    
+    local controlFrame = touchGui:FindFirstChild("TouchControlFrame")
+    if not controlFrame then return end
+    
+    local jumpButton = controlFrame:FindFirstChild("JumpButton", true)
+    if jumpButton and jumpButton:IsA("ImageButton") then
+        local scale = currentSettings.Size / 100
+        local posX = currentSettings.PosX / 100
+        local posY = currentSettings.PosY / 100
+        
+        local newSize = UDim2.new(0, DEFAULT_JUMP_SIZE.X.Offset * scale, 0, DEFAULT_JUMP_SIZE.Y.Offset * scale)
+        local newPosition = UDim2.new(
+            DEFAULT_JUMP_POSITION.X.Scale, DEFAULT_JUMP_POSITION.X.Offset + posX * 100,
+            DEFAULT_JUMP_POSITION.Y.Scale, DEFAULT_JUMP_POSITION.Y.Offset + posY * 100
+        )
+        
+        -- [FIX 2: Jitter - Tween hanya dipicu saat ada perubahan nilai]
+        TweenService:Create(jumpButton, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = newSize,
+            Position = newPosition
+        }):Play()
+    end
+end
+
+-- Panggil sekali saat skrip dimuat untuk menerapkan nilai awal (atau tersimpan)
+applySettings()
+
+
+-- 🪟 GUI Settings
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "TouchGuiAdvancedSettings"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = playerGui
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 300, 0, 260)
+Frame.Position = UDim2.new(0.5, -150, 0.5, -130) 
+Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Frame.BackgroundTransparency = 0.1
+Frame.BorderSizePixel = 0
+Frame.Active = true
+Frame.Draggable = false 
+Frame.Parent = ScreenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = Frame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.BackgroundTransparency = 1
+Title.Text = "🎮 Touch GUI Settings"
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Parent = Frame
+
+-- 🔄 Tombol Reset
+local ResetButton = Instance.new("TextButton")
+ResetButton.Size = UDim2.new(0, 60, 0, 25)
+ResetButton.Position = UDim2.new(1, -140, 0, 5) 
+ResetButton.Text = "Reset"
+ResetButton.Font = Enum.Font.GothamBold
+ResetButton.TextSize = 14
+ResetButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ResetButton.BackgroundColor3 = Color3.fromRGB(0, 100, 150) 
+ResetButton.Parent = Frame
+
+local ResetCorner = Instance.new("UICorner")
+ResetCorner.CornerRadius = UDim.new(0, 5)
+ResetCorner.Parent = ResetButton
+
+local Close = Instance.new("TextButton")
+Close.Size = UDim2.new(0, 60, 0, 25)
+Close.Position = UDim2.new(1, -70, 0, 5)
+Close.Text = "X"
+Close.Font = Enum.Font.GothamBold
+Close.TextSize = 16
+Close.TextColor3 = Color3.fromRGB(255, 255, 255)
+Close.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+Close.Parent = Frame
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 5)
+CloseCorner.Parent = Close
+
+-- 🎚️ Fungsi Buat Slider (Diperbarui untuk menggunakan currentSettings)
+local function createSlider(name, yPos, minVal, maxVal, settingKey)
+    
+    -- [FIX 1: Ambil nilai saat ini dari penyimpanan]
+    local initialValue = currentSettings[settingKey] or DEFAULT_SETTINGS[settingKey]
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -20, 0, 20)
+    label.Position = UDim2.new(0, 10, 0, yPos)
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.BackgroundTransparency = 1
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = Frame
+    
+    local sliderBg = Instance.new("Frame")
+    sliderBg.Size = UDim2.new(1, -40, 0, 8)
+    sliderBg.Position = UDim2.new(0, 20, 0, yPos + 25)
+    sliderBg.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    sliderBg.BorderSizePixel = 0
+    sliderBg.Parent = Frame
+    
+    local sliderFill = Instance.new("Frame")
+    sliderFill.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
+    sliderFill.BorderSizePixel = 0
+    sliderFill.Parent = sliderBg
+    
+    local sliderBtn = Instance.new("ImageButton")
+    sliderBtn.Size = UDim2.new(0, 14, 0, 14)
+    sliderBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    sliderBtn.BorderSizePixel = 0
+    sliderBtn.Parent = sliderBg
+    
+    local circle = Instance.new("UICorner")
+    circle.CornerRadius = UDim.new(1, 0)
+    circle.Parent = sliderBtn
+    
+    local dragging = false
+    
+    local function updateValue(newValue)
+        local value = math.floor(math.clamp(newValue, minVal, maxVal))
+        local rel = (value - minVal) / (maxVal - minVal)
+        
+        -- Update penyimpanan nilai
+        currentSettings[settingKey] = value
+        
+        sliderFill.Size = UDim2.new(rel, 0, 1, 0)
+        sliderBtn.Position = UDim2.new(rel, -7, 0.5, -7)
+        label.Text = name .. ": " .. tostring(value)
+        
+        -- Terapkan pengaturan saat ini, hanya saat ada perubahan
+        applySettings()
+    end
+    
+    -- Inisialisasi tampilan awal dengan nilai yang tersimpan
+    updateValue(initialValue)
+    
+    sliderBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or
+            input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or
+            input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    
+    RunService.RenderStepped:Connect(function()
+        if dragging then
+            local mouse = UserInputService:GetMouseLocation()
+            local rel = math.clamp((mouse.X - sliderBg.AbsolutePosition.X) / sliderBg.AbsoluteSize.X, 0, 1)
+            local newValue = math.floor(minVal + rel * (maxVal - minVal))
+            updateValue(newValue)
+        end
+    end)
+    
+    -- Mengembalikan fungsi setter agar bisa direset
+    return updateValue
+end
+
+-- 🎚️ Slider Ukuran dan Posisi (Sekarang hanya mengembalikan fungsi setter)
+local setSize = createSlider("Ukuran GUI (%)", 50, 50, 150, "Size")
+local setPosX = createSlider("Posisi Horizontal (X)", 110, -200, 200, "PosX")
+local setPosY = createSlider("Posisi Vertikal (Y)", 170, -200, 200, "PosY")
+
+
+-- 🔄 Logika Tombol Reset
+ResetButton.MouseButton1Click:Connect(function()
+    -- Reset nilai slider ke nilai default
+    setSize(DEFAULT_SETTINGS.Size)
+    setPosX(DEFAULT_SETTINGS.PosX)
+    setPosY(DEFAULT_SETTINGS.PosY)
+    
+    -- applySettings akan dipanggil oleh fungsi setter slider secara otomatis.
+end)
+
+
+-- ❌ Tutup Menu
+Close.MouseButton1Click:Connect(function()
+    local tween = TweenService:Create(Frame, TweenInfo.new(0.3), {BackgroundTransparency = 1, Size = UDim2.new(0,0,0,0)})
+    tween:Play()
+    -- Hapus GUI setelah tween selesai
+    tween.Completed:Wait() 
+    ScreenGui:Destroy()
+end)
+
+-- [FIX 2: Menghapus loop task.wait(0.5) yang menyebabkan jitter,
+-- karena applySettings sekarang dipanggil setiap kali slider diperbarui.]
