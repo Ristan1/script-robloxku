@@ -9,11 +9,22 @@ local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
+-- ⭐ FIX PENTING: Pengecekan dan Penghancuran GUI Lama
+-- Jika skrip ini dijalankan kembali (misalnya saat respawn),
+-- pastikan GUI lama dihancurkan untuk mencegah double panel.
+local GUI_NAME = "TouchGuiAdvancedSettings"
+local existingGui = playerGui:FindFirstChild(GUI_NAME)
+if existingGui and existingGui:IsA("ScreenGui") then
+    -- Hancurkan GUI yang sudah ada sebelum membuat yang baru.
+    existingGui:Destroy()
+end
+-- ⭐ AKHIR FIX PENTING
+
 -- [FIX 1: Persistent Storage]
 -- Menyimpan nilai saat ini. Saat script pertama kali berjalan, ini adalah nilai default.
 local currentSettings = {
     Size = 80, -- Ukuran default (%)
-    PosX = 53,   -- Posisi Horizontal default
+    PosX = 35,   -- Posisi Horizontal default
     PosY = 46    -- Posisi Vertikal default
 }
 
@@ -61,7 +72,7 @@ applySettings()
 
 -- 🪟 GUI Settings
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "TouchGuiAdvancedSettings"
+ScreenGui.Name = GUI_NAME -- Menggunakan nama yang sama untuk deteksi di awal skrip
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = playerGui
 
