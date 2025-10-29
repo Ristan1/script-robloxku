@@ -957,4 +957,4 @@ end
 resetGuiAndCamera()
 
 -- 2. Buat instance Weapon Wheel yang baru dan bersih.
-createWeaponWheel()p
+createWeaponWheel()
