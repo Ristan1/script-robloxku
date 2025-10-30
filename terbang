@@ -1,3 +1,19 @@
+-- ========================================
+-- SISTEM ANTI-DUPLIKASI
+-- ========================================
+-- Cek apakah GUI dengan nama "main" sudah ada
+local playerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+local existingGui = playerGui:FindFirstChild("main")
+
+if existingGui then
+	-- Hapus GUI lama jika ada
+	existingGui:Destroy()
+	wait(0.1) -- Tunggu sebentar untuk memastikan GUI lama terhapus
+end
+
+-- ========================================
+-- INISIALISASI GUI BARU
+-- ========================================
 local main = Instance.new("ScreenGui")
 local Frame = Instance.new("Frame")
 local up = Instance.new("TextButton")
@@ -12,7 +28,7 @@ local mini = Instance.new("TextButton")
 local mini2 = Instance.new("TextButton")
 
 main.Name = "main"
-main.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+main.Parent = playerGui
 main.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 main.ResetOnSpawn = false
 
@@ -20,7 +36,7 @@ Frame.Parent = main
 Frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 Frame.BackgroundTransparency = 0.8
 Frame.BorderColor3 = Color3.fromRGB(103, 221, 213)
-Frame.Position = UDim2.new(0.100320168, 0, 0.379746825, 0)
+Frame.Position = UDim2.new(0, 575, 0, -32)
 Frame.Size = UDim2.new(0, 190, 0, 57)
 
 mini.Name = "minimize"
@@ -57,12 +73,11 @@ onof.TextColor3 = Color3.fromRGB(255, 255, 255)
 onof.TextSize = 14.000
 
 TextLabel.Parent = Frame
--- Warna awal tidak terlalu penting karena akan langsung diubah oleh skrip pelangi
 TextLabel.BackgroundColor3 = Color3.fromRGB(192, 192, 192) 
 TextLabel.Position = UDim2.new(0.469327301, 0, 0, 0)
 TextLabel.Size = UDim2.new(0, 100, 0, 28)
 TextLabel.Font = Enum.Font.SourceSansBold
-TextLabel.Text = "FLY by RISTAN"
+TextLabel.Text = "TERBANG"
 TextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 TextLabel.TextScaled = true
 TextLabel.TextSize = 14.000
@@ -116,29 +131,30 @@ mini2.TextColor3 = Color3.fromRGB(255, 0, 0)
 mini2.Position = UDim2.new(0, 0, -1, 57)
 mini2.Visible = false
 
+-- ========================================
+-- VARIABEL & NOTIFIKASI
+-- ========================================
 speeds = 1
-
 local speaker = game:GetService("Players").LocalPlayer
-
 local chr = game.Players.LocalPlayer.Character
 local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-
 nowe = false
 
 game:GetService("StarterGui"):SetCore("SendNotification", { 
 	Title = "TERBANG";
-	Text = "BY RISTAN";
+	Text = "BY RISTAN - Anti Duplicate Active";
 	Icon = "rbxthumb://type=Asset&id=5107182114&w=150&h=150"})
 Duration = 5;
 
-Frame.Active = true -- main = gui
+Frame.Active = true
 Frame.Draggable = true
 
+-- ========================================
+-- FUNGSI UTAMA
+-- ========================================
 onof.MouseButton1Down:connect(function()
-
 	if nowe == true then
 		nowe = false
-
 		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing,true)
 		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown,true)
 		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying,true)
@@ -157,12 +173,9 @@ onof.MouseButton1Down:connect(function()
 		speaker.Character.Humanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
 	else 
 		nowe = true
-
 		for i = 1, speeds do
 			spawn(function()
-
 				local hb = game:GetService("RunService").Heartbeat	
-
 				tpwalking = true
 				local chr = game.Players.LocalPlayer.Character
 				local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
@@ -171,7 +184,6 @@ onof.MouseButton1Down:connect(function()
 						chr:TranslateBy(hum.MoveDirection)
 					end
 				end
-
 			end)
 		end
 		game.Players.LocalPlayer.Character.Animate.Disabled = true
@@ -200,7 +212,6 @@ onof.MouseButton1Down:connect(function()
 	end
 
 	if game:GetService("Players").LocalPlayer.Character:FindFirstChildOfClass("Humanoid").RigType == Enum.HumanoidRigType.R6 then
-
 		local plr = game.Players.LocalPlayer
 		local torso = plr.Character.Torso
 		local flying = true
@@ -242,7 +253,6 @@ onof.MouseButton1Down:connect(function()
 			else
 				bv.velocity = Vector3.new(0,0,0)
 			end
-			--	game.Players.LocalPlayer.Character.Animate.Disabled = true
 			bg.cframe = game.Workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*speed/maxspeed),0,0)
 		end
 		ctrl = {f = 0, b = 0, l = 0, r = 0}
@@ -253,7 +263,6 @@ onof.MouseButton1Down:connect(function()
 		plr.Character.Humanoid.PlatformStand = false
 		game.Players.LocalPlayer.Character.Animate.Disabled = false
 		tpwalking = false
-
 	else
 		local plr = game.Players.LocalPlayer
 		local UpperTorso = plr.Character.UpperTorso
@@ -307,13 +316,10 @@ onof.MouseButton1Down:connect(function()
 		plr.Character.Humanoid.PlatformStand = false
 		game.Players.LocalPlayer.Character.Animate.Disabled = false
 		tpwalking = false
-
 	end
-
 end)
 
 local tis
-
 up.MouseButton1Down:connect(function()
 	tis = up.MouseEnter:connect(function()
 		while tis do
@@ -331,7 +337,6 @@ up.MouseLeave:connect(function()
 end)
 
 local dis
-
 down.MouseButton1Down:connect(function()
 	dis = down.MouseEnter:connect(function()
 		while dis do
@@ -352,20 +357,16 @@ game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(char)
 	wait(0.7)
 	game.Players.LocalPlayer.Character.Humanoid.PlatformStand = false
 	game.Players.LocalPlayer.Character.Animate.Disabled = false
-
 end)
 
 plus.MouseButton1Down:connect(function()
 	speeds = speeds + 1
 	speed.Text = speeds
 	if nowe == true then
-
 		tpwalking = false
 		for i = 1, speeds do
 			spawn(function()
-
 				local hb = game:GetService("RunService").Heartbeat	
-
 				tpwalking = true
 				local chr = game.Players.LocalPlayer.Character
 				local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
@@ -374,7 +375,6 @@ plus.MouseButton1Down:connect(function()
 						chr:TranslateBy(hum.MoveDirection)
 					end
 				end
-
 			end)
 		end
 	end
@@ -392,9 +392,7 @@ mine.MouseButton1Down:connect(function()
 			tpwalking = false
 			for i = 1, speeds do
 				spawn(function()
-
 					local hb = game:GetService("RunService").Heartbeat	
-
 					tpwalking = true
 					local chr = game.Players.LocalPlayer.Character
 					local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
@@ -403,7 +401,6 @@ mine.MouseButton1Down:connect(function()
 							chr:TranslateBy(hum.MoveDirection)
 						end
 					end
-
 				end)
 			end
 		end
@@ -440,33 +437,25 @@ mini2.MouseButton1Click:Connect(function()
 	closebutton.Position =  UDim2.new(0.231578946, 0, 0, 0)
 end)
 
---- [AWAL] KODE BARU UNTUK BACKGROUND PELANGI ---
-
+-- ========================================
+-- EFEK PELANGI BACKGROUND
+-- ========================================
 local RunService = game:GetService("RunService")
 
--- Fungsi untuk mengubah warna secara terus menerus
 local function rainbowEffect(object)
-    local hue = 0
-    -- Gunakan koneksi ke Heartbeat untuk animasi yang lebih mulus
-    local connection
-    connection = RunService.Heartbeat:Connect(function(deltaTime)
-        -- Periksa apakah object (TextLabel) masih ada
-        if not object or not object.Parent then
-            connection:Disconnect() -- Hentikan loop jika objek sudah tidak ada
-            return 
-        end
-        
-        -- Kecepatan perubahan warna. Angka lebih besar = lebih cepat.
-        local speed = 0.2 
-        
-        hue = (hue + (deltaTime * speed)) % 1
-        
-        local rainbowColor = Color3.fromHSV(hue, 1, 1) -- (Hue, Saturation, Value)
-        object.BackgroundColor3 = rainbowColor
-    end)
+	local hue = 0
+	local connection
+	connection = RunService.Heartbeat:Connect(function(deltaTime)
+		if not object or not object.Parent then
+			connection:Disconnect()
+			return 
+		end
+		
+		local speed = 0.2 
+		hue = (hue + (deltaTime * speed)) % 1
+		local rainbowColor = Color3.fromHSV(hue, 1, 1)
+		object.BackgroundColor3 = rainbowColor
+	end)
 end
 
--- Panggil fungsi untuk TextLabel Anda
 rainbowEffect(TextLabel)
-
---- [AKHIR] KODE BARU UNTUK BACKGROUND PELANGI ---
