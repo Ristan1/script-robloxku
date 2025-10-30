@@ -2,8 +2,7 @@
 -- GTA 5 Style Weapon Wheel Script Loader - Mobile Version (MODIFIED V43 - FIX KONFIRMASI)
 -- Modifikasi Utama: Memastikan "Infinite Yeild" terdaftar dengan benar dalam tabel konfirmasi.
 -- Perubahan: Dialog Konfirmasi dibagi menjadi Judul (Title) dan Peringatan Detail.
--- Fitur: Konfirmasi otomatis untuk skrip yang terdaftar di SCRIPTS_REQUIRING_CONFIRMATION.
--- Status: Tanpa Mode Panik. Menggunakan Animation Lock untuk stabilitas klik cepat.
+-- FITUR BARU: Menambahkan URL untuk Skrip Auto-Load.
 --================================================================
 
 local Players = game:GetService("Players")
@@ -22,15 +21,24 @@ local isActionLocked = false      -- Mengunci aksi tombol saat animasi buka/tutu
 local isConfirmationActive = false -- Status untuk mencegah interaksi lain saat konfirmasi muncul.
 
 --================================================================
+-- ✨ KONFIGURASI AUTO-LOAD SKRIP BARU ✨
+-- Tempatkan URL skrip yang ingin Anda muat secara otomatis saat skrip ini diaktifkan.
+-- Jika Anda tidak ingin memuat skrip otomatis, biarkan nilainya sebagai nil atau "" (kosong).
+-- Catatan: Skrip ini akan dimuat TANPA konfirmasi, jadi gunakan dengan hati-hati.
+--================================================================
+local AUTO_LOAD_URL = {
+    URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/NotifTeman", -- GANTI DENGAN URL SKRIP ANDA
+    Name = "Skrip Otomatis", -- Berikan nama deskriptif untuk log
+}
+
+--================================================================
 -- KONFIGURASI SKRIP KONFIRMASI (SINGLE SOURCE OF TRUTH)
 -- Tambahkan nama skrip di sini (harus sama persis dengan nama di tabel AllScripts)
--- Jika Anda ingin menambahkan skrip lain, pastikan tidak ada tanda '--' di depannya.
 --================================================================
 local SCRIPTS_REQUIRING_CONFIRMATION = {
     ["Private Server"] = true, 
     ["Infinite Yeild"] = true,  
-    -- ["Terbang"] = true,  --(hapus tanda -- untuk nambah)
-    -- ["Invisible & spectate"] = true,
+    -- ["Terbang"] = true,  
 }
 
 --================================================================
@@ -956,5 +964,11 @@ end
 -- 1. Panggil fungsi pembersihan sebelum membuat yang baru.
 resetGuiAndCamera()
 
--- 2. Buat instance Weapon Wheel yang baru dan bersih.
+-- 2. Muat skrip Otomatis dari URL yang ditentukan (Jika ada)
+if AUTO_LOAD_URL.URL and string.len(AUTO_LOAD_URL.URL) > 0 then
+    print("Mencoba memuat skrip otomatis dari URL...")
+    loadScriptFromURL(AUTO_LOAD_URL.URL, AUTO_LOAD_URL.Name)
+end
+
+-- 3. Buat instance Weapon Wheel yang baru dan bersih.
 createWeaponWheel()
