@@ -1,0 +1,240 @@
+-- ========================================
+-- Friend Tracker TESTER SCRIPT (v7 - Selang-seling)
+-- ========================================
+-- Script ini sekarang akan mengganti nama panjang
+-- dan nama pendek setiap kali tombol tes ditekan.
+-- ========================================
+
+local LocalPlayer = game:GetService("Players").LocalPlayer
+
+-- =============================================
+--      SISTEM ANTI-DOUBLE UNTUK TESTER
+-- =============================================
+local TESTER_SCRIPT_ID = "FriendTrackerTester_v1" -- ID unik untuk tester
+local SCRIPT_ID = "NotifTeman"      -- ID script utama
+
+-- 1. Cek apakah tester sudah berjalan
+if _G[TESTER_SCRIPT_ID] then
+    print("[Tester] Instance tester lama ditemukan. Menghancurkan...")
+    pcall(function()
+        _G[TESTER_SCRIPT_ID].Destroy()
+    end)
+    task.wait(0.1) -- Beri waktu untuk cleanup
+end
+
+-- 2. Buat instance baru untuk tester ini
+local TesterInstance = {
+    Gui = nil,
+    Connections = {}
+}
+
+-- 3. Buat fungsi Destroy untuk tester ini
+function TesterInstance.Destroy()
+    print("[Tester] Menjalankan cleanup untuk instance tester...")
+    
+    for _, conn in ipairs(TesterInstance.Connections) do
+        if conn and conn.Connected then
+            conn:Disconnect()
+        end
+    end
+    table.clear(TesterInstance.Connections)
+    
+    if TesterInstance.Gui and TesterInstance.Gui.Parent then
+        TesterInstance.Gui:Destroy()
+    end
+    TesterInstance.Gui = nil
+    
+    print("[Tester] Cleanup instance tester selesai.")
+end
+
+-- 4. Daftarkan instance tester ini ke _G
+_G[TESTER_SCRIPT_ID] = TesterInstance
+
+-- ========================================
+--          PEMBUATAN GUI TESTER
+-- ========================================
+
+TesterInstance.Gui = Instance.new("ScreenGui")
+TesterInstance.Gui.Name = "FriendTesterGUI"
+TesterInstance.Gui.ResetOnSpawn = false
+TesterInstance.Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+TesterInstance.Gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Frame utama
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 240, 0, 110) 
+mainFrame.Position = UDim2.new(0.5, -120, 0, 10) 
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BackgroundTransparency = 0.2
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = TesterInstance.Gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+-- =============================================
+--          PERUBAHAN SCRIPT DI SINI
+-- =============================================
+
+-- 1. Buat DUA "Pemain Palsu" untuk data tes
+local fakePlayerShort = {
+    DisplayName = "Teman",
+    Name = "friend_1"
+}
+
+local fakePlayerLong = {
+    DisplayName = "NamaTemanPalsuIniSangatPanjang",
+    Name = "fake_friend_with_a_very_long_name"
+}
+
+-- 2. Buat variabel untuk melacak status
+local useLongName = true -- Mulai dengan nama panjang
+
+-- =============================================
+
+-- Tombol Test Join
+local testJoinBtn = Instance.new("TextButton")
+testJoinBtn.Name = "TestJoin"
+testJoinBtn.Size = UDim2.new(0, 100, 0, 50)
+testJoinBtn.Position = UDim2.new(0, 10, 0, 10) 
+testJoinBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 100)
+testJoinBtn.BorderSizePixel = 0
+testJoinBtn.Text = "TEST JOIN"
+testJoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+testJoinBtn.Font = Enum.Font.GothamBold
+testJoinBtn.TextSize = 16
+testJoinBtn.Parent = mainFrame
+
+local cornerJoin = Instance.new("UICorner")
+cornerJoin.CornerRadius = UDim.new(0, 6)
+cornerJoin.Parent = testJoinBtn
+
+-- Tombol Test Leave
+local testLeaveBtn = Instance.new("TextButton")
+testLeaveBtn.Name = "TestLeave"
+testLeaveBtn.Size = UDim2.new(0, 100, 0, 50)
+testLeaveBtn.Position = UDim2.new(0, 120, 0, 10)
+testLeaveBtn.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
+testLeaveBtn.BorderSizePixel = 0
+testLeaveBtn.Text = "TEST LEAVE"
+testLeaveBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+testLeaveBtn.Font = Enum.Font.GothamBold
+testLeaveBtn.TextSize = 16
+testLeaveBtn.Parent = mainFrame
+
+local cornerLeave = Instance.new("UICorner")
+cornerLeave.CornerRadius = UDim.new(0, 6)
+cornerLeave.Parent = testLeaveBtn
+
+-- Tombol Close (Hanya menutup GUI Tester)
+local closeBtn = Instance.new("TextButton")
+closeBtn.Name = "Close"
+closeBtn.Size = UDim2.new(0, 20, 0, 20)
+closeBtn.Position = UDim2.new(1, -22, 0, 2) 
+closeBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+closeBtn.BackgroundTransparency = 0.5
+closeBtn.BorderSizePixel = 0
+closeBtn.Text = "X"
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+closeBtn.Parent = mainFrame
+
+local cornerClose = Instance.new("UICorner")
+cornerClose.CornerRadius = UDim.new(0, 6)
+cornerClose.Parent = closeBtn
+
+-- Tombol Nonaktifkan (Mematikan Script Utama)
+local shutdownBtn = Instance.new("TextButton")
+shutdownBtn.Name = "Shutdown"
+shutdownBtn.Size = UDim2.new(0, 220, 0, 30) 
+shutdownBtn.Position = UDim2.new(0.5, -110, 0, 70) 
+shutdownBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80) 
+shutdownBtn.BorderSizePixel = 0
+shutdownBtn.Text = "Nonaktifkan Notif Teman"
+shutdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+shutdownBtn.Font = Enum.Font.GothamBold
+shutdownBtn.TextSize = 14
+shutdownBtn.Parent = mainFrame
+
+local cornerShutdown = Instance.new("UICorner")
+cornerShutdown.CornerRadius = UDim.new(0, 6)
+cornerShutdown.Parent = shutdownBtn
+
+-- =============================================
+--          PERUBAHAN SCRIPT DI SINI
+-- =============================================
+
+-- 3. Modifikasi fungsi untuk menjalankan tes
+local function runTest(isJoining)
+    -- Cek script utama dulu
+    if not (_G[SCRIPT_ID] and _G[SCRIPT_ID].createNotification) then
+        warn("[Tester] GAGAL! Script 'Friend Tracker' utama tidak ditemukan.")
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Tester Gagal";
+            Text = "Script Notif Teman utama tidak ditemukan! Jalankan dulu.";
+            Duration = 5;
+        })
+        return -- Hentikan fungsi jika script utama tidak ada
+    end
+
+    local playerToUse -- Variabel untuk menyimpan pemain mana yang akan digunakan
+    
+    -- Tentukan pemain mana yang akan digunakan berdasarkan status 'useLongName'
+    if useLongName then
+        playerToUse = fakePlayerLong
+        print("[Tester] Menggunakan NAMA PANJANG.")
+    else
+        playerToUse = fakePlayerShort
+        print("[Tester] Menggunakan NAMA PENDEK.")
+    end
+    
+    -- Panggil fungsi notifikasi dari script utama
+    print("[Tester] Memanggil createNotification... Join:", isJoining)
+    _G[SCRIPT_ID].createNotification(playerToUse, isJoining)
+    
+    -- Balik statusnya untuk klik berikutnya
+    useLongName = not useLongName
+end
+
+-- =============================================
+--    SAMBUNGKAN EVENT (Simpan ke Instance)
+-- =============================================
+table.insert(TesterInstance.Connections, testJoinBtn.MouseButton1Click:Connect(function()
+    runTest(true) 
+end))
+
+table.insert(TesterInstance.Connections, testLeaveBtn.MouseButton1Click:Connect(function()
+    runTest(false) 
+end))
+
+-- Event Tombol "X" (Close)
+table.insert(TesterInstance.Connections, closeBtn.MouseButton1Click:Connect(function()
+    print("[Tester] Menutup GUI Tester.")
+    TesterInstance.Destroy() 
+    _G[TESTER_SCRIPT_ID] = nil 
+end))
+
+-- Event Tombol "Nonaktifkan" (Shutdown)
+table.insert(TesterInstance.Connections, shutdownBtn.MouseButton1Click:Connect(function()
+    print("[Tester] Tombol shutdown ditekan. Mematikan kedua script...")
+    
+    -- 1. Matikan script utama
+    if _G[SCRIPT_ID] and _G[SCRIPT_ID].Destroy then
+        print("[Tester] Script utama ditemukan. Memanggil Destroy()...")
+        pcall(function() _G[SCRIPT_ID].Destroy() end)
+        _G[SCRIPT_ID] = nil 
+        print("[Tester] Script utama berhasil dimatikan.")
+    else
+        warn("[Tester] Script utama tidak ditemukan (mungkin sudah dimatikan).")
+    end
+    
+    -- 2. Matikan script tester ini
+    print("[Tester] GUI Tester dihancurkan.")
+    TesterInstance.Destroy() 
+    _G[TESTER_SCRIPT_ID] = nil
+end))
+
+print("=== Friend Tester GUI Loaded (v7 - Selang-seling) ===")
