@@ -1,5 +1,6 @@
 -- Friend Tracker - Notification Only (Anti Double Script)
 -- Menampilkan notifikasi ketika teman masuk/keluar server
+-- Versi ini menggunakan TextScaled agar nama panjang tidak terpotong
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -8,18 +9,16 @@ local LocalPlayer = Players.LocalPlayer
 -- ========================================
 -- SISTEM ANTI DOUBLE SCRIPT
 -- ========================================
-local SCRIPT_ID = "FriendTrackerScript_v1"
+local SCRIPT_ID = "NotifTeman"
 
 -- Cek apakah script sudah berjalan
 if _G[SCRIPT_ID] then
     warn("[Friend Tracker] Script sudah berjalan! Menghentikan instance lama...")
     
-    -- Panggil fungsi destroy dari instance lama
     if _G[SCRIPT_ID].Destroy then
         _G[SCRIPT_ID].Destroy()
     end
     
-    -- Tunggu sebentar untuk memastikan cleanup selesai
     task.wait(0.5)
 end
 
@@ -57,7 +56,6 @@ function ScriptInstance.Destroy()
         ScriptInstance.ScreenGui:Destroy()
     end
     
-    -- Clear table
     table.clear(ScriptInstance.Connections)
     table.clear(ScriptInstance.SoundInstances)
     ScriptInstance.ScreenGui = nil
@@ -73,10 +71,10 @@ _G[SCRIPT_ID] = ScriptInstance
 -- ========================================
 
 -- Asset ID untuk suara notifikasi (VALID SOUND IDs)
-local SOUND_JOIN = "rbxassetid://98797174600699"   -- Bell/Ding sound (teman join)
-local SOUND_LEAVE = "rbxassetid://128187340772806"  -- Pop sound (teman leave)
+local SOUND_JOIN = "rbxassetid://98797174600699"   
+local SOUND_LEAVE = "rbxassetid://128187340772806" 
 
--- Fungsi untuk memainkan suara notifikasi dengan robust error handling
+-- Fungsi untuk memainkan suara notifikasi
 local function playNotificationSound(isJoining)
     task.spawn(function()
         local success, err = pcall(function()
@@ -86,19 +84,13 @@ local function playNotificationSound(isJoining)
             sound.Volume = 0.7
             sound.PlayOnRemove = false
             sound.Looped = false
-            
-            -- Parent ke workspace untuk reliability
             sound.Parent = workspace
             
-            -- Simpan referensi
             table.insert(ScriptInstance.SoundInstances, sound)
-            
-            -- Play immediately
             sound:Play()
             
             print("[Friend Tracker] 🔊 Suara dimainkan:", isJoining and "JOIN ✔️" or "LEAVE ❌")
             
-            -- Cleanup setelah selesai
             sound.Ended:Connect(function()
                 task.wait(0.1)
                 for i, s in ipairs(ScriptInstance.SoundInstances) do
@@ -112,7 +104,6 @@ local function playNotificationSound(isJoining)
                 end
             end)
             
-            -- Backup cleanup setelah 3 detik
             task.delay(3, function()
                 if sound and sound.Parent then
                     sound:Stop()
@@ -140,7 +131,7 @@ screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 -- Simpan referensi ScreenGui
 ScriptInstance.ScreenGui = screenGui
 
--- Tabel untuk menyimpan notifikasi aktif
+-- Tabel untuk menyimpan notifikasiaktif
 local activeNotifications = {}
 
 -- Fungsi untuk update posisi notifikasi
@@ -166,6 +157,7 @@ end
 
 -- Fungsi untuk membuat notifikasi
 local function createNotification(player, isJoining)
+    
     if not ScriptInstance.IsRunning then return end
     
     local displayName = player.DisplayName
@@ -199,10 +191,16 @@ local function createNotification(player, isJoining)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text = displayName .. " " .. username
     nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nameLabel.TextSize = 19
+    nameLabel.TextSize = 16 -- Ini akan jadi ukuran FONT MAKSIMAL
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    
+    -- ==========================================================
+    --                  PERBAIKAN DI SINI
+    -- nameLabel.TextTruncate = Enum.TextTruncate.AtEnd -- DIGANTI
+    nameLabel.TextScaled = true -- MENJADI INI
+    -- ==========================================================
+    
     nameLabel.Parent = notif
     
     -- Status
@@ -233,7 +231,7 @@ local function createNotification(player, isJoining)
     totalLabel.BackgroundTransparency = 1
     totalLabel.Text = "👥 Total teman aktif: " .. getFriendCount()
     totalLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    totalLabel.TextSize = 12
+    totalLabel.TextSize = 14
     totalLabel.TextXAlignment = Enum.TextXAlignment.Center
     totalLabel.Font = Enum.Font.GothamBold
     totalLabel.Parent = notif
@@ -292,6 +290,9 @@ local function createNotification(player, isJoining)
     end)
 end
 
+-- Ekpos fungsi ini ke global instance agar tester bisa memanggilnya
+ScriptInstance.createNotification = createNotification
+
 -- Fungsi untuk cek apakah player adalah teman
 local function isFriend(player)
     if player == LocalPlayer then return false end
@@ -305,9 +306,8 @@ end
 local function onPlayerAdded(player)
     if not ScriptInstance.IsRunning then return end
     
-    -- Proses async untuk tidak blocking
     task.spawn(function()
-        task.wait(0.5) -- Delay minimal
+        task.wait(0.5) 
         
         if not ScriptInstance.IsRunning then return end
         
@@ -325,7 +325,6 @@ end
 local function onPlayerRemoving(player)
     if not ScriptInstance.IsRunning then return end
     
-    -- Langsung proses tanpa delay
     if friendsInServer[player.Name] then
         friendsInServer[player.Name] = nil
         createNotification(player, false)
@@ -339,7 +338,7 @@ table.insert(ScriptInstance.Connections, Players.PlayerRemoving:Connect(onPlayer
 
 -- Notifikasi bawaan Roblox saat script aktif
 game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "Friend Tracker";
+    Title = "Notif Teman";
     Text = "Script berhasil diaktifkan!";
     Duration = 5;
     Icon = "rbxassetid://7733964719";
@@ -347,7 +346,7 @@ game:GetService("StarterGui"):SetCore("SendNotification", {
 
 -- Inisialisasi: cek teman yang sudah ada di server
 task.spawn(function()
-    task.wait(2) -- Delay lebih lama untuk memastikan semua data loaded
+    task.wait(2) 
     
     if not ScriptInstance.IsRunning then return end
     
@@ -367,17 +366,16 @@ task.spawn(function()
     local totalFriends = getFriendCount()
     print("[Friend Tracker] Script aktif! Total teman di server:", totalFriends)
     
-    -- Notifikasi bawaan Roblox untuk total teman
     if totalFriends > 0 then
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Friend Tracker";
+            Title = "Notif Teman";
             Text = totalFriends .. " teman ditemukan di server!";
             Duration = 5;
             Icon = "rbxassetid://7733964719";
         })
     else
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Friend Tracker";
+            Title = "Notif Teman";
             Text = "Tidak ada teman di server saat ini";
             Duration = 5;
             Icon = "rbxassetid://7733964719";
@@ -388,3 +386,4 @@ end)
 print("=== Friend Tracker Loaded ===")
 print("Mendeteksi teman di server...")
 print("Script ID:", SCRIPT_ID)
+
