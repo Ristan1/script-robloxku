@@ -1,0 +1,287 @@
+--[[
+	SCRIPT EXECUTATOR (VERSI AUTO-AVOID)
+	- PERMINTAAN ANDA: UI (kotak teks, tombol X, tombol mode)
+	  sekarang akan otomatis pindah ke kanan atas jika
+	  kotak biru ('dragFrame') mendekatinya.
+	- UI akan kembali ke kiri atas jika area sudah aman.
+	- Perpindahan UI dianimasikan (TweenPosition).
+	- Semua fitur lama (Auto-Resize, 2 Mode, Anti-Lag) tetap ada.
+	Dibuat oleh: Gemini
+	
+	-- PERBAIKAN 3 (Anchor Point ke Kiri Atas) --
+	- AnchorPoint 'dragFrame' diubah ke (0.0, 0.0) [kiri-atas].
+	- Ini agar 'dragFrame' bisa mengukur posisi GUI lain
+	  dari titik ujung kiri atas, sesuai permintaan.
+	- Memperbaiki typo 'updatePositionT' -> 'updatePositionText'.
+]]
+
+-- =======================================================
+-- Konfigurasi Awal
+-- =======================================================
+local player = game.Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- Mencegah skrip berjalan dua kali
+if playerGui:FindFirstChild("PositionFinder_Executor") then
+	playerGui.PositionFinder_Executor:Destroy()
+end
+
+-- =======================================================
+-- 1. Buat Objek GUI
+-- =======================================================
+
+-- ScreenGui (Kontainer Utama)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "PositionFinder_Executor"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+-- === BAGIAN ATAS (KOTAK TEKS + TOMBOL X) ===
+
+-- Frame Kontainer untuk Baris Atas
+local topBarFrame = Instance.new("Frame")
+topBarFrame.Name = "TopBarFrame"
+topBarFrame.Parent = screenGui
+topBarFrame.Position = UDim2.new(0, 10, 0, 10) -- Posisi awal
+topBarFrame.Size = UDim2.new(0, 0, 0, 40)
+topBarFrame.AutomaticSize = Enum.AutomaticSize.X
+topBarFrame.BackgroundTransparency = 1
+topBarFrame.ZIndex = 1
+
+-- Layout Otomatis
+local listLayout = Instance.new("UIListLayout")
+listLayout.Parent = topBarFrame
+listLayout.FillDirection = Enum.FillDirection.Horizontal
+listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Padding = UDim.new(0, 5)
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left -- Awal
+
+-- Tombol Output/Salin (TextButton)
+local outputBox = Instance.new("TextButton")
+outputBox.Name = "PositionOutput"
+outputBox.Parent = topBarFrame
+outputBox.Size = UDim2.new(0, 0, 1, 0) 
+outputBox.AutomaticSize = Enum.AutomaticSize.X
+outputBox.LayoutOrder = 1
+outputBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+outputBox.BackgroundTransparency = 0.3
+outputBox.BorderColor3 = Color3.fromRGB(200, 200, 200)
+outputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+outputBox.Font = Enum.Font.Code
+outputBox.TextSize = 14
+outputBox.TextXAlignment = Enum.TextXAlignment.Left
+outputBox.Text = "Geser frame... (Klik untuk menyalin)"
+outputBox.AutoButtonColor = false
+local textPadding = Instance.new("UIPadding")
+textPadding.Parent = outputBox
+textPadding.PaddingLeft = UDim.new(0, 10)
+textPadding.PaddingRight = UDim.new(0, 10)
+
+
+-- Tombol Tutup (Close Button)
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Parent = topBarFrame
+closeButton.Size = UDim2.new(0, 40, 1, 0)
+closeButton.LayoutOrder = 2
+closeButton.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+closeButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.TextSize = 20
+closeButton.Text = "X"
+closeButton.AutoButtonColor = false
+closeButton.ZIndex = 2
+
+
+-- === BAGIAN LAINNYA ===
+
+-- Frame yang Bisa Digeser
+local dragFrame = Instance.new("Frame")
+dragFrame.Name = "DraggableFrame"
+dragFrame.Parent = screenGui
+dragFrame.Size = UDim2.new(0, 150, 0, 100)
+
+-- [[ !! PERUBAHAN DI SINI !! ]]
+-- AnchorPoint diubah dari (0.5, 0.0) menjadi (0.0, 0.0)
+-- Sekarang titik ukurnya ada di UJUNG KIRI ATAS.
+dragFrame.AnchorPoint = Vector2.new(0.0, 0.0) 
+-- [[ !! SELESAI !! ]]
+
+dragFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+dragFrame.BackgroundColor3 = Color3.fromRGB(0, 122, 255)
+dragFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+dragFrame.BorderSizePixel = 2
+dragFrame.Active = true
+dragFrame.Draggable = true
+dragFrame.ZIndex = 0 -- Di belakang UI
+
+-- Tombol Mode
+local toggleModeButton = Instance.new("TextButton")
+toggleModeButton.Name = "ToggleMode"
+toggleModeButton.Parent = screenGui
+toggleModeButton.Size = UDim2.new(0, 120, 0, 40)
+toggleModeButton.Position = UDim2.new(0, 10, 0, 55) -- Posisi awal
+toggleModeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+toggleModeButton.BorderColor3 = Color3.fromRGB(200, 200, 200)
+toggleModeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleModeButton.Font = Enum.Font.SourceSansSemibold
+toggleModeButton.TextSize = 16
+toggleModeButton.Text = "Mode: Offset"
+toggleModeButton.AutoButtonColor = false
+toggleModeButton.ZIndex = 1
+
+-- =======================================================
+-- 2. Logika Script
+-- =======================================================
+local isCopying = false
+local currentMode = "Offset"
+local currentScaleString = ""
+local currentOffsetString = ""
+local uiPositionState = "TopLeft" -- State Awal
+
+-- Fungsi Cek Tabrakan (AABB)
+local function checkCollision(rect1, rect2)
+	return rect1.X1 < rect2.X2 and
+		   rect1.X2 > rect2.X1 and
+		   rect1.Y1 < rect2.Y2 and
+		   rect1.Y2 > rect2.Y1
+end
+
+-- Fungsi untuk update teks di outputBox
+local function updatePositionText()
+	local screenSize = screenGui.AbsoluteSize
+	if screenSize.X == 0 or screenSize.Y == 0 then return end
+
+	-- Kalkulasi ini (framePoint) sekarang akan mengambil
+	-- posisi dari AnchorPoint (0.0, 0.0) secara otomatis
+	-- karena skripnya membaca properti .AnchorPoint
+	local framePointX = dragFrame.AbsolutePosition.X + (dragFrame.AbsoluteSize.X * dragFrame.AnchorPoint.X)
+	local framePointY = dragFrame.AbsolutePosition.Y + (dragFrame.AbsoluteSize.Y * dragFrame.AnchorPoint.Y)
+
+	-- 1. Hitung Posisi
+	local scaleX = framePointX / screenSize.X
+	local scaleY = framePointY / screenSize.Y
+	currentScaleString = string.format("UDim2.new(%.3f, 0, %.3f, 0)", scaleX, scaleY)
+	local offsetX = math.floor(framePointX)
+	local offsetY = math.floor(framePointY)
+	currentOffsetString = string.format("UDim2.new(0, %d, 0, %d)", offsetX, offsetY)
+	
+	if not isCopying then
+		if currentMode == "Scale" then
+			outputBox.Text = currentScaleString
+		else
+			outputBox.Text = currentOffsetString
+		end
+	end
+	
+	-- =======================================================
+	-- LOGIKA PINDAH OTOMATIS
+	-- =======================================================
+	
+	-- Dapatkan kotak 'dragFrame'
+	local frameRect = {
+		X1 = dragFrame.AbsolutePosition.X,
+		Y1 = dragFrame.AbsolutePosition.Y,
+		X2 = dragFrame.AbsolutePosition.X + dragFrame.AbsoluteSize.X,
+		Y2 = dragFrame.AbsolutePosition.Y + dragFrame.AbsoluteSize.Y
+	}
+
+	-- Tentukan "zona bahaya" UI
+	local uiWidth = math.max(topBarFrame.AbsoluteSize.X, toggleModeButton.AbsoluteSize.X) + 15
+	local uiHeight = toggleModeButton.AbsolutePosition.Y + toggleModeButton.AbsoluteSize.Y + 15 - topBarFrame.AbsolutePosition.Y
+	
+	local topLeftZone = { X1 = 0, Y1 = 0, X2 = uiWidth + 10, Y2 = uiHeight + 10 }
+
+	local isCollidingTopLeft = checkCollision(frameRect, topLeftZone)
+
+	if uiPositionState == "TopLeft" then
+		if isCollidingTopLeft then
+			-- Area kiri terhalang, pindah ke kanan
+			uiPositionState = "TopRight"
+			
+			topBarFrame.AnchorPoint = Vector2.new(1, 0)
+			toggleModeButton.AnchorPoint = Vector2.new(1, 0)
+			listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+			
+			topBarFrame:TweenPosition(UDim2.new(1, -10, 0, 10), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
+			toggleModeButton:TweenPosition(UDim2.new(1, -10, 0, 55), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
+		end
+	elseif uiPositionState == "TopRight" then
+		if not isCollidingTopLeft then
+			-- Area kiri sudah aman, pindah kembali ke kiri
+			uiPositionState = "TopLeft"
+			
+			topBarFrame.AnchorPoint = Vector2.new(0, 0)
+			toggleModeButton.AnchorPoint = Vector2.new(0, 0)
+			listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+			
+			topBarFrame:TweenPosition(UDim2.new(0, 10, 0, 10), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
+			toggleModeButton:TweenPosition(UDim2.new(0, 10, 0, 55), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.3, true)
+		end
+	end
+end
+
+-- Pantau perubahan posisi frame
+dragFrame:GetPropertyChangedSignal("Position"):Connect(updatePositionText)
+-- Pantau jika ukuran layar berubah
+-- [[ PERBAIKAN TYPO DI SINI ]]
+screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(updatePositionText)
+
+-- Logika tombol tutup
+closeButton.MouseButton1Click:Connect(function()
+	screenGui:Destroy()
+end)
+
+-- Logika Tombol Ganti Mode
+toggleModeButton.MouseButton1Click:Connect(function()
+	if currentMode == "Offset" then
+		currentMode = "Scale"
+		toggleModeButton.Text = "Mode: Scale"
+		toggleModeButton.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+	else
+		currentMode = "Offset"
+		toggleModeButton.Text = "Mode: Offset"
+		toggleModeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	end
+	updatePositionText()
+end)
+
+-- Logika 'Klik untuk Menyalin' (outputBox)
+local originalColor = outputBox.BackgroundColor3
+outputBox.MouseButton1Click:Connect(function()
+	if isCopying then return end
+	
+	local textToCopy = ""
+	if currentMode == "Scale" then
+		textToCopy = currentScaleString
+	else
+		textToCopy = currentOffsetString
+	end
+
+	if setclipboard then
+		isCopying = true
+		setclipboard(textToCopy)
+		
+		outputBox.Text = "Disalin!"
+		outputBox.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+		
+		wait(1)
+		
+		isCopying = false
+		outputBox.BackgroundColor3 = originalColor
+		updatePositionText()
+	else
+		isCopying = true
+		outputBox.Text = "Error: 'setclipboard' tidak ada!"
+		wait(2)
+		isCopying = false
+		updatePositionText()
+	end
+end)
+
+
+-- Inisialisasi
+wait(0.1)
+updatePositionText()
