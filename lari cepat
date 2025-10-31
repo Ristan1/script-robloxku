@@ -23,7 +23,7 @@ screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 -- FRAME UTAMA
 local mainFrame = Instance.new("Frame", screenGui)
 mainFrame.Size = UDim2.new(0, 240, 0, 160)
-mainFrame.Position = UDim2.new(0.7, 0, 0.35, 0)
+mainFrame.Position = UDim2.new(0, 482, 0, -8)
 mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 mainFrame.BackgroundTransparency = 0.5
 mainFrame.BorderSizePixel = 0
@@ -134,7 +134,7 @@ status.TextXAlignment = Enum.TextXAlignment.Left
 -- Tombol kecil (bulat) saat minimize
 local miniBtn = Instance.new("TextButton", screenGui)
 miniBtn.Size = UDim2.new(0,56,0,56)
-miniBtn.Position = UDim2.new(0.88, 0, 0.45, 0)
+miniBtn.Position = UDim2.new(0, 581, 0, 57)
 miniBtn.Text = "SPD"
 miniBtn.Font = Enum.Font.SourceSansBold
 miniBtn.TextSize = 20
