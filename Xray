@@ -1,0 +1,453 @@
+--[[
+    UNIVERSAL GUI SCRIPT (v6.5 - Padding Fix)
+    Fitur: XRay, ESP, Smart Minimize, Kill Switch
+
+    Perubahan vC6.5:
+    - Menambah UIPadding Kiri & Kanan dari 10px -> 15px.
+    - Ini membuat 'border' hitam di samping tombol merah lebih tebal
+      dan terlihat lebih rapi, sesuai permintaan.
+]]
+
+-- ===========================
+-- KONFIGURASI DAN STATE
+-- ===========================
+
+-- 0. Cek & Hancurkan GUI lama
+if getgenv().IY_GUI_MAIN then
+    pcall(function()
+        getgenv().IY_GUI_MAIN:Destroy()
+    end)
+end
+if getgenv().IY_STATE then
+    pcall(function()
+        if getgenv().IY_STATE.isXRayActive then
+            local oldApply = getgenv().IY_STATE.applyMapXRay
+            if type(oldApply) == "function" then oldApply(0) end
+        end
+        if getgenv().IY_STATE.isEspActive then
+            local oldDisconnect = getgenv().IY_STATE.disconnectListeners
+            local oldRemove = getgenv().IY_STATE.removeHighlights
+            if type(oldDisconnect) == "function" then oldDisconnect() end
+            if type(oldRemove) == "function" then oldRemove() end
+        end
+    end)
+end
+
+-- 1. Setup Global State Baru
+getgenv().IY_STATE = {
+    isXRayActive = false,
+    isEspActive = false,
+    highlights = {},
+    listeners = {},
+    xrayJobId = 0,
+    lastMenuPosition = UDim2.new(0.5, -100, 0.5, -90),
+    isMinimized = false,
+    isTweening = false, -- Debounce
+    titleBarHeight = 20
+}
+local state = getgenv().IY_STATE
+
+-- ===========================
+-- SERVICE DAN VARIABEL
+-- ===========================
+
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+
+-- ===========================
+-- FUNGSI INTI (XRAY, ESP, NOTIFY)
+-- (Tidak ada perubahan)
+-- ===========================
+
+-- 1. Notifikasi
+local function notify(title, text, duration)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title,
+            Text = text,
+            Duration = duration or 3,
+            Icon = "rbxassetid://4483345998"
+        })
+    end)
+end
+
+-- 2. XRay Peta (Optimized)
+local function applyMapXRay(transparency)
+    state.xrayJobId = state.xrayJobId + 1
+    local currentJobId = state.xrayJobId
+    task.spawn(function()
+        local descendants = workspace:GetDescendants()
+        local partsPerFrame = 250 
+        for i = 1, #descendants do
+            if state.xrayJobId ~= currentJobId then return end
+            local v = descendants[i]
+            if v and v:IsA("BasePart") and v.Parent and v.Parent:FindFirstChildOfClass("Humanoid") == nil then
+                pcall(function() v.LocalTransparencyModifier = transparency end)
+            end
+            if i % partsPerFrame == 0 then RunService.Heartbeat:Wait() end
+        end
+    end)
+end
+
+-- 3. ESP Pemain
+local function removeHighlights()
+    for _, highlight in pairs(state.highlights) do
+        if highlight and highlight.Parent then pcall(function() highlight:Destroy() end) end
+    end
+    state.highlights = {}
+end
+
+local function highlightPlayer(player)
+    if player == LocalPlayer or not state.isEspActive then return end
+    local character = player.Character
+    if character then
+        for _, h in pairs(state.highlights) do
+            if h and h.Parent and h.Adornee == character then return end
+        end
+        local highlight = Instance.new("Highlight")
+        highlight.Adornee = character
+        highlight.FillTransparency = 1
+        highlight.OutlineTransparency = 0
+        highlight.OutlineColor = Color3.new(1, 0, 0)
+        highlight.Parent = character
+        table.insert(state.highlights, highlight)
+    end
+end
+
+-- 4. Manajemen Listener ESP
+local function disconnectListeners()
+    for _, connection in pairs(state.listeners) do
+        if connection then pcall(function() connection:Disconnect() end) end
+    end
+    state.listeners = {}
+end
+
+local function setupEspListeners()
+    disconnectListeners()
+    local function setupPlayerListeners(player)
+        local charAddedConn = player.CharacterAdded:Connect(function(character)
+            task.wait(0.1); highlightPlayer(player)
+        end)
+        table.insert(state.listeners, charAddedConn)
+        if player.Character then highlightPlayer(player) end
+    end
+    local playerAddedConn = Players.PlayerAdded:Connect(setupPlayerListeners)
+    table.insert(state.listeners, playerAddedConn)
+    for _, player in pairs(Players:GetPlayers()) do setupPlayerListeners(player) end
+end
+
+-- ===========================
+-- FUNGSI GUI (DRAGGABLE & TOGGLE)
+-- (Logika Anti-Flicker v6.1)
+-- ===========================
+
+local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local function toggleMinimize(guiObject)
+    if state.isTweening then return end 
+    state.isTweening = true 
+
+    local targetPos
+    
+    -- [[ PERBAIKAN TAMPILAN v6.4 ]]
+    -- Temukan corner dan siapkan target animasi
+    local mainCorner = guiObject:FindFirstChild("MainCorner")
+    local targetRadius = 8
+    local targetBorder = 1
+    
+    if state.isMinimized then
+        -- Target: Maximize
+        targetPos = state.lastMenuPosition
+        targetRadius = 8
+        targetBorder = 1
+    else
+        -- Target: Minimize
+        state.lastMenuPosition = guiObject.Position 
+        targetPos = UDim2.new(
+            state.lastMenuPosition.X.Scale,
+            state.lastMenuPosition.X.Offset,
+            1, 
+            -state.titleBarHeight
+        )
+        targetRadius = 0 -- Buat sudut jadi tajam
+        targetBorder = 0 -- Sembunyikan border
+    end
+    
+    state.isMinimized = not state.isMinimized 
+    
+    local tweenPos = TweenService:Create(guiObject, tweenInfo, {Position = targetPos})
+    local tweenBorder = TweenService:Create(guiObject, tweenInfo, {BorderSizePixel = targetBorder})
+    
+    -- Animasikan corner jika ada
+    if mainCorner then
+        local tweenCorner = TweenService:Create(mainCorner, tweenInfo, {CornerRadius = UDim.new(0, targetRadius)})
+        tweenCorner:Play()
+    end
+    
+    tweenPos:Play()
+    tweenBorder:Play()
+    
+    -- Buka kunci HANYA setelah animasi POSISI selesai
+    tweenPos.Completed:Connect(function()
+        state.isTweening = false
+    end)
+end
+
+local function makeSmartDraggable(guiObject, dragHandle)
+    local isDragging = false
+    local hasMoved = false
+    local dragStart = nil
+    local startPos = nil
+
+    dragHandle.InputBegan:Connect(function(input)
+        if state.isTweening then return end 
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = true
+            hasMoved = false
+            dragStart = input.Position
+            startPos = guiObject.Position
+            guiObject.Parent.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+            guiObject.ZIndex = 2
+        end
+    end)
+
+    dragHandle.InputChanged:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and isDragging then
+            hasMoved = true
+            
+            if state.isMinimized then
+                state.isMinimized = false
+                guiObject.Position = state.lastMenuPosition
+                startPos = guiObject.Position
+                dragStart = input.Position 
+            end
+
+            local delta = input.Position - dragStart
+            
+            -- [[ PERBAIKAN FLICKER DRAG v6.3 ]]
+            
+            -- 1. Hitung posisi UDim2 baru (masih ada Scale + Offset)
+            local newPosUDim = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            
+            local screenSize = workspace.CurrentCamera.ViewportSize
+            local guiSize = guiObject.AbsoluteSize
+
+            -- 2. Konversi ke pixel absolut
+            local absX = (newPosUDim.X.Scale * screenSize.X) + newPosUDim.X.Offset
+            local absY = (newPosUDim.Y.Scale * screenSize.Y) + newPosUDim.Y.Offset
+            
+            -- 3. Clamp (jepit) posisi pixel absolut
+            local clampedX = math.clamp(absX, 0, screenSize.X - guiSize.X)
+            local clampedY = math.clamp(absY, 0, screenSize.Y - guiSize.Y)
+
+            -- 4. Atur posisi menggunakan pixel murni (Offset)
+            -- Ini menggantikan baris "newPos = UDim2.fromOffset(...)" yang error
+            guiObject.Position = UDim2.fromOffset(clampedX, clampedY)
+            
+            -- [[ AKHIR PERBAIKAN v6.3 ]]
+        end
+    end)
+
+    dragHandle.InputEnded:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and isDragging then
+            
+            if not hasMoved then
+                toggleMinimize(guiObject)
+            else
+                if not state.isMinimized then
+                    -- [[ PERBAIKAN FLICKER v6.4 ]]
+                    -- Selalu simpan posisi sebagai pixel murni (Offset)
+                    -- untuk konsistensi dengan logika drag.
+                    local absPos = guiObject.AbsolutePosition
+                    state.lastMenuPosition = UDim2.fromOffset(absPos.X, absPos.Y)
+                end
+            end
+            
+            isDragging = false
+            hasMoved = false
+            guiObject.ZIndex = 1
+        end
+    end)
+end
+
+-- ===========================
+-- PEMBUATAN GUI
+-- (Kembali ke v6, dengan TYPO DIPERBAIKI)
+-- ===========================
+
+local function createGUI()
+    
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.DisplayOrder = 999
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = game:GetService("CoreGui")
+    getgenv().IY_GUI_MAIN = screenGui
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 200, 0, 130)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    mainFrame.BorderColor3 = Color3.fromRGB(80, 80, 80)
+    mainFrame.BorderSizePixel = 1
+    mainFrame.Active = true
+    mainFrame.ClipsDescendants = true
+    mainFrame.Parent = screenGui
+    
+    -- [[ PERBAIKAN TAMPILAN v6.4 ]]
+    -- Beri nama pada corner agar mudah ditemukan
+    local corner = Instance.new("UICorner")
+    corner.Name = "MainCorner" 
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = mainFrame
+    
+    -- Set status awal (jika mulai dalam keadaan minimize)
+    if state.isMinimized then
+        corner.CornerRadius = UDim.new(0, 0)
+        mainFrame.BorderSizePixel = 0
+    end
+    -- [[ AKHIR PERBAIKAN ]]
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, state.titleBarHeight) -- 20px
+    titleBar.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+    
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -28, 1, 0)
+    titleLabel.Position = UDim2.new(0, 10, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+    titleLabel.Font = Enum.Font.SourceSansBold
+    titleLabel.TextSize = 14
+    titleLabel.Text = "XRAY DAN ESP"
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Center -- (Ini kode asli v6)
+    titleLabel.Parent = titleBar
+
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(0, 16, 0, 16) -- 16x16
+    closeButton.Position = UDim2.new(1, -18, 0.5, -8) -- (Ini kode asli v6)
+    closeButton.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.Text = "X"
+    closeButton.TextSize = 14
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.Parent = titleBar
+    local cbCorner = Instance.new("UICorner")
+    cbCorner.CornerRadius = UDim.new(0, 3); cbCorner.Parent = closeButton
+
+    -- 5. Tombol Fitur (XRay, ESP)
+    local padding = Instance.new("UIPadding")
+    
+    -- [[ PERBAIKAN PADDING v6.5 ]]
+    padding.PaddingTop = UDim.new(0, 1)
+    padding.PaddingLeft = UDim.new(0, 15) -- DIUBAH: 10 -> 15
+    padding.PaddingRight = UDim.new(0, 15) -- DIUBAH: 10 -> 15
+    padding.PaddingBottom = UDim.new(0, 19)
+    -- [[ AKHIR PERBAIKAN ]]
+    
+    padding.Parent = mainFrame
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 10)
+    layout.Parent = mainFrame
+
+    local colorOff = Color3.fromRGB(150, 40, 40)
+    local colorOn = Color3.fromRGB(40, 150, 40)
+
+    local xrayButton = Instance.new("TextButton")
+    xrayButton.Name = "XRayButton"
+    xrayButton.LayoutOrder = 2
+    xrayButton.Size = UDim2.new(1, 0, 0, 40)
+    xrayButton.BackgroundColor3 = state.isXRayActive and colorOn or colorOff
+    xrayButton.Font = Enum.Font.SourceSansBold
+    xrayButton.Text = state.isXRayActive and "XRAY (ON)" or "XRAY (OFF)[ada-lag]"
+    xrayButton.TextSize = 18
+    xrayButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    xrayButton.Parent = mainFrame
+    local xbCorner = Instance.new("UICorner")
+    xbCorner.CornerRadius = UDim.new(0, 6); xbCorner.Parent = xrayButton
+
+    local espButton = Instance.new("TextButton")
+    espButton.Name = "ESPButton"
+    espButton.LayoutOrder = 3
+    espButton.Size = UDim2.new(1, 0, 0, 40)
+    espButton.BackgroundColor3 = state.isEspActive and colorOn or colorOff
+    espButton.Font = Enum.Font.SourceSansBold
+    espButton.Text = state.isEspActive and "ESP (ON)" or "ESP (OFF)"
+    espButton.TextSize = 18
+    espButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    espButton.Parent = mainFrame
+    local ebCorner = Instance.new("UICorner")
+    ebCorner.CornerRadius = UDim.new(0, 6); ebCorner.Parent = espButton
+
+    -- 6. Set Posisi Awal
+    if state.isMinimized then
+        mainFrame.Position = UDim2.new(state.lastMenuPosition.X.Scale, state.lastMenuPosition.X.Offset, 1, -state.titleBarHeight)
+    else
+        mainFrame.Position = state.lastMenuPosition
+    end
+
+    -- ===========================
+    -- LOGIKA KONEKSI GUI
+    -- ===========================
+    
+    makeSmartDraggable(mainFrame, titleBar)
+
+    xrayButton.MouseButton1Click:Connect(function()
+        state.isXRayActive = not state.isXRayActive
+        if state.isXRayActive then
+            applyMapXRay(0.5)
+            xrayButton.Text = "XRAY (ON)"
+            xrayButton.BackgroundColor3 = colorOn
+            notify("XRay", "DIAKTIFKAN (Menyebabkan Lag)")
+        else
+            applyMapXRay(0)
+            xrayButton.Text = "XRAY (OFF)[ada-lag]"
+            xrayButton.BackgroundColor3 = colorOff
+            notify("XRay", "DINONAKTIFKAN")
+        end
+    end)
+    
+    espButton.MouseButton1Click:Connect(function()
+        state.isEspActive = not state.isEspActive
+        if state.isEspActive then
+            setupEspListeners()
+            espButton.Text = "ESP (ON)"
+            espButton.BackgroundColor3 = colorOn
+            notify("ESP", "DIAKTIFKAN")
+        else
+            disconnectListeners()
+            removeHighlights()
+            espButton.Text = "ESP (OFF)"
+            espButton.BackgroundColor3 = colorOff
+            notify("ESP", "DINONAKTIFKAN")
+        end
+    end)
+    
+    closeButton.InputBegan:Connect(function(input)
+        if state.isTweening then return end 
+        input:StopPropagation()
+    end)
+    
+    closeButton.MouseButton1Click:Connect(function()
+        if state.isTweening then return end
+        notify("Script", "Semua fitur dimatikan.", 3)
+        if state.isXRayActive then applyMapXRay(0) end
+        if state.isEspActive then disconnectListeners(); removeHighlights() end
+        screenGui:Destroy()
+        getgenv().IY_GUI_MAIN = nil
+        getgenv().IY_STATE = nil
+    end)
+
+end
+
+-- ===========================
+-- JALANKAN SKRIP
+-- ===========================
+task.spawn(createGUI)
