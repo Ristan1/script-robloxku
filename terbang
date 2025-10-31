@@ -142,7 +142,7 @@ nowe = false
 
 game:GetService("StarterGui"):SetCore("SendNotification", { 
 	Title = "TERBANG";
-	Text = "BY RISTAN - Anti Duplicate Active";
+	Text = "BY RISTAN";
 	Icon = "rbxthumb://type=Asset&id=5107182114&w=150&h=150"})
 Duration = 5;
 
