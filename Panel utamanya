@@ -1,8 +1,6 @@
 --================================================================
--- GTA 5 Style Weapon Wheel Script Loader - Mobile Version (MODIFIED V43 - FIX KONFIRMASI)
--- Modifikasi Utama: Memastikan "Infinite Yeild" terdaftar dengan benar dalam tabel konfirmasi.
--- Perubahan: Dialog Konfirmasi dibagi menjadi Judul (Title) dan Peringatan Detail.
--- FITUR BARU: Menambahkan URL untuk Skrip Auto-Load.
+-- GTA 5 Style Weapon Wheel Script Loader - Mobile Version (MODIFIED V44 - AUTO HIDE + TOMBOL TUTUP "X")
+-- FITUR BARU: Tombol minimize auto-hide ke tepi layar seperti bola pintas HP & Tombol X untuk menutup roda.
 --================================================================
 
 local Players = game:GetService("Players")
@@ -17,32 +15,27 @@ local Mouse = Player:GetMouse()
 -- KONFIGURASI UMUM
 --================================================================
 local ActiveScriptTracker = {}    
-local isActionLocked = false      -- Mengunci aksi tombol saat animasi buka/tutup sedang berjalan.
-local isConfirmationActive = false -- Status untuk mencegah interaksi lain saat konfirmasi muncul.
+local isActionLocked = false
+local isConfirmationActive = false
 
 --================================================================
--- ✨ KONFIGURASI AUTO-LOAD SKRIP BARU ✨
--- Tempatkan URL skrip yang ingin Anda muat secara otomatis saat skrip ini diaktifkan.
--- Jika Anda tidak ingin memuat skrip otomatis, biarkan nilainya sebagai nil atau "" (kosong).
--- Catatan: Skrip ini akan dimuat TANPA konfirmasi, jadi gunakan dengan hati-hati.
+-- KONFIGURASI AUTO-LOAD SKRIP
 --================================================================
 local AUTO_LOAD_URL = {
-    URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/NotifTeman", -- GANTI DENGAN URL SKRIP ANDA
-    Name = "Skrip Otomatis", -- Berikan nama deskriptif untuk log
+    URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/NotifTeman",
+    Name = "Skrip Otomatis",
 }
 
 --================================================================
--- KONFIGURASI SKRIP KONFIRMASI (SINGLE SOURCE OF TRUTH)
--- Tambahkan nama skrip di sini (harus sama persis dengan nama di tabel AllScripts)
+-- KONFIGURASI SKRIP KONFIRMASI
 --================================================================
 local SCRIPTS_REQUIRING_CONFIRMATION = {
     ["Private Server"] = true, 
     ["Infinite Yeild"] = true,  
-    -- ["Terbang"] = true,  
 }
 
 --================================================================
--- KONFIGURASI EFEK VISUAL (BLUR & ZOOM OUT)
+-- KONFIGURASI EFEK VISUAL
 --================================================================
 local ORIGINAL_FOV = 70         
 local ZOOMED_OUT_FOV = 105       
@@ -50,13 +43,13 @@ local BLUR_SIZE = 0
 local BLUR_NAME = "WeaponWheelBlur" 
 
 --================================================================
--- KONFIGURASI ENHANCEMENTS LAIN
+-- KONFIGURASI LAINNYA
 --================================================================
 local SELECTION_SOUND_ID = "rbxassetid://6042054037" 
 local OPEN_SOUND_ID = "rbxassetid://1293433423"     
 local CLOSE_SOUND_ID = "rbxassetid://124018322190013"
 local CLOSE_SOUND_VOLUME = 1
-local DIMMER_TRANSPARENCY = 1 
+local DIMMER_TRANSPARENCY = 1 -- Ditingkatkan agar lebih buram
 local DEFAULT_CENTER_TEXT = "PILIH SCRIPT\nATAU TEKAN\nMENU LAINNYA"
 local GUI_NAME = "WeaponWheelGUI" 
 
@@ -70,21 +63,17 @@ local ITEM_SIZE = 55
 local RAY_LENGTH_UNITS = 108 
 local RAY_OFFSET_UNITS = 56 
 
--- Warna Default Roda Utama (Inner Wheel)
 local INNER_DEFAULT_COLOR = Color3.fromRGB(60, 60, 60)
 local INNER_DEFAULT_STROKE = Color3.fromRGB(150, 150, 150)
 local INNER_HOVER_COLOR = Color3.fromRGB(100, 100, 255)
 local INNER_HOVER_STROKE = Color3.fromRGB(255, 255, 255)
 
--- Warna Default Roda Kedua (Outer Wheel)
 local OUTER_DEFAULT_COLOR = Color3.fromRGB(80, 50, 50)
 local OUTER_DEFAULT_STROKE = Color3.fromRGB(200, 100, 100)
 local OUTER_HOVER_COLOR = Color3.fromRGB(255, 100, 100)
 local OUTER_HOVER_STROKE = Color3.fromRGB(255, 255, 255)
 
-
 local AllScripts = {
-    -- >> RODA PERTAMA (8 ITEM PERTAMA) <<
     {Name = "AntiLag", Icon = "😎", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/antilag"},
     {Name = "Teleport Tulis", Icon = "✍️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/teleport"},
     {Name = "Teleport Ketuk", Icon = "👇", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/teleport%20ketuk"},
@@ -93,16 +82,15 @@ local AllScripts = {
     {Name = "Invisible & spectate", Icon = "👻", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Invisible%26Spectate"},
     {Name = "Liat Admin", Icon = "🔍", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/liat%20admin%20dan%20owner"},
     {Name = "Lari Cepat", Icon = "⚡️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/lari%20cepat"},
-    
-    -- >> RODA KEDUA (ITEM KE-9 DAN SETERUSNYA) <<
     {Name = "Tembus & Cahaya", Icon = "🧱💡", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Tembus%20tembok%20dan%20lampu"},
-    {Name = "Infinite Yeild", Icon = "📜", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/infiniteyield"}, -- SCRIPT INI
+    {Name = "Infinite Yeild", Icon = "📜", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/infiniteyield"},
     {Name = "Detector Player", Icon = "🌍", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/detector%20player"},
     {Name = "Copy Id", Icon = "📥", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Copy%20Id"},
     {Name = "Infinite Jump", Icon = "⏫️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/InfinitejumpOnOff"},
     {Name = "Tombol Lompat", Icon = "🦶", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/tombol%20lompat"}, 
     {Name = "Tester Notif Teman", Icon = "🚻", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/TesterNotifTeman"},
     {Name = "Xray", Icon = "📵", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Xray"}, 
+    {Name = "Sett Posisi Frame", Icon = "🛄", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/SetPosisiFrame"}, 
 }
 
 local ScriptsInWheel = {}
@@ -117,7 +105,7 @@ for i, scriptInfo in ipairs(AllScripts) do
 end
 
 --================================================================
--- FUNGSI PEMBERSIHAN INSTANSI LAMA
+-- FUNGSI PEMBERSIHAN
 --================================================================
 local function resetGuiAndCamera()
     local playerGui = Player:WaitForChild("PlayerGui")
@@ -135,7 +123,6 @@ local function resetGuiAndCamera()
     
     Camera.FieldOfView = ORIGINAL_FOV 
 end
-
 
 --================================================================
 -- FUNGSI LOAD SCRIPT
@@ -180,9 +167,7 @@ local function loadScriptFromURL(url, scriptName)
     return true
 end
 
--- FUNGSI HELPER UNTUK MEMUAT SKRIP DAN MEMPERBARUI UI
 local function performScriptLoadAndUIUpdate(scriptInfo, itemFrame, itemStroke, defaultColor, defaultStrokeColor, toggleFunc, centerLabel, isWheelOpen)
-    
     centerLabel.Text = "Loading..." 
     
     local loadSuccess = loadScriptFromURL(scriptInfo.URL, scriptInfo.Name)
@@ -199,7 +184,6 @@ local function performScriptLoadAndUIUpdate(scriptInfo, itemFrame, itemStroke, d
     
     task.wait(0.1) 
     
-    -- Reset kembali ke warna default roda masing-masing
     itemFrame.BackgroundColor3 = defaultColor
     itemStroke.Color = defaultStrokeColor
     
@@ -208,12 +192,10 @@ local function performScriptLoadAndUIUpdate(scriptInfo, itemFrame, itemStroke, d
     end
     
     centerLabel.Text = DEFAULT_CENTER_TEXT 
-    
-    -- isSelectionDebounced harus direset di luar (di handleScriptSelection)
 end
 
 --================================================================
--- FUNGSI MEMBUAT WEAPON WHEEL (Inti GUI)
+-- FUNGSI MEMBUAT WEAPON WHEEL
 --================================================================
 local function createWeaponWheel()
     local screenGui = Instance.new("ScreenGui")
@@ -230,11 +212,10 @@ local function createWeaponWheel()
     local mainWheelButtons = {}
     local outerWheelButtons = {}
     
-    -- (FRAME & GUI SETUP SAMA SEPERTI SEBELUMNYA)
     local dimmerFrame = Instance.new("Frame")
     dimmerFrame.Name = "DimmerFrame"
     dimmerFrame.Parent = screenGui
-    dimmerFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255) 
+    dimmerFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Diubah agar lebih gelap
     dimmerFrame.BackgroundTransparency = 1 
     dimmerFrame.Position = UDim2.new(0, 0, 0, 0)
     dimmerFrame.Size = UDim2.new(1, 0, 1, 0) 
@@ -259,12 +240,45 @@ local function createWeaponWheel()
     closeSound.Parent = screenGui
     closeSound.Volume = CLOSE_SOUND_VOLUME
 
+    -- ============================================================
+    -- TOMBOL TUTUP "X" BARU (Sesuai Permintaan User)
+    -- Diposisikan di kanan atas, di luar wheel utama
+    -- ============================================================
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Parent = screenGui
+    closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50) 
+    closeButton.AnchorPoint = Vector2.new(0.5, 0.5)
+    -- Posisi: Top-Right relatif terhadap tengah layar (di luar roda utama 250x250)
+    closeButton.Position = UDim2.new(0.5, 155, 0.5, -155) 
+    closeButton.Size = UDim2.new(0, 25, 0, 25)
+    closeButton.Font = Enum.Font.SourceSansBold
+    closeButton.Text = "X"
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.TextSize = 20
+    closeButton.AutoButtonColor = false
+    closeButton.Visible = false -- Sembunyikan secara default
+    closeButton.ZIndex = 12 
+
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(1, 0)
+    closeCorner.Parent = closeButton
+
+    local closeStroke = Instance.new("UIStroke")
+    closeStroke.Parent = closeButton
+    closeStroke.Color = Color3.fromRGB(255, 255, 255)
+    closeStroke.Thickness = 2
+    closeStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+    -- ============================================================
+    -- MINIMIZE BUTTON DENGAN AUTO-HIDE
+    -- ============================================================
     local minimizeButton = Instance.new("TextButton")
     minimizeButton.Name = "MinimizeButton"
     minimizeButton.Parent = screenGui
     minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-    minimizeButton.AnchorPoint = Vector2.new(0, 0)
-    minimizeButton.Position = UDim2.new(0, 20, 0, 100)
+    minimizeButton.AnchorPoint = Vector2.new(0.5, 0.5)
+    minimizeButton.Position = UDim2.new(0, 45, 0, 125)
     minimizeButton.Size = UDim2.new(0, 50, 0, 50)
     minimizeButton.Font = Enum.Font.SourceSansBold
     minimizeButton.Text = "📂"
@@ -283,6 +297,142 @@ local function createWeaponWheel()
     minimizeStroke.Color = Color3.fromRGB(255, 255, 255)
     minimizeStroke.Thickness = 2
     minimizeStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    
+    -- Variabel untuk auto-hide
+    local hideTimer = nil
+    local isButtonHidden = false
+    local HIDE_DELAY = 5
+    local PEEK_AMOUNT = 15
+    local lastKnownPosition = minimizeButton.Position
+    
+    -- Fungsi untuk menghitung tepi terdekat
+    local function getClosestEdgeAndHidePosition()
+        local screenSize = screenGui.AbsoluteSize
+        local buttonAbsPos = minimizeButton.AbsolutePosition
+        local buttonAbsSize = minimizeButton.AbsoluteSize
+        local centerX = buttonAbsPos.X + buttonAbsSize.X / 2
+        local centerY = buttonAbsPos.Y + buttonAbsSize.Y / 2
+        
+        local distLeft = centerX
+        local distRight = screenSize.X - centerX
+        local distTop = centerY
+        local distBottom = screenSize.Y - centerY
+        
+        local minDist = math.min(distLeft, distRight, distTop, distBottom)
+        
+        local currentPos = minimizeButton.Position
+        
+        if minDist == distLeft then
+            -- Tenggelam ke kiri (setengah lingkaran tersembunyi)
+            return UDim2.new(0, -buttonAbsSize.X / 2 + PEEK_AMOUNT, currentPos.Y.Scale, currentPos.Y.Offset)
+        elseif minDist == distRight then
+            -- Tenggelam ke kanan (setengah lingkaran tersembunyi)
+            return UDim2.new(1, buttonAbsSize.X / 2 - PEEK_AMOUNT, currentPos.Y.Scale, currentPos.Y.Offset)
+        elseif minDist == distTop then
+            -- Tenggelam ke atas (setengah lingkaran tersembunyi)
+            return UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 0, -buttonAbsSize.Y / 2 + PEEK_AMOUNT)
+        else
+            -- Tenggelam ke bawah (setengah lingkaran tersembunyi)
+            return UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 1, buttonAbsSize.Y / 2 - PEEK_AMOUNT)
+        end
+    end
+    
+    -- Fungsi hide button
+    local function hideButton()
+        if isButtonHidden or isConfirmationActive then return end
+        isButtonHidden = true
+        
+        lastKnownPosition = minimizeButton.Position
+        local hidePos = getClosestEdgeAndHidePosition()
+        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        TweenService:Create(minimizeButton, tweenInfo, {Position = hidePos}):Play()
+    end
+    
+    -- Fungsi show button
+    local function showButton()
+        if not isButtonHidden then return end
+        isButtonHidden = false
+        
+        local screenSize = screenGui.AbsoluteSize
+        local buttonAbsPos = minimizeButton.AbsolutePosition
+        local buttonAbsSize = minimizeButton.AbsoluteSize
+        local centerX = buttonAbsPos.X + buttonAbsSize.X / 2
+        local centerY = buttonAbsPos.Y + buttonAbsSize.Y / 2
+        
+        local currentPos = minimizeButton.Position
+        local newPos = currentPos
+        
+        local margin = 10
+        
+        if centerX < buttonAbsSize.X then
+            newPos = UDim2.new(0, buttonAbsSize.X / 2 + margin, currentPos.Y.Scale, currentPos.Y.Offset)
+        elseif centerX > screenSize.X - buttonAbsSize.X then
+            newPos = UDim2.new(1, -buttonAbsSize.X / 2 - margin, currentPos.Y.Scale, currentPos.Y.Offset)
+        elseif centerY < buttonAbsSize.Y then
+            newPos = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 0, buttonAbsSize.Y / 2 + margin)
+        elseif centerY > screenSize.Y - buttonAbsSize.Y then
+            newPos = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 1, -buttonAbsSize.Y / 2 - margin)
+        end
+        
+        local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        TweenService:Create(minimizeButton, tweenInfo, {Position = newPos}):Play()
+    end
+    
+    -- Fungsi reset timer
+    local function resetHideTimer()
+        if hideTimer then
+            task.cancel(hideTimer)
+            hideTimer = nil
+        end
+        
+        if isButtonHidden then
+            showButton()
+        end
+        
+        hideTimer = task.delay(HIDE_DELAY, function()
+            hideButton()
+        end)
+    end
+    
+    -- Event listeners
+    minimizeButton.MouseEnter:Connect(function()
+        if not isConfirmationActive then
+            resetHideTimer()
+        end
+    end)
+    
+    minimizeButton.MouseButton1Down:Connect(function()
+        if not isConfirmationActive then
+            resetHideTimer()
+        end
+    end)
+    
+    -- Deteksi drag
+    local isDragging = false
+    local dragConnection = nil
+    
+    minimizeButton.MouseButton1Down:Connect(function()
+        isDragging = true
+        if dragConnection then dragConnection:Disconnect() end
+        
+        dragConnection = RunService.Heartbeat:Connect(function()
+            if minimizeButton.Position ~= lastKnownPosition then
+                lastKnownPosition = minimizeButton.Position
+                resetHideTimer()
+            end
+        end)
+    end)
+    
+    minimizeButton.MouseButton1Up:Connect(function()
+        isDragging = false
+        if dragConnection then
+            dragConnection:Disconnect()
+            dragConnection = nil
+        end
+    end)
+    
+    -- Mulai timer pertama
+    resetHideTimer()
 
     local wheelContainer = Instance.new("Frame")
     wheelContainer.Name = "WheelContainer"
@@ -374,7 +524,6 @@ local function createWeaponWheel()
     outerWheelContainer.Visible = false
     outerWheelContainer.ZIndex = 2 
     
-    -- FUNGSI KONTROL INTERAKSI MOUSE
     local function setWheelActive(isActive)
         for _, btn in ipairs(mainWheelButtons) do
             btn.Active = isActive
@@ -383,6 +532,7 @@ local function createWeaponWheel()
             btn.Active = isActive
         end
         centerCircle.Active = isActive
+        closeButton.Active = isActive -- Tambahkan tombol X ke kontrol aktif
     end
     
     local tweenInfoRay = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -404,7 +554,6 @@ local function createWeaponWheel()
         }):Play()
     end
 
-    -- FUNGSI ANIMASI DAN LOGIKA BUKA/TUTUP
     local isWheelOpen = false
     local function toggleWheel()
         if isActionLocked or isConfirmationActive then return end 
@@ -425,6 +574,7 @@ local function createWeaponWheel()
             dimmerFrame.Visible = true
             wheelContainer.Size = UDim2.new(0, 0, 0, 0)
             wheelContainer.Visible = true
+            closeButton.Visible = true -- Tampilkan tombol X saat roda terbuka
             
             tweenFOV:Play()
             tweenBlur:Play()
@@ -448,6 +598,7 @@ local function createWeaponWheel()
             closeSound:Play() 
             setWheelActive(false) 
             hideRay()
+            closeButton.Visible = false -- Sembunyikan tombol X saat roda tertutup
             
             local tweenInfoOut = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
@@ -477,18 +628,14 @@ local function createWeaponWheel()
     
     local isSelectionDebounced = false
 
-    --==============================================================
-    -- FUNGSI BARU: KONFIRMASI DIALOG (DENGAN JUDUL BARU)
-    --==============================================================
     local function showConfirmationDialog(onConfirm, onCancel)
-        
-        -- >> Logika penutupan roda dari fungsi sebelumnya (TETAP SAMA) <<
         if isWheelOpen then
             isWheelOpen = false 
             isActionLocked = true
             closeSound:Play() 
             setWheelActive(false) 
             hideRay()
+            closeButton.Visible = false -- Sembunyikan tombol X
             
             local tweenInfoOut = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
@@ -514,24 +661,21 @@ local function createWeaponWheel()
             
             isActionLocked = false 
         end
-        -- >> Akhir Logika penutupan roda <<
         
         isConfirmationActive = true 
         
-        -- Background overlay untuk modal
         local modalOverlay = Instance.new("Frame")
         modalOverlay.Name = "ModalOverlay"
         modalOverlay.Parent = screenGui
         modalOverlay.Size = UDim2.new(1, 0, 1, 0)
-        modalOverlay.BackgroundTransparency = 1 
+        modalOverlay.BackgroundTransparency = 0.5 -- Diubah ke 0.5 agar tidak terlalu gelap
         modalOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         modalOverlay.ZIndex = 10 
 
-        -- Main dialog box
         local dialogFrame = Instance.new("Frame")
         dialogFrame.Name = "ConfirmationDialog"
         dialogFrame.Parent = modalOverlay
-        dialogFrame.Size = UDim2.new(0, 300, 0, 180) -- Ukuran diperbesar untuk menampung Judul
+        dialogFrame.Size = UDim2.new(0, 300, 0, 180)
         dialogFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
         dialogFrame.AnchorPoint = Vector2.new(0.5, 0.5)
         dialogFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
@@ -553,41 +697,38 @@ local function createWeaponWheel()
         padding.PaddingRight = UDim.new(0, 10)
         padding.Parent = dialogFrame
         
-        -- BARU: Judul Konfirmasi
         local titleLabel = Instance.new("TextLabel")
         titleLabel.Parent = dialogFrame
-        titleLabel.Size = UDim2.new(1, 0, 0.25, 0) -- Ambil 25% tinggi atas
+        titleLabel.Size = UDim2.new(1, 0, 0.25, 0)
         titleLabel.Position = UDim2.new(0, 0, 0, 0)
         titleLabel.BackgroundTransparency = 1
         titleLabel.Font = Enum.Font.SourceSansBold
-        titleLabel.Text = "KONFIRMASI UNTUK MEMBUKA" -- Judul
+        titleLabel.Text = "KONFIRMASI UNTUK MEMBUKA"
         titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        titleLabel.TextSize = 20 -- Ukuran lebih besar
+        titleLabel.TextSize = 20
         titleLabel.TextWrapped = true
         titleLabel.TextXAlignment = Enum.TextXAlignment.Center
         titleLabel.TextYAlignment = Enum.TextYAlignment.Center
         titleLabel.ZIndex = 12
 
-        -- Warning Text (Teks Detail)
         local warningLabel = Instance.new("TextLabel")
         warningLabel.Parent = dialogFrame
-        warningLabel.Size = UDim2.new(1, 0, 0.35, 0) -- Ambil 35%
-        warningLabel.Position = UDim2.new(0, 0, 0.25, 0) -- Mulai setelah Title
+        warningLabel.Size = UDim2.new(1, 0, 0.35, 0)
+        warningLabel.Position = UDim2.new(0, 0, 0.25, 0)
         warningLabel.BackgroundTransparency = 1
         warningLabel.Font = Enum.Font.SourceSans
         warningLabel.Text = "Berhasil untuk beberapa map.\nKalo gagal dapat menyebabkan\nLag/Crash/Tidak bisa di close."
-        warningLabel.TextColor3 = Color3.fromRGB(255, 220, 100) -- Warning Yellow
+        warningLabel.TextColor3 = Color3.fromRGB(255, 220, 100)
         warningLabel.TextSize = 14
         warningLabel.TextWrapped = true
         warningLabel.TextXAlignment = Enum.TextXAlignment.Center
         warningLabel.TextYAlignment = Enum.TextYAlignment.Center
         warningLabel.ZIndex = 12
 
-        -- Button Container
         local buttonContainer = Instance.new("Frame")
         buttonContainer.Parent = dialogFrame
-        buttonContainer.Size = UDim2.new(1, 0, 0.3, -10) -- Ambil 30% sisa tinggi
-        buttonContainer.Position = UDim2.new(0, 0, 0.6, 5) -- Mulai setelah Warning Label
+        buttonContainer.Size = UDim2.new(1, 0, 0.3, -10)
+        buttonContainer.Position = UDim2.new(0, 0, 0.6, 5)
         buttonContainer.BackgroundTransparency = 1
         buttonContainer.ZIndex = 12
         
@@ -596,20 +737,18 @@ local function createWeaponWheel()
         listLayout.FillDirection = Enum.FillDirection.Horizontal
         listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
         listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-        listLayout.Padding = UDim.new(0, 15) -- Jarak antar tombol
+        listLayout.Padding = UDim.new(0, 15)
         
-        -- Fungsi pembersih
         local function cleanup()
             modalOverlay:Destroy()
             isConfirmationActive = false
         end
 
-        -- "Ya" Button (Confirm)
         local confirmButton = Instance.new("TextButton")
         confirmButton.Name = "YaButton"
         confirmButton.Parent = buttonContainer
         confirmButton.Size = UDim2.new(0.4, 0, 0.8, 0)
-        confirmButton.BackgroundColor3 = Color3.fromRGB(40, 160, 40) -- Green for Yes
+        confirmButton.BackgroundColor3 = Color3.fromRGB(40, 160, 40)
         confirmButton.Text = "Ya"
         confirmButton.Font = Enum.Font.SourceSansBold
         confirmButton.TextColor3 = Color3.new(1, 1, 1)
@@ -620,12 +759,11 @@ local function createWeaponWheel()
         confirmCorner.CornerRadius = UDim.new(0, 5)
         confirmCorner.Parent = confirmButton
 
-        -- "Tidak" Button (Cancel)
         local cancelButton = Instance.new("TextButton")
         cancelButton.Name = "TidakButton"
         cancelButton.Parent = buttonContainer
         cancelButton.Size = UDim2.new(0.4, 0, 0.8, 0)
-        cancelButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50) -- Red for No
+        cancelButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
         cancelButton.Text = "Tidak"
         cancelButton.Font = Enum.Font.SourceSansBold
         cancelButton.TextColor3 = Color3.new(1, 1, 1)
@@ -655,42 +793,31 @@ local function createWeaponWheel()
         end)
     end
     
-    --==============================================================
-    -- FUNGSI UTAMA SELEKSI (MEMERIKSA KONFIRMASI)
-    --==============================================================
     local function handleScriptSelection(scriptInfo, itemFrame, itemStroke, defaultColor, defaultStrokeColor)
         if isSelectionDebounced then return end 
         isSelectionDebounced = true 
         
-        -- 1. Cek apakah skrip memerlukan konfirmasi dari tabel terpusat
         if SCRIPTS_REQUIRING_CONFIRMATION[scriptInfo.Name] then
-            
-            -- Tampilkan dialog konfirmasi
             showConfirmationDialog(
-                function() -- onConfirm (Ya)
-                    -- Lanjutkan memuat skrip
+                function()
                     performScriptLoadAndUIUpdate(scriptInfo, itemFrame, itemStroke, defaultColor, defaultStrokeColor, toggleWheel, centerLabel, isWheelOpen)
-                    isSelectionDebounced = false -- Reset debounce setelah proses selesai
+                    isSelectionDebounced = false
                 end, 
-                function() -- onCancel (Tidak)
-                    -- Batalkan, reset UI dan debounce
+                function()
                     centerLabel.Text = DEFAULT_CENTER_TEXT 
                     isSelectionDebounced = false
                 end
             )
         else
-            -- 2. Tidak memerlukan konfirmasi, langsung muat
             performScriptLoadAndUIUpdate(scriptInfo, itemFrame, itemStroke, defaultColor, defaultStrokeColor, toggleWheel, centerLabel, isWheelOpen)
             isSelectionDebounced = false
         end
     end
     
-    -- (Logika Item Wheel 1 & 2 tetap sama)
     local numScripts = #ScriptsInWheel
     local radius = 90
     local angleStep = (2 * math.pi) / numScripts
     
-    -- [[ BAGIAN RODA UTAMA - ScriptsInWheel ]]
     for i, scriptInfo in ipairs(ScriptsInWheel) do
         local angle = (i - 1) * angleStep - (math.pi / 2) 
         local x = math.cos(angle) * radius
@@ -748,7 +875,6 @@ local function createWeaponWheel()
         
         table.insert(mainWheelButtons, button)
         
-        -- MENGGUNAKAN FUNGSI UTAMA YANG TERPUSAT
         button.MouseButton1Click:Connect(function() 
             handleScriptSelection(scriptInfo, itemFrame, itemStroke, INNER_DEFAULT_COLOR, INNER_DEFAULT_STROKE) 
         end)
@@ -790,7 +916,6 @@ local function createWeaponWheel()
         end)
     end
     
-    -- [[ BAGIAN RODA KEDUA - ScriptsInMore ]]
     local numMoreScripts = #ScriptsInMore
     local outerRadius = 170 
     local zigzagSlotIndices = {0, 1, 11, 2, 10, 3, 9, 4, 8, 5, 7, 6}
@@ -867,7 +992,6 @@ local function createWeaponWheel()
         
         table.insert(outerWheelButtons, button)
 
-        -- MENGGUNAKAN FUNGSI UTAMA YANG TERPUSAT
         button.MouseButton1Click:Connect(function() 
             handleScriptSelection(scriptInfo, itemFrame, itemStroke, OUTER_DEFAULT_COLOR, OUTER_DEFAULT_STROKE) 
         end)
@@ -911,17 +1035,20 @@ local function createWeaponWheel()
     
     centerCircle.Active = false 
     
-    -- KLIK HANDLER
     local function onMinimizeClick()
         if not isConfirmationActive then
             toggleWheel() 
         end
     end
     
+    -- Koneksi untuk tombol '📂'
     minimizeButton.MouseButton1Click:Connect(onMinimizeClick)
     minimizeButton.TouchTap:Connect(onMinimizeClick)
     
-    -- EFEK VISUAL (Rainbow) pada Label Tengah Roda Utama
+    -- Koneksi untuk tombol 'X'
+    closeButton.MouseButton1Click:Connect(onMinimizeClick)
+    closeButton.TouchTap:Connect(onMinimizeClick)
+    
     local hue = 0
     RunService.Heartbeat:Connect(function(dt)
         if not isConfirmationActive then
@@ -930,7 +1057,6 @@ local function createWeaponWheel()
         end
     end)
     
-    -- NOTIFIKASI AWAL
     local notif = Instance.new("TextLabel")
     notif.Parent = screenGui
     notif.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -939,7 +1065,7 @@ local function createWeaponWheel()
     notif.Position = UDim2.new(0.5, 0, 0, -60)
     notif.Size = UDim2.new(0, 280, 0, 45)
     notif.Font = Enum.Font.SourceSansBold
-    notif.Text = "Tombol 📂“ Tekan untuk membuka script" 
+    notif.Text = "Tombol 📂 Tekan untuk membuka script" 
     notif.TextColor3 = Color3.fromRGB(255, 255, 255)
     notif.TextSize = 13
     notif.TextWrapped = true
@@ -959,17 +1085,11 @@ local function createWeaponWheel()
     notif:Destroy()
 end
 
---================================================================
--- MULAI SCRIPT
---================================================================
--- 1. Panggil fungsi pembersihan sebelum membuat yang baru.
 resetGuiAndCamera()
 
--- 2. Muat skrip Otomatis dari URL yang ditentukan (Jika ada)
 if AUTO_LOAD_URL.URL and string.len(AUTO_LOAD_URL.URL) > 0 then
     print("Mencoba memuat skrip otomatis dari URL...")
     loadScriptFromURL(AUTO_LOAD_URL.URL, AUTO_LOAD_URL.Name)
 end
 
--- 3. Buat instance Weapon Wheel yang baru dan bersih.
 createWeaponWheel()
