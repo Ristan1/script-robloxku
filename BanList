@@ -110,7 +110,7 @@ local function createVisuals(character)
     local textLabel = Instance.new("TextLabel")
     textLabel.Size = UDim2.new(1, 0, 1, 0)
     textLabel.BackgroundTransparency = 1
-    textLabel.Text = "⚠️ BLOCKED"
+    textLabel.Text = "⚠️ DIBLOKIR"
     textLabel.TextColor3 = CONFIG.MarkerColor
     textLabel.TextScaled = true
     textLabel.Font = Enum.Font.GothamBold
