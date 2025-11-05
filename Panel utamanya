@@ -1,6 +1,6 @@
 --================================================================
--- GTA 5 Style Weapon Wheel Script Loader - Mobile Version (MODIFIED V44 - AUTO HIDE + TOMBOL TUTUP "X")
--- FITUR BARU: Tombol minimize auto-hide ke tepi layar seperti bola pintas HP & Tombol X untuk menutup roda.
+-- GTA 5 Style Weapon Wheel Script Loader - Mobile Version (MODIFIED V45 - FIXED)
+-- Perbaikan: Syntax error pada AUTO_LOAD_URL dan penempatan tombol folder.
 --================================================================
 
 local Players = game:GetService("Players")
@@ -19,11 +19,12 @@ local isActionLocked = false
 local isConfirmationActive = false
 
 --================================================================
--- KONFIGURASI AUTO-LOAD SKRIP
+-- KONFIGURASI AUTO-LOAD SKRIP (DIPERBAIKI)
+-- Menggunakan format array of tables agar bisa memuat lebih dari 1 URL.
 --================================================================
-local AUTO_LOAD_URL = {
-    URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/NotifTeman",
-    URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/BanList",
+local AUTO_LOAD_SCRIPTS = {
+    {Name = "NotifTeman", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/NotifTeman"},
+    {Name = "BanList", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/BanList"},
 }
 
 --================================================================
@@ -135,6 +136,7 @@ local function loadScriptFromURL(url, scriptName)
     
     local response
     local success = pcall(function() 
+        -- Memastikan game:HttpGet ada sebelum digunakan (umum pada executor)
         if game.HttpGet then
             response = game:HttpGet(url, true) 
         elseif http_get then
@@ -215,7 +217,7 @@ local function createWeaponWheel()
     local dimmerFrame = Instance.new("Frame")
     dimmerFrame.Name = "DimmerFrame"
     dimmerFrame.Parent = screenGui
-    dimmerFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Diubah agar lebih gelap
+    dimmerFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) 
     dimmerFrame.BackgroundTransparency = 1 
     dimmerFrame.Position = UDim2.new(0, 0, 0, 0)
     dimmerFrame.Size = UDim2.new(1, 0, 1, 0) 
@@ -241,15 +243,13 @@ local function createWeaponWheel()
     closeSound.Volume = CLOSE_SOUND_VOLUME
 
     -- ============================================================
-    -- TOMBOL TUTUP "X" BARU (Sesuai Permintaan User)
-    -- Diposisikan di kanan atas, di luar wheel utama
+    -- TOMBOL TUTUP "X" BARU
     -- ============================================================
     local closeButton = Instance.new("TextButton")
     closeButton.Name = "CloseButton"
     closeButton.Parent = screenGui
     closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50) 
     closeButton.AnchorPoint = Vector2.new(0.5, 0.5)
-    -- Posisi: Top-Right relatif terhadap tengah layar (di luar roda utama 250x250)
     closeButton.Position = UDim2.new(0.5, 155, 0.5, -155) 
     closeButton.Size = UDim2.new(0, 25, 0, 25)
     closeButton.Font = Enum.Font.SourceSansBold
@@ -257,7 +257,7 @@ local function createWeaponWheel()
     closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     closeButton.TextSize = 20
     closeButton.AutoButtonColor = false
-    closeButton.Visible = false -- Sembunyikan secara default
+    closeButton.Visible = false 
     closeButton.ZIndex = 12 
 
     local closeCorner = Instance.new("UICorner")
@@ -271,14 +271,15 @@ local function createWeaponWheel()
     closeStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
     -- ============================================================
-    -- MINIMIZE BUTTON DENGAN AUTO-HIDE
+    -- MINIMIZE BUTTON DENGAN AUTO-HIDE (TOMBOL FOLDER)
+    -- Ditempatkan di pojok kiri atas secara responsif.
     -- ============================================================
     local minimizeButton = Instance.new("TextButton")
     minimizeButton.Name = "MinimizeButton"
     minimizeButton.Parent = screenGui
     minimizeButton.BackgroundColor3 = Color3.fromRGB(255, 100, 100)
-    minimizeButton.AnchorPoint = Vector2.new(0.5, 0.5)
-    minimizeButton.Position = UDim2.new(0, 45, 0, 125)
+    minimizeButton.AnchorPoint = Vector2.new(0, 0) -- Diubah ke 0,0 untuk penempatan TOP-LEFT
+    minimizeButton.Position = UDim2.new(0, 15, 0, 10) -- Disesuaikan ke pojok kiri atas (margin 15, 10)
     minimizeButton.Size = UDim2.new(0, 50, 0, 50)
     minimizeButton.Font = Enum.Font.SourceSansBold
     minimizeButton.Text = "📂"
@@ -287,7 +288,8 @@ local function createWeaponWheel()
     minimizeButton.AutoButtonColor = false
     minimizeButton.Active = true
     minimizeButton.Draggable = true 
-    
+    minimizeButton.Visible = true -- Ditetapkan agar tombol folder pasti terlihat
+
     local minimizeCorner = Instance.new("UICorner")
     minimizeCorner.CornerRadius = UDim.new(1, 0)
     minimizeCorner.Parent = minimizeButton
@@ -301,7 +303,7 @@ local function createWeaponWheel()
     -- Variabel untuk auto-hide
     local hideTimer = nil
     local isButtonHidden = false
-    local HIDE_DELAY = 5
+    local HIDE_DELAY = 10 -- Diperpanjang agar mudah dilihat
     local PEEK_AMOUNT = 15
     local lastKnownPosition = minimizeButton.Position
     
@@ -322,18 +324,19 @@ local function createWeaponWheel()
         
         local currentPos = minimizeButton.Position
         
+        -- Catatan: AnchorPoint (0, 0) digunakan, jadi perhitungannya sedikit berbeda dari AnchorPoint (0.5, 0.5)
         if minDist == distLeft then
-            -- Tenggelam ke kiri (setengah lingkaran tersembunyi)
-            return UDim2.new(0, -buttonAbsSize.X / 2 + PEEK_AMOUNT, currentPos.Y.Scale, currentPos.Y.Offset)
+            -- Tenggelam ke kiri
+            return UDim2.new(0, -buttonAbsSize.X + PEEK_AMOUNT, currentPos.Y.Scale, currentPos.Y.Offset)
         elseif minDist == distRight then
-            -- Tenggelam ke kanan (setengah lingkaran tersembunyi)
-            return UDim2.new(1, buttonAbsSize.X / 2 - PEEK_AMOUNT, currentPos.Y.Scale, currentPos.Y.Offset)
+            -- Tenggelam ke kanan
+            return UDim2.new(1, -PEEK_AMOUNT, currentPos.Y.Scale, currentPos.Y.Offset)
         elseif minDist == distTop then
-            -- Tenggelam ke atas (setengah lingkaran tersembunyi)
-            return UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 0, -buttonAbsSize.Y / 2 + PEEK_AMOUNT)
+            -- Tenggelam ke atas
+            return UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 0, -buttonAbsSize.Y + PEEK_AMOUNT)
         else
-            -- Tenggelam ke bawah (setengah lingkaran tersembunyi)
-            return UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 1, buttonAbsSize.Y / 2 - PEEK_AMOUNT)
+            -- Tenggelam ke bawah
+            return UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 1, -PEEK_AMOUNT)
         end
     end
     
@@ -354,26 +357,26 @@ local function createWeaponWheel()
         isButtonHidden = false
         
         local screenSize = screenGui.AbsoluteSize
-        local buttonAbsPos = minimizeButton.AbsolutePosition
         local buttonAbsSize = minimizeButton.AbsoluteSize
-        local centerX = buttonAbsPos.X + buttonAbsSize.X / 2
-        local centerY = buttonAbsPos.Y + buttonAbsSize.Y / 2
-        
         local currentPos = minimizeButton.Position
-        local newPos = currentPos
         
         local margin = 10
+        local currentX = currentPos.X.Scale * screenSize.X + currentPos.X.Offset
+        local currentY = currentPos.Y.Scale * screenSize.Y + currentPos.Y.Offset
         
-        if centerX < buttonAbsSize.X then
-            newPos = UDim2.new(0, buttonAbsSize.X / 2 + margin, currentPos.Y.Scale, currentPos.Y.Offset)
-        elseif centerX > screenSize.X - buttonAbsSize.X then
-            newPos = UDim2.new(1, -buttonAbsSize.X / 2 - margin, currentPos.Y.Scale, currentPos.Y.Offset)
-        elseif centerY < buttonAbsSize.Y then
-            newPos = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 0, buttonAbsSize.Y / 2 + margin)
-        elseif centerY > screenSize.Y - buttonAbsSize.Y then
-            newPos = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 1, -buttonAbsSize.Y / 2 - margin)
+        local newPos = currentPos
+        
+        -- Logika sederhana untuk 'show' (keluar dari tepi)
+        if currentX < 0 then
+            newPos = UDim2.new(0, margin, currentPos.Y.Scale, currentPos.Y.Offset)
+        elseif currentX > screenSize.X - buttonAbsSize.X then
+            newPos = UDim2.new(1, -buttonAbsSize.X - margin, currentPos.Y.Scale, currentPos.Y.Offset)
+        elseif currentY < 0 then
+            newPos = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 0, margin)
+        elseif currentY > screenSize.Y - buttonAbsSize.Y then
+            newPos = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 1, -buttonAbsSize.Y - margin)
         end
-        
+
         local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
         TweenService:Create(minimizeButton, tweenInfo, {Position = newPos}):Play()
     end
@@ -431,7 +434,7 @@ local function createWeaponWheel()
         end
     end)
     
-    -- Mulai timer pertama
+    -- Mulai timer pertama (Memastikan tombol terlihat setidaknya 10 detik)
     resetHideTimer()
 
     local wheelContainer = Instance.new("Frame")
@@ -532,7 +535,7 @@ local function createWeaponWheel()
             btn.Active = isActive
         end
         centerCircle.Active = isActive
-        closeButton.Active = isActive -- Tambahkan tombol X ke kontrol aktif
+        closeButton.Active = isActive 
     end
     
     local tweenInfoRay = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -574,7 +577,7 @@ local function createWeaponWheel()
             dimmerFrame.Visible = true
             wheelContainer.Size = UDim2.new(0, 0, 0, 0)
             wheelContainer.Visible = true
-            closeButton.Visible = true -- Tampilkan tombol X saat roda terbuka
+            closeButton.Visible = true 
             
             tweenFOV:Play()
             tweenBlur:Play()
@@ -598,7 +601,7 @@ local function createWeaponWheel()
             closeSound:Play() 
             setWheelActive(false) 
             hideRay()
-            closeButton.Visible = false -- Sembunyikan tombol X saat roda tertutup
+            closeButton.Visible = false 
             
             local tweenInfoOut = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
@@ -635,7 +638,7 @@ local function createWeaponWheel()
             closeSound:Play() 
             setWheelActive(false) 
             hideRay()
-            closeButton.Visible = false -- Sembunyikan tombol X
+            closeButton.Visible = false 
             
             local tweenInfoOut = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
@@ -668,7 +671,7 @@ local function createWeaponWheel()
         modalOverlay.Name = "ModalOverlay"
         modalOverlay.Parent = screenGui
         modalOverlay.Size = UDim2.new(1, 0, 1, 0)
-        modalOverlay.BackgroundTransparency = 0.5 -- Diubah ke 0.5 agar tidak terlalu gelap
+        modalOverlay.BackgroundTransparency = 0.5 
         modalOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         modalOverlay.ZIndex = 10 
 
@@ -1057,6 +1060,7 @@ local function createWeaponWheel()
         end
     end)
     
+    -- Logika notifikasi
     local notif = Instance.new("TextLabel")
     notif.Parent = screenGui
     notif.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -1087,9 +1091,13 @@ end
 
 resetGuiAndCamera()
 
-if AUTO_LOAD_URL.URL and string.len(AUTO_LOAD_URL.URL) > 0 then
-    print("Mencoba memuat skrip otomatis dari URL...")
-    loadScriptFromURL(AUTO_LOAD_URL.URL, AUTO_LOAD_URL.Name)
+-- Logika auto-load scripts (DIPERBARUI)
+for _, scriptInfo in ipairs(AUTO_LOAD_SCRIPTS) do
+    if scriptInfo.URL and string.len(scriptInfo.URL) > 0 then
+        print("Mencoba memuat skrip otomatis dari URL: " .. scriptInfo.Name .. "...")
+        loadScriptFromURL(scriptInfo.URL, scriptInfo.Name)
+    end
 end
 
 createWeaponWheel()
+
