@@ -1,0 +1,806 @@
+-- =========================================================
+-- ==    SKRIP EXECUTOR DETEKTOR & ADMIN GUI v4.2         ==
+-- ==    (Visual Aktif, GUI Tersembunyi)                  ==
+-- ==    PERBAIKAN: Tombol Close (X) juga menyembunyikan  ==
+-- ==    tombol Toggle Panel.                             ==
+-- ==    PERBAIKAN UI: Tombol "Matikan" & "Sembunyikan"   ==
+-- ==    dirapikan agar pas dengan teks.                  ==
+-- =========================================================
+
+-- ===============================================
+-- ==  BAGIAN 0: PENCEGAH SKRIP GANDA (ANTI-LAG)  ==
+-- ===============================================
+if getgenv()._RistanBanSystem_V3 then
+    print("Skrip lama terdeteksi (v4.2). Menghancurkan...")
+    if getgenv()._RistanBanSystem_V3.Destroy then
+        getgenv()._RistanBanSystem_V3:Destroy()
+    end
+end
+
+-- ===============================================
+-- ==          BAGIAN 1: LAYANAN & KONFIGURASI    ==
+-- ===============================================
+
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+
+local Connections = {} 
+local isScriptDestroyed = false 
+
+-- KONFIGURASI SERVER (VERCEL)
+local VERCEL_BASE_URL = "https://roblox-ban-list.vercel.app" 
+local VERCEL_BAN_URL = VERCEL_BASE_URL .. "/ban-player"
+local VERCEL_UNBAN_URL = VERCEL_BASE_URL .. "/unban-player"
+local VERCEL_BAN_LIST_URL = VERCEL_BASE_URL .. "/ban-list" 
+local VERCEL_SECRET_KEY = "limamar123" 
+
+-- KONFIGURASI VISUAL
+local CONFIG = {
+    DetectionDistance = 50, CheckInterval = 5,
+    MarkerColor = Color3.fromRGB(255, 0, 0), MarkerTransparency = 0.3, 
+    SoundId = "rbxassetid://9125402735", SoundVolume = 1, BlinkSpeed = 1.4,
+    GuiTransitionTime = 0.2 
+}
+
+-- ===============================================
+-- ==        BAGIAN 2: LOGIKA INTI & BACKEND      ==
+-- ===============================================
+
+local BlockedUserIds = {} 
+local PlayerVisuals = {} 
+local PlayerGuiCache = {} 
+
+local function isBlocked(player)
+    if not player then return false end
+    return BlockedUserIds[tostring(player.UserId)] == true
+end
+
+-- ---------------------------------
+-- FUNGSI VISUAL 
+-- ---------------------------------
+local function removeVisuals(character)
+    if not character or not PlayerVisuals[character] then return end
+    local visuals = PlayerVisuals[character]
+    if visuals.Billboard and visuals.Billboard.Parent then visuals.Billboard:Destroy() end
+    if visuals.Sound and visuals.Sound.Parent then 
+        visuals.Sound:Stop()
+        visuals.Sound:Destroy() 
+    end
+    if visuals.BlinkConnection then visuals.BlinkConnection:Disconnect() end
+    if visuals.DiedConnection then visuals.DiedConnection:Disconnect() end 
+    PlayerVisuals[character] = nil
+end
+
+local function createVisuals(character)
+    if not character or PlayerVisuals[character] then return end 
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local head = character:FindFirstChild("Head")
+    if not humanoidRootPart or not head then return end
+
+    local visuals = {}
+    
+    local sound = Instance.new("Sound")
+    sound.Name = "BlockedPlayerAlarm"
+    sound.SoundId = CONFIG.SoundId
+    sound.Volume = CONFIG.SoundVolume
+    sound.Looped = true
+    sound.Parent = humanoidRootPart
+    visuals.Sound = sound
+    
+    task.spawn(function()
+        local success, err = pcall(function()
+            if sound.Parent then sound.Loaded:Wait() end
+        end)
+        if success and sound.Parent then sound:Play() 
+        elseif not success then warn("Sound: Gagal memuat aset suara:", err) end
+    end)
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "BlockedIndicator"
+    billboard.Size = UDim2.new(0, 100, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = head
+    visuals.Billboard = billboard
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = "⚠️ BLOCKED"
+    textLabel.TextColor3 = CONFIG.MarkerColor
+    textLabel.TextScaled = true
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.TextStrokeTransparency = 0
+    textLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+    textLabel.Parent = billboard
+
+    local lastBeat = tick()
+    local connection = RunService.Heartbeat:Connect(function()
+        local currentTime = tick()
+        local beatInterval = CONFIG.BlinkSpeed
+        
+        if textLabel.Parent then
+            if currentTime - lastBeat >= beatInterval then
+                local targetTransparency = textLabel.TextTransparency > 0.5 and 0 or 1
+                local tween = TweenService:Create(textLabel, TweenInfo.new(beatInterval / 2), {
+                    TextTransparency = targetTransparency,
+                    TextStrokeTransparency = targetTransparency
+                })
+                tween:Play()
+                lastBeat = currentTime
+            end
+        else
+            connection:Disconnect() 
+        end
+    end)
+    visuals.BlinkConnection = connection
+    table.insert(Connections, connection) 
+
+    PlayerVisuals[character] = visuals
+end
+
+-- ---------------------------------
+-- FUNGSI PENGELOLA UTAMA 
+-- ---------------------------------
+function handlePlayer(player)
+    if player == LocalPlayer then return end
+    if not isBlocked(player) then
+        if player.Character then
+            removeVisuals(player.Character)
+        end
+    end
+end
+
+-- ---------------------------------
+-- FUNGSI JARINGAN (NETWORKING)
+-- ---------------------------------
+local function sendVercelRequest(endpoint, payload, button, successMessage, failMessage)
+    local url = VERCEL_BASE_URL .. endpoint
+    local body = HttpService:JSONEncode(payload)
+    local headers = {
+        ["Content-Type"] = "application/json",
+        ["X-Roblox-Secret"] = VERCEL_SECRET_KEY
+    }
+
+    task.spawn(function()
+        local successPost, responseOrError = pcall(function()
+            if request then
+                return request({ Url = url, Method = "POST", Headers = headers, Body = body })
+            else
+                return HttpService:RequestAsync({ Url = url, Method = "POST", Headers = headers, Body = body })
+            end
+        end)
+
+        local defaultText = (endpoint == "/ban-player") and "Ban" or "Unban"
+
+        if not successPost then
+            warn("--- GAGAL: Error Pcall Request ---")
+            if button then button.Text = "FAIL (LUA)"; task.wait(2); button.Text = defaultText; button.Active = true; end
+            return
+        end
+
+        local responsePost = responseOrError
+        local isSuccess = (responsePost.Success) or (responsePost.StatusCode == 200)
+        
+        if isSuccess then
+            print("BERHASIL!", successMessage)
+            if button then
+                button.Text = successMessage
+                button.Active = false 
+                task.wait(2)
+                button.Text = defaultText
+                button.Active = true
+            end
+            
+            task.wait(1)
+            fetchBanList(function()
+                updatePlayerListGui()
+                for _, player in ipairs(Players:GetPlayers()) do
+                    handlePlayer(player)
+                end
+                checkDistance() 
+            end) 
+            
+        else
+            warn("--- GAGAL: Error dari Server Vercel ---")
+            if button then
+                button.Text = failMessage
+                button.Active = false 
+                task.wait(2)
+                button.Text = defaultText
+                button.Active = true
+            end
+        end
+    end)
+end
+
+local function sendBanRequest(playerToBan, banButton) 
+    if not playerToBan then return end
+    BlockedUserIds[tostring(playerToBan.UserId)] = true 
+    handlePlayer(playerToBan) 
+    updatePlayerListGui() 
+    sendVercelRequest("/ban-player", { username = playerToBan.Name, userId = playerToBan.UserId }, banButton, "Ban Berhasil!", "User Tdk Ditemukan")
+end
+
+local function sendUnbanRequest(playerToUnban, unbanButton) 
+    if not playerToUnban then return end
+    BlockedUserIds[tostring(playerToUnban.UserId)] = nil 
+    handlePlayer(playerToUnban) 
+    updatePlayerListGui() 
+    sendVercelRequest("/unban-player", { username = playerToUnban.Name, userId = playerToUnban.UserId }, unbanButton, "Unban Berhasil!", "Gagal (Cek Server)")
+end
+
+-- =======================================================
+-- ==   FUNGSI MUAT ULANG BAN LIST DARI SERVER VERCEL   ==
+-- =======================================================
+local function fetchBanList(onCompleteCallback)
+    task.spawn(function()
+        local successRequest, responseOrError = pcall(function()
+            local headers = { ["X-Roblox-Secret"] = VERCEL_SECRET_KEY }
+            if request then
+                return request({ Url = VERCEL_BAN_LIST_URL, Method = "GET", Headers = headers })
+            else
+                return HttpService:RequestAsync({ Url = VERCEL_BAN_LIST_URL, Method = "GET", Headers = headers })
+            end
+        end)
+
+        if not successRequest then 
+            warn("--- GAGAL: Error Pcall Request Vercel Ban List ---")
+            return 
+        end
+        
+        local response = responseOrError
+        
+        if response.Success and response.StatusCode == 200 then
+            local successJson, data = pcall(function() return HttpService:JSONDecode(response.Body) end)
+            
+            if successJson and data and data.status == "success" and data.banned_users then
+                local newBanList = {}
+                for userId, _ in pairs(data.banned_users) do
+                    newBanList[userId] = true 
+                end
+                BlockedUserIds = newBanList
+                print("✅ Daftar Blokir dari Vercel berhasil dimuat.")
+                if onCompleteCallback then onCompleteCallback() end
+            else
+                warn("Format respon Vercel tidak sesuai atau JSON error.")
+            end
+        else
+            warn("Gagal menghubungi Vercel (Kode Status:", response.StatusCode, ")")
+        end
+    end)
+end
+
+-- ===============================================
+-- ==         BAGIAN 3: SISTEM GUI (OPTIMAL)    ==
+-- ===============================================
+
+local BanGui = {}
+BanGui.ScreenGui = nil
+BanGui.MainFrame = nil
+BanGui.PlayerListFrame = nil
+BanGui.ToggleButton = nil
+BanGui.SearchBox = nil
+BanGui.ManualBanFrame = nil
+
+local function animateGui(toHide, toShow)
+    local itemsToHide = type(toHide) == "table" and toHide or {toHide}
+    local itemsToShow = type(toShow) == "table" and toShow or {toShow}
+    for _, item in ipairs(itemsToHide) do
+        if item and item.Parent then item.Visible = false end
+    end
+    for _, item in ipairs(itemsToShow) do
+        if item and item.Parent then item.Visible = true end
+    end
+end
+
+function updatePlayerListGui()
+    if not BanGui.PlayerListFrame then return end 
+    local list = BanGui.PlayerListFrame
+    local playersInServer = {}
+    local filterText = ""
+    local playersToKeep = {}
+    
+    if BanGui.SearchBox then filterText = BanGui.SearchBox.Text:lower() end
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local nameMatch = player.Name:lower():find(filterText, 1, true)
+            local displayNameMatch = player.DisplayName:lower():find(filterText, 1, true)
+            if filterText == "" or nameMatch or displayNameMatch then
+                table.insert(playersInServer, player)
+            end
+        end
+    end
+    
+    table.sort(playersInServer, function(a, b) return a.Name < b.Name end)
+    
+    local frameHeight = 30
+    local padding = 5
+    
+    for i, player in ipairs(playersInServer) do
+        local userIdStr = tostring(player.UserId)
+        local playerFrame = PlayerGuiCache[userIdStr] 
+        
+        if not playerFrame or not playerFrame.Parent then
+            playerFrame = Instance.new("Frame")
+            playerFrame.Name = "PlayerFrame_" .. player.Name
+            playerFrame.Size = UDim2.new(1, 0, 0, frameHeight)
+            playerFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+            playerFrame.Parent = list
+            PlayerGuiCache[userIdStr] = playerFrame
+            
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Name = "NameLabel"
+            nameLabel.Size = UDim2.new(0.7, -5, 1, 0)
+            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.Position = UDim2.new(0, 5, 0, 0)
+            nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            nameLabel.Parent = playerFrame
+            
+            local actionButton = Instance.new("TextButton")
+            actionButton.Name = "ActionButton"
+            actionButton.Size = UDim2.new(0.3, 0, 1, 0)
+            actionButton.Position = UDim2.new(0.7, 0, 0, 0)
+            actionButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+            actionButton.Font = Enum.Font.GothamBold
+            actionButton.Parent = playerFrame
+            
+            actionButton.MouseButton1Click:Connect(function()
+                actionButton.Text = "..." 
+                actionButton.Active = false
+                if isBlocked(player) then
+                    sendUnbanRequest(player, actionButton) 
+                else
+                    sendBanRequest(player, actionButton) 
+                end
+            end)
+        end
+        
+        table.insert(playersToKeep, userIdStr)
+        playerFrame.LayoutOrder = i 
+        
+        local nameLabel = playerFrame:FindFirstChild("NameLabel")
+        local actionButton = playerFrame:FindFirstChild("ActionButton")
+        
+        if nameLabel then
+             nameLabel.Text = player.DisplayName .. " (@" .. player.Name .. ")"
+        end
+
+        if actionButton then
+            local isPBlocked = isBlocked(player)
+            actionButton.Text = isPBlocked and "UNBAN" or "BAN"
+            actionButton.BackgroundColor3 = isPBlocked and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+            actionButton.Active = true
+        end
+    end
+    
+    local playersToDestroy = {}
+    for userId, frame in pairs(PlayerGuiCache) do
+        if not table.find(playersToKeep, userId) and frame.Parent == list then
+            table.insert(playersToDestroy, userId)
+        end
+    end
+    for _, userId in ipairs(playersToDestroy) do
+        PlayerGuiCache[userId]:Destroy()
+        PlayerGuiCache[userId] = nil
+    end
+
+    local layout = list:FindFirstChildOfClass("UIListLayout")
+    if not layout then
+        layout = Instance.new("UIListLayout")
+        layout.Padding = UDim.new(0, padding)
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.Parent = list
+    end
+    
+    local numPlayers = #playersInServer
+    local totalPadding = numPlayers > 0 and (numPlayers - 1) * padding or 0
+    local totalHeightOffset = (numPlayers * frameHeight) + totalPadding
+    totalHeightOffset = totalHeightOffset + 10 
+    list.CanvasSize = UDim2.new(0, 0, 0, totalHeightOffset)
+end
+
+
+local function destroyScript()
+    print("Menghancurkan Ban System GUI...")
+    isScriptDestroyed = true 
+    for i, conn in ipairs(Connections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    for char, _ in pairs(PlayerVisuals) do
+        removeVisuals(char)
+    end
+    for _, frame in pairs(PlayerGuiCache) do
+        if frame.Parent then frame:Destroy() end
+    end
+    PlayerGuiCache = {}
+    if BanGui.ScreenGui then BanGui.ScreenGui:Destroy() end
+    getgenv()._RistanBanSystem_V3 = nil
+    getgenv()._RistanShowPanel = nil 
+    print("Skrip berhasil dihancurkan.")
+end
+
+local function createBanGui()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "_RistanBanSystemGUI" 
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = CoreGui 
+    BanGui.ScreenGui = screenGui 
+    
+    local function showAdminPanel()
+        if BanGui.ToggleButton then BanGui.ToggleButton.Visible = true end
+        if BanGui.MainFrame then
+            BanGui.MainFrame.Visible = true
+            updatePlayerListGui() 
+            if BanGui.ManualBanFrame and BanGui.PlayerListFrame and BanGui.SearchBox and BanGui.MainFrame:FindFirstChild("ManualBanButton") then
+                 animateGui(BanGui.ManualBanFrame, {BanGui.PlayerListFrame, BanGui.SearchBox, BanGui.MainFrame:FindFirstChild("ManualBanButton")})
+            end
+            if BanGui.MainFrame:FindFirstChild("TextLabel") then
+                BanGui.MainFrame:FindFirstChild("TextLabel").Text = "Daftar Pemain"
+            end
+        end
+    end
+
+    getgenv()._RistanShowPanel = showAdminPanel
+    getgenv()._RistanBanSystem_V3 = { Destroy = destroyScript, ShowPanel = showAdminPanel }
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 280, 0, 280) 
+    mainFrame.Position = UDim2.new(0.5, -140, 0.5, -140) 
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    mainFrame.Visible = false 
+    mainFrame.Active = true
+    mainFrame.Draggable = true 
+    mainFrame.Parent = screenGui
+    BanGui.MainFrame = mainFrame
+    
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, 0, 0, 30)
+    titleLabel.Text = "Daftar Pemain"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 15
+    titleLabel.Parent = mainFrame
+    
+    -- ================== PERUBAHAN "SEMBUNYIKAN" DI SINI ==================
+    local closeButton = Instance.new("TextButton")
+    closeButton.Name = "CloseButton"
+    closeButton.Size = UDim2.new(0, 80, 0, 22) -- Dibuat lebih lebar (80px) dan tinggi 22px
+    closeButton.Position = UDim2.new(1, -85, 0.5, -11) -- 5px dari kanan, tengah vertikal
+    closeButton.Text = "Sembunyikan"
+    closeButton.TextSize = 10
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.Parent = titleLabel
+    
+    local closeCorner = Instance.new("UICorner") -- Menambahkan sudut bulat
+    closeCorner.CornerRadius = UDim.new(0, 4)
+    closeCorner.Parent = closeButton
+    
+    table.insert(Connections, closeButton.MouseButton1Click:Connect(function()
+        mainFrame.Visible = false
+        if BanGui.ToggleButton then
+            BanGui.ToggleButton.Visible = false 
+        end
+    end))
+    -- ================== AKHIR PERUBAHAN "SEMBUNYIKAN" ==================
+    
+    -- ================== PERUBAHAN "MATIKAN" DI SINI ==================
+    local masterCloseButton = Instance.new("TextButton")
+    masterCloseButton.Name = "MasterCloseButton"
+    masterCloseButton.Size = UDim2.new(0, 60, 0, 22) -- Lebar 60px, tinggi 22px
+    masterCloseButton.Position = UDim2.new(0, 5, 0.5, -11) -- 5px dari kiri, tengah vertikal
+    masterCloseButton.Text = "Matikan"
+    masterCloseButton.TextSize = 10
+    masterCloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    masterCloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    masterCloseButton.Font = Enum.Font.GothamBold
+    masterCloseButton.Parent = titleLabel
+    
+    local masterCloseCorner = Instance.new("UICorner") -- Menambahkan sudut bulat
+    masterCloseCorner.CornerRadius = UDim.new(0, 4)
+    masterCloseCorner.Parent = masterCloseButton
+    
+    table.insert(Connections, masterCloseButton.MouseButton1Click:Connect(destroyScript))
+    -- ================== AKHIR PERUBAHAN "MATIKAN" ==================
+    
+    local searchBox = Instance.new("TextBox")
+    searchBox.Name = "SearchBox"
+    searchBox.Size = UDim2.new(1, -10, 0, 30)
+    searchBox.Position = UDim2.new(0, 5, 0, 35)
+    searchBox.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    searchBox.PlaceholderText = "Cari nama pemain..."
+    searchBox.ClearTextOnFocus = false
+    searchBox.Text = ""
+    searchBox.Parent = mainFrame
+    BanGui.SearchBox = searchBox
+    table.insert(Connections, searchBox:GetPropertyChangedSignal("Text"):Connect(updatePlayerListGui)) 
+    
+    local playerList = Instance.new("ScrollingFrame")
+    playerList.Name = "PlayerList"
+    playerList.Size = UDim2.new(1, -10, 1, -105)
+    playerList.Position = UDim2.new(0, 5, 0, 70)
+    playerList.BackgroundTransparency = 1
+    playerList.CanvasSize = UDim2.new(0, 0, 0, 0) 
+    playerList.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255) 
+    playerList.Parent = mainFrame
+    BanGui.PlayerListFrame = playerList
+
+    local manualBanButton = Instance.new("TextButton")
+    manualBanButton.Name = "ManualBanButton"
+    manualBanButton.Size = UDim2.new(1, -10, 0, 30)
+    manualBanButton.Position = UDim2.new(0, 5, 1, -35)
+    manualBanButton.Text = "Ban Manual"
+    manualBanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    manualBanButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    manualBanButton.Font = Enum.Font.GothamBold
+    manualBanButton.TextSize = 15
+    manualBanButton.Parent = mainFrame
+    
+    local manualBanFrame = Instance.new("Frame")
+    manualBanFrame.Name = "ManualBanFrame"
+    manualBanFrame.Size = UDim2.new(1, 0, 1, -30) 
+    manualBanFrame.Position = UDim2.new(0, 0, 0, 30)
+    manualBanFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    manualBanFrame.Visible = false 
+    manualBanFrame.Parent = mainFrame
+    BanGui.ManualBanFrame = manualBanFrame
+    
+    local function updateDynamicUsernameLabel(manualTitleLabel, usernameInput)
+        local text = usernameInput.Text
+        local trimmedText = text:gsub("%s", "")
+        if trimmedText == "" then
+            manualTitleLabel.Text = "Masukkan Nama atau ID Pemain" 
+            manualTitleLabel.TextTransparency = 0.5 
+        else
+            manualTitleLabel.Text = text 
+            manualTitleLabel.TextTransparency = 0
+        end
+    end
+
+    local manualTitleLabel = Instance.new("TextLabel")
+    manualTitleLabel.Name = "DynamicUsernameLabel"
+    manualTitleLabel.Size = UDim2.new(1, 0, 0, 30)
+    manualTitleLabel.Position = UDim2.new(0, 0, 0, 10)
+    manualTitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    manualTitleLabel.BackgroundTransparency = 1
+    manualTitleLabel.Font = Enum.Font.GothamBold
+    manualTitleLabel.Parent = manualBanFrame
+
+    local usernameInput = Instance.new("TextBox")
+    usernameInput.Name = "UsernameInput"
+    usernameInput.Size = UDim2.new(1, -20, 0, 30)
+    usernameInput.Position = UDim2.new(0, 10, 0, 50) 
+    usernameInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    usernameInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    usernameInput.PlaceholderText = "Ketik di sini..."
+    usernameInput.ClearTextOnFocus = false
+    usernameInput.TextXAlignment = Enum.TextXAlignment.Center
+    usernameInput.Parent = manualBanFrame
+    
+    table.insert(Connections, usernameInput:GetPropertyChangedSignal("Text"):Connect(function()
+        updateDynamicUsernameLabel(manualTitleLabel, usernameInput)
+    end))
+    updateDynamicUsernameLabel(manualTitleLabel, usernameInput)
+
+    local banPlayerButton = Instance.new("TextButton")
+    banPlayerButton.Name = "BanPlayerButton"
+    banPlayerButton.Size = UDim2.new(0.5, -15, 0, 40) 
+    banPlayerButton.Position = UDim2.new(0, 10, 0, 90)
+    banPlayerButton.Text = "Ban"
+    banPlayerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    banPlayerButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    banPlayerButton.Font = Enum.Font.GothamBold
+    banPlayerButton.TextSize = 10
+    banPlayerButton.Parent = manualBanFrame
+
+    local unbanPlayerButton = Instance.new("TextButton")
+    unbanPlayerButton.Name = "UnbanPlayerButton"
+    unbanPlayerButton.Size = UDim2.new(0.5, -15, 0, 40) 
+    unbanPlayerButton.Position = UDim2.new(0.5, 5, 0, 90) 
+    unbanPlayerButton.Text = "Unban"
+    unbanPlayerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    unbanPlayerButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+    unbanPlayerButton.Font = Enum.Font.GothamBold
+    unbanPlayerButton.TextSize = 10
+    unbanPlayerButton.Parent = manualBanFrame
+
+    local backToPlayerListButton = Instance.new("TextButton")
+    backToPlayerListButton.Name = "BackToPlayerListButton"
+    backToPlayerListButton.Size = UDim2.new(1, -20, 0, 30)
+    backToPlayerListButton.Position = UDim2.new(0, 10, 0, 140)
+    backToPlayerListButton.Text = "<- Kembali ke Daftar"
+    backToPlayerListButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    backToPlayerListButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+    backToPlayerListButton.Font = Enum.Font.GothamBold
+    backToPlayerListButton.TextSize = 13
+    backToPlayerListButton.Parent = manualBanFrame
+    
+    table.insert(Connections, manualBanButton.MouseButton1Click:Connect(function()
+        animateGui({BanGui.PlayerListFrame, BanGui.SearchBox, manualBanButton}, BanGui.ManualBanFrame)
+        titleLabel.Text = "Ban Manual"
+        usernameInput.Text = "" 
+        updateDynamicUsernameLabel(manualTitleLabel, usernameInput) 
+    end))
+    
+    table.insert(Connections, backToPlayerListButton.MouseButton1Click:Connect(function()
+        animateGui(BanGui.ManualBanFrame, {BanGui.PlayerListFrame, BanGui.SearchBox, manualBanButton})
+        titleLabel.Text = "Daftar Pemain"
+        banPlayerButton.Text = "Ban"; banPlayerButton.Active = true
+        unbanPlayerButton.Text = "Unban"; unbanPlayerButton.Active = true
+    end))
+
+    local function handleManualAction(actionType)
+        local input = usernameInput.Text:gsub("%s", "")
+        local button = (actionType == "ban") and banPlayerButton or unbanPlayerButton
+        if input == "" then
+            button.Text = "Input Kosong!"
+            task.wait(2); button.Text = (actionType == "ban") and "Ban" or "Unban"
+            return
+        end
+        button.Text = "Memproses..."; button.Active = false
+        
+        task.spawn(function()
+            local userId = tonumber(input)
+            local username = input
+            
+            if userId then
+                local success, name = pcall(function() return Players:GetNameFromUserIdAsync(userId) end)
+                if success and name then username = name
+                else
+                    warn("Gagal mendapatkan nama dari UserId:", userId)
+                    button.Text = "User Tdk Ditemukan!"
+                    task.wait(2); button.Text = (actionType == "ban") and "Ban" or "Unban"; button.Active = true
+                    return
+                end
+            else
+                local success, id = pcall(function() return Players:GetUserIdFromNameAsync(input) end)
+                if success and id then userId = id
+                else
+                    warn("Gagal mendapatkan UserId untuk:", input)
+                    button.Text = "User Tdk Ditemukan!"
+                    task.wait(2); button.Text = (actionType == "ban") and "Ban" or "Unban"; button.Active = true
+                    return
+                end
+            end
+            
+            local dummyPlayer = { Name = username, UserId = userId }
+            if actionType == "ban" then
+                sendBanRequest(dummyPlayer, banPlayerButton)
+            else
+                sendUnbanRequest(dummyPlayer, unbanPlayerButton)
+            end
+        end)
+    end
+    
+    table.insert(Connections, banPlayerButton.MouseButton1Click:Connect(function() handleManualAction("ban") end))
+    table.insert(Connections, unbanPlayerButton.MouseButton1Click:Connect(function() handleManualAction("unban") end))
+    
+    local toggleButton = Instance.new("TextButton")
+    toggleButton.Name = "ToggleButton"
+    toggleButton.Size = UDim2.new(0, 100, 0, 30)
+    toggleButton.Position = UDim2.new(0, 154, 0, 132) 
+    toggleButton.Text = "Ban Panel"
+    toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    toggleButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    toggleButton.Font = Enum.Font.GothamBold
+    toggleButton.Visible = false 
+    toggleButton.Parent = screenGui
+    toggleButton.TextSize = 13
+    BanGui.ToggleButton = toggleButton
+    
+    table.insert(Connections, toggleButton.MouseButton1Click:Connect(function()
+        mainFrame.Visible = not mainFrame.Visible
+        if mainFrame.Visible then
+            updatePlayerListGui() 
+            animateGui(BanGui.ManualBanFrame, {BanGui.PlayerListFrame, BanGui.SearchBox, manualBanButton})
+            titleLabel.Text = "Daftar Pemain"
+        end
+    end))
+    
+    print("✅ GUI Ban Panel v4.2 (Tersembunyi) berhasil dibuat.")
+end
+
+-- ===============================================
+-- ==      BAGIAN 4: PENGELOLA & INISIALISASI   ==
+-- ===============================================
+
+function checkDistance()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    local localHRP = LocalPlayer.Character.HumanoidRootPart
+    local detectionDist = CONFIG.DetectionDistance
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local isPBlocked = isBlocked(player) 
+            local targetHRP = player.Character.HumanoidRootPart
+            local distance = (localHRP.Position - targetHRP.Position).Magnitude
+            local character = player.Character
+            
+            if isPBlocked and distance <= detectionDist then
+                if not PlayerVisuals[character] then
+                    createVisuals(character)
+                    local diedConn = character.Humanoid.Died:Connect(function() removeVisuals(character) end)
+                    PlayerVisuals[character].DiedConnection = diedConn 
+                    table.insert(Connections, diedConn) 
+                end
+            else
+                if PlayerVisuals[character] then
+                    removeVisuals(character)
+                end
+            end
+        end
+    end
+end
+
+local function checkAllPlayers()
+    print("Memeriksa status semua pemain...")
+    for _, player in ipairs(Players:GetPlayers()) do
+        handlePlayer(player)
+    end
+    checkDistance() 
+end
+
+table.insert(Connections, Players.PlayerAdded:Connect(function(player)
+    task.wait(1) 
+    handlePlayer(player) 
+    updatePlayerListGui() 
+end))
+
+table.insert(Connections, Players.PlayerRemoving:Connect(function(player)
+    if player.Character then removeVisuals(player.Character) end
+    if PlayerGuiCache[tostring(player.UserId)] then
+        PlayerGuiCache[tostring(player.UserId)]:Destroy()
+        PlayerGuiCache[tostring(player.UserId)] = nil
+    end
+    updatePlayerListGui()
+end))
+
+local lastCheck = 0
+table.insert(Connections, RunService.Heartbeat:Connect(function()
+    local now = tick()
+    if now - lastCheck >= CONFIG.CheckInterval then
+        checkDistance() 
+        lastCheck = now
+    end
+end))
+
+-- ===============================================
+-- ==         MEMULAI SKRIP (PERBAIKAN FINAL)   ==
+-- ===============================================
+createBanGui()
+
+fetchBanList(function()
+    print("Download selesai. Memeriksa semua pemain di server...")
+    checkAllPlayers()
+    updatePlayerListGui()
+end)
+
+task.spawn(function()
+    while isScriptDestroyed == false do
+        task.wait(300) -- 5 menit
+        if isScriptDestroyed == false then
+            print("Memuat ulang daftar blokir...")
+            fetchBanList(function()
+                print("Refresh selesai. Memeriksa ulang semua pemain.")
+                checkAllPlayers()
+                updatePlayerListGui()
+            end)
+        end
+    end
+    print("Loop refresh ban list dihentikan.")
+end)
+
+print("✅ Blocked Player Detector & Admin GUI v4.2 (Visual Aktif, GUI Tersembunyi) Active!")
+
