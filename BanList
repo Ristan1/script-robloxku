@@ -1,10 +1,7 @@
 -- =========================================================
 -- ==    SKRIP EXECUTOR DETEKTOR & ADMIN GUI v4.2         ==
 -- ==    (Visual Aktif, GUI Tersembunyi)                  ==
--- ==    PERBAIKAN: Tombol Close (X) juga menyembunyikan  ==
--- ==    tombol Toggle Panel.                             ==
--- ==    PERBAIKAN UI: Tombol "Matikan" & "Sembunyikan"   ==
--- ==    dirapikan agar pas dengan teks.                  ==
+-- ==    PERBAIKAN: Logika Suara Sekali Berbunyi 10 Stud  ==
 -- =========================================================
 
 -- ===============================================
@@ -40,7 +37,9 @@ local VERCEL_SECRET_KEY = "limamar123"
 
 -- KONFIGURASI VISUAL
 local CONFIG = {
-    DetectionDistance = 50, CheckInterval = 5,
+    DetectionDistance = 20, -- ⚠️ Jarak ini dipakai untuk ALARM SUARA (10 stud)
+    VisualDistance = 50, -- Jarak untuk Billboard
+    CheckInterval = 5,
     MarkerColor = Color3.fromRGB(255, 0, 0), MarkerTransparency = 0.3, 
     SoundId = "rbxassetid://9125402735", SoundVolume = 1, BlinkSpeed = 1.4,
     GuiTransitionTime = 0.2 
@@ -51,7 +50,7 @@ local CONFIG = {
 -- ===============================================
 
 local BlockedUserIds = {} 
-local PlayerVisuals = {} 
+local PlayerVisuals = {} -- Sekarang juga melacak status 'HasSounded'
 local PlayerGuiCache = {} 
 
 local function isBlocked(player)
@@ -66,16 +65,19 @@ local function removeVisuals(character)
     if not character or not PlayerVisuals[character] then return end
     local visuals = PlayerVisuals[character]
     if visuals.Billboard and visuals.Billboard.Parent then visuals.Billboard:Destroy() end
-    if visuals.Sound and visuals.Sound.Parent then 
-        visuals.Sound:Stop()
-        visuals.Sound:Destroy() 
-    end
+    -- Sound tidak dilacak di PlayerVisuals lagi, karena ia dibuat dan dihancurkan di checkDistance
     if visuals.BlinkConnection then visuals.BlinkConnection:Disconnect() end
     if visuals.DiedConnection then visuals.DiedConnection:Disconnect() end 
-    PlayerVisuals[character] = nil
+    
+    -- JANGAN HAPUS: Kita pertahankan status HasSounded saat menghancurkan visual,
+    -- karena statusnya akan direset hanya ketika menjauh dari 10 stud di checkDistance.
+    -- Namun, karena removeVisuals dipanggil saat player menjauh dari visualDist (50),
+    -- dan saat player leaving/dying, kita akan mereset status ini.
+    PlayerVisuals[character] = nil 
 end
 
 local function createVisuals(character)
+    -- Fungsi ini sekarang hanya membuat Billboard dan logic Blinking
     if not character or PlayerVisuals[character] then return end 
     local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
     local head = character:FindFirstChild("Head")
@@ -83,22 +85,8 @@ local function createVisuals(character)
 
     local visuals = {}
     
-    local sound = Instance.new("Sound")
-    sound.Name = "BlockedPlayerAlarm"
-    sound.SoundId = CONFIG.SoundId
-    sound.Volume = CONFIG.SoundVolume
-    sound.Looped = true
-    sound.Parent = humanoidRootPart
-    visuals.Sound = sound
+    -- ⚠️ LOGIKA SUARA DIHAPUS DARI SINI
     
-    task.spawn(function()
-        local success, err = pcall(function()
-            if sound.Parent then sound.Loaded:Wait() end
-        end)
-        if success and sound.Parent then sound:Play() 
-        elseif not success then warn("Sound: Gagal memuat aset suara:", err) end
-    end)
-
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "BlockedIndicator"
     billboard.Size = UDim2.new(0, 100, 0, 50)
@@ -139,6 +127,8 @@ local function createVisuals(character)
     end)
     visuals.BlinkConnection = connection
     table.insert(Connections, connection) 
+
+    visuals.HasSounded = false -- ⚠️ Tambahkan properti pelacak suara
 
     PlayerVisuals[character] = visuals
 end
@@ -719,7 +709,8 @@ end
 function checkDistance()
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
     local localHRP = LocalPlayer.Character.HumanoidRootPart
-    local detectionDist = CONFIG.DetectionDistance
+    local soundDist = CONFIG.DetectionDistance -- Jarak 10 stud
+    local visualDist = CONFIG.VisualDistance -- Jarak 50 stud
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -728,14 +719,57 @@ function checkDistance()
             local distance = (localHRP.Position - targetHRP.Position).Magnitude
             local character = player.Character
             
-            if isPBlocked and distance <= detectionDist then
-                if not PlayerVisuals[character] then
-                    createVisuals(character)
-                    local diedConn = character.Humanoid.Died:Connect(function() removeVisuals(character) end)
-                    PlayerVisuals[character].DiedConnection = diedConn 
-                    table.insert(Connections, diedConn) 
+            if isPBlocked then
+                local isInSoundRange = distance <= soundDist -- Apakah di dalam 10 stud
+                local isInVisualRange = distance <= visualDist -- Apakah di dalam 50 stud
+
+                -- KELOLA VISUAL (Billboard/Blinking)
+                if isInVisualRange then
+                    if not PlayerVisuals[character] or not PlayerVisuals[character].Billboard then
+                        createVisuals(character)
+                        local diedConn = character.Humanoid.Died:Connect(function() removeVisuals(character) end)
+                        PlayerVisuals[character].DiedConnection = diedConn 
+                        table.insert(Connections, diedConn) 
+                    end
+                elseif PlayerVisuals[character] then
+                    -- Hapus visual (billboard/blinking) jika jauh (di luar 50 stud)
+                    removeVisuals(character) 
+                end
+
+                -- KELOLA SUARA (Hanya diputar SEKALI dalam 10 stud)
+                if PlayerVisuals[character] then 
+                    if isInSoundRange and not PlayerVisuals[character].HasSounded then
+                        -- Buat dan putar suara sekali
+                        local sound = Instance.new("Sound")
+                        sound.Name = "BlockedPlayerAlarm"
+                        sound.SoundId = CONFIG.SoundId
+                        sound.Volume = CONFIG.SoundVolume
+                        sound.Looped = false -- HANYA SEKALI BERBUNYI
+                        sound.Parent = targetHRP
+                        
+                        task.spawn(function()
+                            local success, err = pcall(function()
+                                if sound.Parent then sound.Loaded:Wait() end
+                            end)
+                            if success and sound.Parent then 
+                                sound:Play() 
+                                task.wait(sound.TimeLength or 2) -- Tunggu hingga selesai
+                                if sound.Parent then sound:Destroy() end
+                            elseif not success then 
+                                warn("Sound: Gagal memuat aset suara:", err)
+                                if sound.Parent then sound:Destroy() end
+                            end
+                        end)
+
+                        PlayerVisuals[character].HasSounded = true -- Tandai sudah berbunyi
+                        
+                    elseif not isInSoundRange and PlayerVisuals[character].HasSounded then
+                        -- Jika menjauh dari jarak 10 stud, RESET status HasSounded
+                        PlayerVisuals[character].HasSounded = false
+                    end
                 end
             else
+                -- Jika tidak diblokir, hapus semua visual dan status
                 if PlayerVisuals[character] then
                     removeVisuals(character)
                 end
@@ -803,4 +837,3 @@ task.spawn(function()
 end)
 
 print("✅ Blocked Player Detector & Admin GUI v4.2 (Visual Aktif, GUI Tersembunyi) Active!")
-
