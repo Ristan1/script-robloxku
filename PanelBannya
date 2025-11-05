@@ -1,0 +1,14 @@
+-- =========================================================
+-- ==          SKRIP 2 - AKTIVATOR PANEL GUI              ==
+-- =========================================================
+-- Jalankan skrip ini SETELAH skrip utama.
+
+if getgenv()._RistanShowPanel then
+    print("Skrip utama terdeteksi. Membuka panel...")
+    -- Memanggil fungsi yang disimpan di getgenv oleh skrip utama
+    getgenv()._RistanShowPanel()
+else
+    print("ERROR: Skrip Utama (_RistanBanSystem_V3) tidak ditemukan.")
+    print("Pastikan Anda telah menjalankan 'SKRIP 1 - UTAMA' terlebih dahulu.")
+end
+
