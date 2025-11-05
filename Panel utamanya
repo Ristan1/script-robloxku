@@ -1,6 +1,7 @@
 --================================================================
 -- GTA 5 Style Weapon Wheel Script Loader - Mobile Version (MODIFIED V45 - FIXED)
 -- Perbaikan: Syntax error pada AUTO_LOAD_URL dan penempatan tombol folder.
+-- MODIFIKASI: Minimize Button TIDAK BISA hide/tenggelam ke arah atas.
 --================================================================
 
 local Players = game:GetService("Players")
@@ -84,7 +85,7 @@ local AllScripts = {
     {Name = "Liat Admin", Icon = "🔍", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/liat%20admin%20dan%20owner"},
     {Name = "Lari Cepat", Icon = "⚡️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/lari%20cepat"},
     {Name = "Tembus & Cahaya", Icon = "🧱💡", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Tembus%20tembok%20dan%20lampu"},
-    {Name = "Infinite Yeild", Icon = "📜", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/BanList"},
+    {Name = "DetectPlayer", Icon = "👤", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/detector%20player"},
     {Name = "BanPemain", Icon = "🚷", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/PanelBannya"},
     {Name = "Copy Id", Icon = "📥", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Copy%20Id"},
     {Name = "Infinite Jump", Icon = "⏫️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/InfinitejumpOnOff"},
@@ -307,7 +308,7 @@ local function createWeaponWheel()
     local PEEK_AMOUNT = 15
     local lastKnownPosition = minimizeButton.Position
     
-    -- Fungsi untuk menghitung tepi terdekat
+    -- FUNGSI YANG DIMODIFIKASI UNTUK MENCEGAH HIDE KE ATAS
     local function getClosestEdgeAndHidePosition()
         local screenSize = screenGui.AbsoluteSize
         local buttonAbsPos = minimizeButton.AbsolutePosition
@@ -317,24 +318,23 @@ local function createWeaponWheel()
         
         local distLeft = centerX
         local distRight = screenSize.X - centerX
-        local distTop = centerY
+        -- distTop dihapus dari pertimbangan
         local distBottom = screenSize.Y - centerY
         
-        local minDist = math.min(distLeft, distRight, distTop, distBottom)
+        -- Hanya hitung jarak minimum dari KIRI, KANAN, dan BAWAH
+        local minDist = math.min(distLeft, distRight, distBottom)
         
         local currentPos = minimizeButton.Position
         
-        -- Catatan: AnchorPoint (0, 0) digunakan, jadi perhitungannya sedikit berbeda dari AnchorPoint (0.5, 0.5)
+        -- Catatan: AnchorPoint (0, 0) digunakan
         if minDist == distLeft then
             -- Tenggelam ke kiri
             return UDim2.new(0, -buttonAbsSize.X + PEEK_AMOUNT, currentPos.Y.Scale, currentPos.Y.Offset)
         elseif minDist == distRight then
             -- Tenggelam ke kanan
             return UDim2.new(1, -PEEK_AMOUNT, currentPos.Y.Scale, currentPos.Y.Offset)
-        elseif minDist == distTop then
-            -- Tenggelam ke atas
-            return UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 0, -buttonAbsSize.Y + PEEK_AMOUNT)
         else
+            -- Jika bukan kiri atau kanan, maka itu BAWAH (karena distTop dihapus dari minDist)
             -- Tenggelam ke bawah
             return UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 1, -PEEK_AMOUNT)
         end
@@ -372,6 +372,7 @@ local function createWeaponWheel()
         elseif currentX > screenSize.X - buttonAbsSize.X then
             newPos = UDim2.new(1, -buttonAbsSize.X - margin, currentPos.Y.Scale, currentPos.Y.Offset)
         elseif currentY < 0 then
+            -- KONDISI INI AKAN JARANG TERJADI KARENA TOMBOL TIDAK BISA HIDE KE ATAS
             newPos = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 0, margin)
         elseif currentY > screenSize.Y - buttonAbsSize.Y then
             newPos = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, 1, -buttonAbsSize.Y - margin)
@@ -1100,4 +1101,3 @@ for _, scriptInfo in ipairs(AUTO_LOAD_SCRIPTS) do
 end
 
 createWeaponWheel()
-
