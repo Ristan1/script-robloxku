@@ -23,7 +23,7 @@ local isConfirmationActive = false
 --================================================================
 local AUTO_LOAD_URL = {
     URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/NotifTeman",
-    Name = "Skrip Otomatis",
+    URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/BanList",
 }
 
 --================================================================
