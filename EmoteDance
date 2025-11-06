@@ -1,0 +1,230 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+ 
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+ 
+-- ---------- CONFIG ----------
+local SIDE_WIDTH = 220
+local SIDE_HEIGHT = 260
+local SIDE_VISIBLE_X = 50
+local SIDE_HIDDEN_X = -SIDE_WIDTH - 10
+local SIDE_VERTICAL_ADJUST = 150
+-- ----------------------------
+ 
+-- Bersihkan GUI lama
+for _, name in ipairs({"SidebarEmoteUI", "EmoteUI"}) do
+    local old = playerGui:FindFirstChild(name)
+    if old then old:Destroy() end
+end
+for _, v in ipairs(playerGui:GetDescendants()) do
+    if v:IsA("TextButton") and v.Name == "toggleBtn" then
+        v:Destroy()
+    end
+end
+ 
+-- GUI Utama
+local gui = Instance.new("ScreenGui")
+gui.Name = "SidebarEmoteUI"
+gui.IgnoreGuiInset = true
+gui.ResetOnSpawn = false
+gui.Parent = playerGui
+ 
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, SIDE_WIDTH, 0, SIDE_HEIGHT)
+sidebar.Position = UDim2.new(0, SIDE_HIDDEN_X, 0.5, -SIDE_HEIGHT/2 + SIDE_VERTICAL_ADJUST)
+sidebar.AnchorPoint = Vector2.new(0, 0.5)
+sidebar.BackgroundColor3 = Color3.fromRGB(25, 20, 35)
+sidebar.BorderSizePixel = 0
+sidebar.Parent = gui
+Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 12)
+ 
+local best = Instance.new("TextLabel")
+best.Size = UDim2.new(1, -10, 0, 14)
+best.Position = UDim2.new(0, 5, 1, -60)
+best.BackgroundTransparency = 1
+best.Text = "Made by BhuzelRayhan"
+best.TextColor3 = Color3.fromRGB(200, 200, 200)
+best.TextTransparency = 0.8
+best.Font = Enum.Font.Gotham
+best.TextSize = 12
+best.TextXAlignment = Enum.TextXAlignment.Left
+best.Parent = sidebar
+ 
+ 
+-- Tombol toggle sidebar (watermark) - DIPINDAHKAN KE POJOK KIRI BAWAH
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Name = "toggleBtn"
+toggleBtn.Size = UDim2.new(0, 40, 0, 40)
+toggleBtn.Position = UDim2.new(0, 6, 1, -6)
+toggleBtn.AnchorPoint = Vector2.new(0, 1)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(40, 35, 55)
+toggleBtn.Text = "🕺"
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 20
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Parent = gui
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(1, 0)
+ 
+-- Tab container
+local tabContainer = Instance.new("Frame", sidebar)
+tabContainer.Size = UDim2.new(1, -20, 0, 36)
+tabContainer.Position = UDim2.new(0, 10, 0, 10)
+tabContainer.BackgroundTransparency = 1
+ 
+local function defineTab(name, xPos)
+    local b = Instance.new("TextButton", tabContainer)
+    b.Size = UDim2.new(0.5, -3, 1, 0)
+    b.Position = UDim2.new(xPos, 0, 0, 0)
+    b.BackgroundColor3 = Color3.fromRGB(50, 45, 70)
+    b.Font = Enum.Font.GothamBold
+    b.Text = name
+    b.TextSize = 14
+    b.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+    return b
+end
+ 
+local dancesTab = defineTab("DANCES", 0)
+local emotesTab = defineTab("EMOTES", 0.5)
+ 
+-- List container
+local dancesList = Instance.new("ScrollingFrame", sidebar)
+dancesList.Size = UDim2.new(1, -20, 1, -80)
+dancesList.Position = UDim2.new(0, 10, 0, 50)
+dancesList.BackgroundTransparency = 1
+dancesList.ScrollBarThickness = 4
+dancesList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+dancesList.VerticalScrollBarInset = Enum.ScrollBarInset.Always
+Instance.new("UIListLayout", dancesList).Padding = UDim.new(0, 6)
+ 
+local emotesList = dancesList:Clone()
+emotesList.Parent = sidebar
+emotesList.Visible = false
+ 
+-- Stop button
+local stopBtn = Instance.new("TextButton", sidebar)
+stopBtn.Size = UDim2.new(1, -20, 0, 34)
+stopBtn.Position = UDim2.new(0, 10, 1, -40)
+stopBtn.BackgroundColor3 = Color3.fromRGB(7, 3, 120)
+stopBtn.Text = "Stop Animate"
+stopBtn.Font = Enum.Font.GothamBold
+stopBtn.TextSize = 16
+stopBtn.TextColor3 = Color3.fromRGB(255, 220, 220)
+Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 6)
+ 
+-- Data (Tambahkan ID Dances/Emotes Agar Bisa Lebih Banyak)
+local dances = {
+{name="Acelerada", animId=103360497719320 },
+{name="Belly Dance", animId=85312683743028},
+{name="Concert Dance", animId=119159857703733},
+{name="Flare", animId=10214311282},
+{name="Floss Dance", animId=5917459365},
+{name="Happy Dance", animId=104149584253673},
+{name="JumpstyleDance", animId=138647889956297},
+{name="Michael Myers", animId=102229339944611},
+{name="Mosh", animId=96147994216119},
+{name="Old Town Road", animId=5937560570},
+{name="Pacu Jalur", animId=118552217459650},
+{name="Rat Dance", animId=96490284184113},
+{name="Robot", animId=3338025566},
+{name="Rambunctious", animId=129991743366120},
+{name="Sign Shuffle", animId=112931882473990},
+{name="Stylish Floating", animId=112089880074848},
+{name="Side Hug", animId=137920131311393},
+{name="Sit", animId=95128526244610},
+{name="Spiderman", animId=83345430870757},
+{name="Switchway Dance", animId=112534296956901},
+{name="Twirl Dance", animId=10714293450},
+{name="Ybjump", animId=15609995579},
+}
+
+local emotes = {
+{name="Handstand", animId=97819762110446},
+{name="slow backlip", animId=83263981931146},
+{name="ff push up", animId=76988349893259},
+{name="fake death", animId=118422508938639},
+{name="fly hero", animId=132105268936736},
+{name="drop kick", animId=133566007754001},
+{name="animal run", animId=87721497492370},
+{name="kid cry", animId=101852530367472},
+{name="sleeping side ways", animId=100118897356565},
+{name="Against Wall Arms Crossed", animId=137050689270734},
+{name="Angel Float", animId=77529400769588},
+{name="Aura Farm yn Wall Lean", animId=114388371896974},
+{name="Aura Fly Sitting", animId=130198479813020},
+{name="Aura RNG Fly", animId=89523370947906},
+{name="Bubbly Sit", animId=93120341268524},
+{name="Curtsy", animId=4555816777},
+{name="Cute Feet Kicking", animId=124287251935400},
+{name="Clap", animId=507776043},
+{name="Cheer", animId=507770677},
+{name="Effortless Aura", animId=78491785500091},
+{name="Floating Goddess", animId=100681208320300},
+{name="Floating Idle", animId=135616750552190},
+{name="Floating On Clouds", animId=113506534428184},
+{name="Fashionable", animId=3333331310},
+{name="Godlike", animId=3337994105},
+{name="Gojo", animId=109030594660124},
+{name="Happy", animId=4841405708},
+{name="Jinu", animId=507770818},
+{name="Kicking Fee tSit", animId=115619217455701},
+{name="SpiderMan", animId=123955307291627},
+{name="Tokyo", animId=132760747409859},
+{name="Wave", animId=507770239},
+}
+ 
+local currentTrack = nil
+ 
+local function playEmote(animId)
+    local char = player.Character or player.CharacterAdded:Wait()
+    local humanoid = char:WaitForChild("Humanoid")
+    if currentTrack then currentTrack:Stop() currentTrack:Destroy() end
+    local anim = Instance.new("Animation")
+    anim.AnimationId = "rbxassetid://"..animId
+    currentTrack = humanoid:LoadAnimation(anim)
+    currentTrack:Play()
+end
+ 
+stopBtn.MouseButton1Click:Connect(function()
+    if currentTrack then currentTrack:Stop() currentTrack:Destroy() currentTrack=nil end
+end)
+ 
+-- Tambah tombol emote/dance
+local function addButton(parent, entry)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1, 0, 0, 36)
+    b.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    b.TextColor3 = Color3.fromRGB(255, 255, 255)
+    b.Font = Enum.Font.Gotham
+    b.TextSize = 16
+    b.Text = entry.name
+    b.Parent = parent
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+    b.MouseButton1Click:Connect(function() playEmote(entry.animId) end)
+end
+    
+for _, d in ipairs(dances) do addButton(dancesList, d) end
+for _, e in ipairs(emotes) do addButton(emotesList, e) end
+    
+-- Tab switching
+local activeTab = "dances"
+local function setActiveTab(tab)
+    activeTab = tab
+    dancesList.Visible = (tab=="dances")
+    emotesList.Visible = (tab=="emotes")
+    dancesTab.BackgroundColor3 = (tab=="dances") and Color3.fromRGB(70,60,95) or Color3.fromRGB(50,45,70)
+    emotesTab.BackgroundColor3 = (tab=="emotes") and Color3.fromRGB(70,60,95) or Color3.fromRGB(50,45,70)
+end
+setActiveTab("dances")
+dancesTab.MouseButton1Click:Connect(function() setActiveTab("dances") end)
+emotesTab.MouseButton1Click:Connect(function() setActiveTab("emotes") end)
+            
+-- Sidebar toggle
+local visible=false
+local function setSidebarVisible(v)
+    visible=v
+    local targetX = v and SIDE_VISIBLE_X or SIDE_HIDDEN_X
+    TweenService:Create(sidebar,TweenInfo.new(0.28,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Position=UDim2.new(0,targetX,0.5,-SIDE_HEIGHT/2+SIDE_VERTICAL_ADJUST)}):Play()
+end
+toggleBtn.MouseButton1Click:Connect(function() setSidebarVisible(not visible) end)
