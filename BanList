@@ -2,6 +2,7 @@
 -- ==    SKRIP EXECUTOR DETEKTOR & ADMIN GUI v4.2         ==
 -- ==    (Visual Aktif, GUI Tersembunyi)                  ==
 -- ==    PERBAIKAN: Logika Suara Sekali Berbunyi 10 Stud  ==
+-- ==    PERBAIKAN KRITIS: MENAMBAHKAN DISPLAYNAME UNTUK BAN VERCEL ==
 -- =========================================================
 
 -- ===============================================
@@ -23,6 +24,7 @@ local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
+local UserService = game:GetService("UserService") -- ⚠️ DITAMBAHKAN: Untuk mendapatkan DisplayName manual
 local LocalPlayer = Players.LocalPlayer
 
 local Connections = {} 
@@ -50,7 +52,7 @@ local CONFIG = {
 -- ===============================================
 
 local BlockedUserIds = {} 
-local PlayerVisuals = {} -- Sekarang juga melacak status 'HasSounded'
+local PlayerVisuals = {} 
 local PlayerGuiCache = {} 
 
 local function isBlocked(player)
@@ -65,14 +67,8 @@ local function removeVisuals(character)
     if not character or not PlayerVisuals[character] then return end
     local visuals = PlayerVisuals[character]
     if visuals.Billboard and visuals.Billboard.Parent then visuals.Billboard:Destroy() end
-    -- Sound tidak dilacak di PlayerVisuals lagi, karena ia dibuat dan dihancurkan di checkDistance
     if visuals.BlinkConnection then visuals.BlinkConnection:Disconnect() end
     if visuals.DiedConnection then visuals.DiedConnection:Disconnect() end 
-    
-    -- JANGAN HAPUS: Kita pertahankan status HasSounded saat menghancurkan visual,
-    -- karena statusnya akan direset hanya ketika menjauh dari 10 stud di checkDistance.
-    -- Namun, karena removeVisuals dipanggil saat player menjauh dari visualDist (50),
-    -- dan saat player leaving/dying, kita akan mereset status ini.
     PlayerVisuals[character] = nil 
 end
 
@@ -84,8 +80,6 @@ local function createVisuals(character)
     if not humanoidRootPart or not head then return end
 
     local visuals = {}
-    
-    -- ⚠️ LOGIKA SUARA DIHAPUS DARI SINI
     
     local billboard = Instance.new("BillboardGui")
     billboard.Name = "BlockedIndicator"
@@ -197,6 +191,11 @@ local function sendVercelRequest(endpoint, payload, button, successMessage, fail
             
         else
             warn("--- GAGAL: Error dari Server Vercel ---")
+            -- Karena Vercel sekarang akan mengembalikan 400 jika displayName hilang
+            if responsePost.StatusCode == 400 then
+                 failMessage = "ERROR: Kurang Data (DisplayName?)"; 
+            end
+            
             if button then
                 button.Text = failMessage
                 button.Active = false 
@@ -213,7 +212,12 @@ local function sendBanRequest(playerToBan, banButton)
     BlockedUserIds[tostring(playerToBan.UserId)] = true 
     handlePlayer(playerToBan) 
     updatePlayerListGui() 
-    sendVercelRequest("/ban-player", { username = playerToBan.Name, userId = playerToBan.UserId }, banButton, "Ban Berhasil!", "User Tdk Ditemukan")
+    -- 🟢 PERBAIKAN 1: Tambahkan displayName
+    sendVercelRequest("/ban-player", { 
+        username = playerToBan.Name, 
+        userId = playerToBan.UserId,
+        displayName = playerToBan.DisplayName or playerToBan.Name -- Fallback ke Name jika DisplayName hilang (tidak seharusnya terjadi)
+    }, banButton, "Ban Berhasil!", "User Tdk Ditemukan (Cek Konsol)")
 end
 
 local function sendUnbanRequest(playerToUnban, unbanButton) 
@@ -221,6 +225,7 @@ local function sendUnbanRequest(playerToUnban, unbanButton)
     BlockedUserIds[tostring(playerToUnban.UserId)] = nil 
     handlePlayer(playerToUnban) 
     updatePlayerListGui() 
+    -- Unban hanya perlu userId dan username
     sendVercelRequest("/unban-player", { username = playerToUnban.Name, userId = playerToUnban.UserId }, unbanButton, "Unban Berhasil!", "Gagal (Cek Server)")
 end
 
@@ -644,20 +649,38 @@ local function createBanGui()
         task.spawn(function()
             local userId = tonumber(input)
             local username = input
+            local displayName = nil -- 🟢 Tambahkan variabel displayName
             
-            if userId then
-                local success, name = pcall(function() return Players:GetNameFromUserIdAsync(userId) end)
-                if success and name then username = name
-                else
-                    warn("Gagal mendapatkan nama dari UserId:", userId)
-                    button.Text = "User Tdk Ditemukan!"
-                    task.wait(2); button.Text = (actionType == "ban") and "Ban" or "Unban"; button.Active = true
-                    return
-                end
+            -- Cek apakah player ada di game untuk mengambil DisplayName secara langsung
+            local playerInGame = Players:GetPlayerByUserId(userId or 0) or Players:FindFirstChild(username)
+            if playerInGame then
+                userId = playerInGame.UserId
+                username = playerInGame.Name
+                displayName = playerInGame.DisplayName -- Ambil DisplayName dari objek Player
             else
-                local success, id = pcall(function() return Players:GetUserIdFromNameAsync(input) end)
-                if success and id then userId = id
+                -- Jika tidak ada di game, panggil API untuk mendapatkan data
+                if not userId then
+                     local success, id = pcall(function() return Players:GetUserIdFromNameAsync(input) end)
+                     if success and id then userId = id else success = false end
+                end
+                
+                if userId then
+                    -- Panggil UserService untuk mendapatkan DisplayName
+                    local successApi, userInfos = pcall(function() 
+                        return UserService:GetUserInfosByUserIdsAsync({userId}) 
+                    end)
+                    
+                    if successApi and userInfos and userInfos[1] then
+                        username = userInfos[1].Username or username -- Pastikan username terbarui
+                        displayName = userInfos[1].DisplayName -- 🟢 Ambil DisplayName dari API
+                    else
+                        warn("Gagal mendapatkan data (termasuk DisplayName) dari API untuk ID:", userId)
+                        button.Text = "User Tdk Ditemukan!"
+                        task.wait(2); button.Text = (actionType == "ban") and "Ban" or "Unban"; button.Active = true
+                        return
+                    end
                 else
+                    -- Jika tidak dapat menemukan userId sama sekali
                     warn("Gagal mendapatkan UserId untuk:", input)
                     button.Text = "User Tdk Ditemukan!"
                     task.wait(2); button.Text = (actionType == "ban") and "Ban" or "Unban"; button.Active = true
@@ -665,7 +688,9 @@ local function createBanGui()
                 end
             end
             
-            local dummyPlayer = { Name = username, UserId = userId }
+            -- Di sini, dummyPlayer harus memiliki DisplayName
+            local dummyPlayer = { Name = username, UserId = userId, DisplayName = displayName }
+            
             if actionType == "ban" then
                 sendBanRequest(dummyPlayer, banPlayerButton)
             else
@@ -786,6 +811,21 @@ local function checkAllPlayers()
     checkDistance() 
 end
 
+-- 🟢 Tambahkan koneksi DisplayName agar GUI real-time (optional, tapi disarankan)
+local function setupDisplayNameTracking()
+    local function connectToPlayer(player)
+        if player ~= LocalPlayer then
+            local connection = player:GetPropertyChangedSignal("DisplayName"):Connect(updatePlayerListGui)
+            table.insert(Connections, connection)
+        end
+    end
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        connectToPlayer(player)
+    end
+    table.insert(Connections, Players.PlayerAdded:Connect(connectToPlayer))
+end
+
 table.insert(Connections, Players.PlayerAdded:Connect(function(player)
     task.wait(1) 
     handlePlayer(player) 
@@ -814,6 +854,7 @@ end))
 -- ==         MEMULAI SKRIP (PERBAIKAN FINAL)   ==
 -- ===============================================
 createBanGui()
+setupDisplayNameTracking() -- Mulai pelacakan DisplayName
 
 fetchBanList(function()
     print("Download selesai. Memeriksa semua pemain di server...")
