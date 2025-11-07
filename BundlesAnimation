@@ -1,0 +1,654 @@
+--[[
+	Vampire Bundle - PERBAIKAN URUTAN DAN VALIDASI ID v8.8
+
+	* FIX 1: Pengurutan Bundle Konsisten. Nama bundle diurutkan secara alfabetis (A-Z)
+	  saat membuat tombol di Menu Utama.
+	* FIX 2: Validasi ID Ketat. ID aset sekarang harus bisa dikonversi menjadi angka valid
+	  (ID Roblox) dan tidak boleh berupa placeholder. Ini mencegah string non-angka
+	  seperti "balum" dianggap valid.
+	* Logika Mixed Bundle dan Logika Eksklusif per Saklar dipertahankan.
+]]
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ==========================================================
+-- ========= TAMBAHKAN BUNDLE BARU ANDA DI SINI =============
+-- ==========================================================
+local BUNDLE_DATABASE = {
+
+	["Vampire"] = {
+		Idle1 = "10921315373",
+		Idle2 = "10921316709",
+		Pose  = "10921317792",
+		Walk  = "10921326949",
+		Run   = "10921320299",
+		Climb = "10921314188",
+		Jump  = "10921322186"
+	},
+	
+	["Zombie"] = {
+		Idle1 = "balum",
+		Idle2 = "balum",
+		Pose  = "balum",
+		Walk  = "balum",
+		Run   = "balum",
+		Climb = "balum",
+		Jump  = "balum"
+	},
+	
+	["NFL"] = {
+		Idle1 = "92080889861410",
+		Idle2 = "74451233229259",
+		Pose  = "80884010501210",
+		Walk  = "YOUR_WALK_ID",
+		Run   = "YOUR_RUN_ID",
+		Climb = "YOUR_CLIMB_ID",
+		Jump  = "YOUR_JUMP_ID_HERE" 
+	}
+	
+}
+-- ==========================================================
+
+
+-- 1. BERSIHKAN SCRIPT LAMA
+pcall(function()
+	for i = 1, 10 do
+		pcall(function() playerGui:FindFirstChild("SidebarVampireUI_v" .. i):Destroy() end)
+		pcall(function() player:FindFirstChild("VampireAnimConfig_v" .. i):Destroy() end)
+	end
+	
+	for _, v in ipairs(playerGui:GetDescendants()) do
+		if v:IsA("TextButton") and v.Name == "vampireToggleBtn" then
+			v:Destroy()
+		end
+	end
+end)
+
+
+-- 2. BUAT "DATABASE" SAKLAR (CONFIG)
+local configFolder = Instance.new("Configuration")
+configFolder.Name = "VampireAnimConfig_v8"
+configFolder.Parent = player
+
+local activeBundle = Instance.new("StringValue")
+activeBundle.Name = "ActiveBundlePlaceholder" 
+activeBundle.Value = "None"
+activeBundle.Parent = configFolder
+
+
+-- BUAT FOLDER SAKLAR UNTUK SETIAP BUNDLE
+local bundleConfigs = {}
+for bundleName, _ in pairs(BUNDLE_DATABASE) do
+	local bundleFolder = Instance.new("Folder")
+	bundleFolder.Name = bundleName
+	bundleFolder.Parent = configFolder
+	
+	local bools = {
+		Idle = Instance.new("BoolValue"),
+		Walk = Instance.new("BoolValue"),
+		Run = Instance.new("BoolValue"),
+		Climb = Instance.new("BoolValue"),
+		Jump = Instance.new("BoolValue")
+	}
+	-- Semua saklar default ke false
+	bools.Idle.Name = "EnableIdle"; bools.Idle.Value = false; bools.Idle.Parent = bundleFolder
+	bools.Walk.Name = "EnableWalk"; bools.Walk.Value = false; bools.Walk.Parent = bundleFolder
+	bools.Run.Name = "EnableRun"; bools.Run.Value = false; bools.Run.Parent = bundleFolder
+	bools.Climb.Name = "EnableClimb"; bools.Climb.Value = false; bools.Climb.Parent = bundleFolder
+	bools.Jump.Name = "EnableJump"; bools.Jump.Value = false; bools.Jump.Parent = bundleFolder
+	
+	bundleConfigs[bundleName] = bools
+end
+
+
+-- 3. BUAT GUI
+spawn(function()
+	local SIDE_WIDTH = 220
+	local SIDE_HEIGHT = 260
+	local SIDE_VISIBLE_X = 50
+	local SIDE_HIDDEN_X = -SIDE_WIDTH - 10
+	local SIDE_VERTICAL_ADJUST = 150
+	
+	local WARNA_BG = Color3.fromRGB(28, 25, 33)
+	local WARNA_TEKS = Color3.fromRGB(230, 225, 240)
+	local WARNA_TOMBOL = Color3.fromRGB(45, 40, 55)
+	local WARNA_TOMBOL_STOP = Color3.fromRGB(150, 40, 60)
+	local WARNA_AKTIF = Color3.fromRGB(110, 80, 220)
+	local WARNA_NONAKTIF = WARNA_TOMBOL
+	local WARNA_TEKS_NONAKTIF = Color3.fromRGB(160, 155, 170)
+	local FONT_UTAMA = Enum.Font.Gotham
+	local FONT_JUDUL = Enum.Font.GothamBold
+	local ROUNDCORN = UDim.new(0, 8)
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "SidebarVampireUI_v8"
+	gui.IgnoreGuiInset = true
+	gui.ResetOnSpawn = false
+	gui.Parent = playerGui
+	
+	local sidebar = Instance.new("Frame")
+	sidebar.Size = UDim2.new(0, SIDE_WIDTH, 0, SIDE_HEIGHT)
+	sidebar.Position = UDim2.new(0, SIDE_HIDDEN_X, 0.5, -SIDE_HEIGHT/2 + SIDE_VERTICAL_ADJUST)
+	sidebar.AnchorPoint = Vector2.new(0, 0.5)
+	sidebar.BackgroundColor3 = WARNA_BG
+	sidebar.BackgroundTransparency = 0.1
+	sidebar.BorderSizePixel = 0
+	sidebar.Parent = gui
+	Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 12)
+	
+	local vampireBtn = Instance.new("TextButton")
+	vampireBtn.Name = "vampireToggleBtn"
+	vampireBtn.Size = UDim2.new(0, 40, 0, 40)
+	vampireBtn.Position = UDim2.new(0, 52, 1, -6)
+	vampireBtn.AnchorPoint = Vector2.new(0, 1)
+	vampireBtn.BackgroundColor3 = Color3.fromRGB(40, 35, 55)
+	vampireBtn.Text = "🦸‍♂️"
+	vampireBtn.Font = FONT_JUDUL
+	vampireBtn.TextSize = 20
+	vampireBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	vampireBtn.Parent = gui
+	Instance.new("UICorner", vampireBtn).CornerRadius = UDim.new(1, 0)
+	
+	local toggles = {}
+	local currentBundleName = ""
+	local updateButton
+	local updateAllButtons
+
+	-- ==========================================================
+	-- ========= MENU PENGATURAN (SETTINGS) =====================
+	-- ==========================================================
+	
+	local settingsMenu = Instance.new("Frame")
+	settingsMenu.Name = "SettingsMenu"
+	settingsMenu.Size = UDim2.new(1, 0, 1, 0)
+	settingsMenu.BackgroundColor3 = WARNA_BG
+	settingsMenu.BackgroundTransparency = 1
+	settingsMenu.BorderSizePixel = 0
+	settingsMenu.Visible = false
+	settingsMenu.Parent = sidebar
+
+	local titleSettings = Instance.new("TextLabel")
+	titleSettings.Name = "Title"
+	titleSettings.Size = UDim2.new(1, -20, 0, 30)
+	titleSettings.Position = UDim2.new(0, 10, 0, 10)
+	titleSettings.BackgroundTransparency = 1
+	titleSettings.TextColor3 = WARNA_TEKS
+	titleSettings.Font = FONT_JUDUL
+	titleSettings.TextSize = 18
+	titleSettings.Text = "PENGATURAN"
+	titleSettings.TextXAlignment = Enum.TextXAlignment.Center
+	titleSettings.Parent = settingsMenu
+
+	local btnBack = Instance.new("TextButton")
+	btnBack.Name = "BackButton"
+	btnBack.Size = UDim2.new(1, -20, 0, 30)
+	btnBack.AnchorPoint = Vector2.new(0.5, 1)
+	btnBack.Position = UDim2.new(0.5, 0, 1, -10)
+	btnBack.BackgroundColor3 = WARNA_TOMBOL
+	btnBack.TextColor3 = WARNA_TEKS
+	btnBack.Font = FONT_UTAMA
+	btnBack.TextSize = 16
+	btnBack.Text = "< Kembali"
+	btnBack.Parent = settingsMenu
+	Instance.new("UICorner", btnBack).CornerRadius = ROUNDCORN
+
+	local toggleListScroll = Instance.new("ScrollingFrame")
+	toggleListScroll.Name = "ToggleListScroll"
+	toggleListScroll.Position = UDim2.new(0, 10, 0, 48)
+	toggleListScroll.Size = UDim2.new(1, -20, 1, -96)
+	toggleListScroll.BackgroundTransparency = 1
+	toggleListScroll.BorderSizePixel = 0
+	toggleListScroll.ScrollBarThickness = 4
+	toggleListScroll.Parent = settingsMenu
+	
+	local listLayoutSettings = Instance.new("UIListLayout")
+	listLayoutSettings.Padding = UDim.new(0, 8)
+	listLayoutSettings.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	listLayoutSettings.SortOrder = Enum.SortOrder.LayoutOrder
+	listLayoutSettings.Parent = toggleListScroll
+
+	-- FUNGSI UNTUK MEMERIKSA APAKAH ID ASET VALID (PERBAIKAN LOGIKA VALIDASI)
+	local function isAssetIdValid(bundle, animName)
+		local bundleData = BUNDLE_DATABASE[bundle]
+		if not bundleData then return false end
+		
+		local keysToValidate = {}
+		
+		if animName == "Idle" then
+			keysToValidate = {"Idle1", "Idle2", "Pose"}
+		else
+			keysToValidate = {animName}
+		end
+		
+		for _, key in ipairs(keysToValidate) do
+			local id = bundleData[key]
+			
+			if type(id) == "string" then
+				local isPlaceholder = string.find(id, "YOUR", 1, true)
+				local numId = tonumber(id)
+				
+				-- ID dianggap valid jika: BUKAN placeholder DAN dapat dikonversi ke angka ID valid (> 1000)
+				if not isPlaceholder and numId and numId > 1000 then
+					return true
+				end
+			end
+		end
+		
+		return false
+	end
+
+	-- FUNGSI UPDATE TOMBOL SAKLAR
+	updateButton = function(name)
+		if currentBundleName == "" then return end
+		local button = toggles[name]
+		local boolVal = bundleConfigs[currentBundleName][name]
+		if not button or not boolVal then return end
+
+		local valid = isAssetIdValid(currentBundleName, name)
+		
+		if not valid then
+			-- STATUS ASET HILANG
+			button.Text = name .. ": ASET ID BELUM DIISI"
+			button.BackgroundColor3 = Color3.fromRGB(80, 50, 50) 
+			button.TextColor3 = Color3.fromRGB(200, 150, 150)
+			button.AutoButtonColor = false 
+		else
+			-- STATUS NORMAL (AKTIF/NONAKTIF)
+			button.AutoButtonColor = true 
+			if boolVal.Value then
+				button.Text = name .. ": AKTIF"
+				button.BackgroundColor3 = WARNA_AKTIF
+				button.TextColor3 = WARNA_TEKS
+			else
+				button.Text = name .. ": NONAKTIF"
+				button.BackgroundColor3 = WARNA_NONAKTIF
+				button.TextColor3 = WARNA_TEKS_NONAKTIF
+			end
+		end
+	end
+	
+	updateAllButtons = function()
+		for name, _ in pairs(toggles) do
+			updateButton(name)
+		end
+	end
+	
+	-- BUAT TOMBOL SAKLAR DENGAN LOGIKA EKSKLUSIF DAN VALIDASI ASET
+	local function createToggle(name, order)
+		local btn = Instance.new("TextButton")
+		btn.Name = "Toggle" .. name
+		btn.LayoutOrder = order
+		btn.Size = UDim2.new(1, 0, 0, 40)
+		btn.Font = FONT_UTAMA
+		btn.TextSize = 16
+		btn.Parent = toggleListScroll
+		toggles[name] = btn
+		Instance.new("UICorner", btn).CornerRadius = ROUNDCORN
+		
+		btn.MouseButton1Click:Connect(function()
+			if currentBundleName == "" then return end
+			
+			-- CEK VALIDASI KRUSIAL: Hentikan jika ID aset tidak valid
+			if not isAssetIdValid(currentBundleName, name) then
+				updateButton(name) 
+				return
+			end
+			
+			local bools = bundleConfigs[currentBundleName]
+			local boolVal = bools[name]
+			
+			-- 1. Toggle nilainya
+			boolVal.Value = not boolVal.Value
+			
+			-- 2. LOGIKA EKSKLUSIF PER SAKLAR (Hanya matikan jenis animasi yang SAMA di bundle lain)
+			if boolVal.Value == true then
+				
+				-- B. Matikan saklar yang SAMA di semua bundle lain (Logika Mixed Bundle)
+				for otherBundleName, otherBools in pairs(bundleConfigs) do
+					if otherBundleName ~= currentBundleName and otherBools[name] then
+						otherBools[name].Value = false
+					end
+				end
+			end
+			
+			-- 3. Update tampilan GUI untuk bundle yang sedang dilihat
+			updateButton(name)
+		end)
+		
+		return btn
+	end
+
+	createToggle("Idle", 1)
+	createToggle("Walk", 2)
+	createToggle("Run", 3)
+	createToggle("Jump", 4)
+	createToggle("Climb", 5)
+
+	-- ==========================================================
+	-- ========= MENU UTAMA (BUNDLES) ===========================
+	-- ==========================================================
+
+	local mainMenu = Instance.new("Frame")
+	mainMenu.Name = "MainMenu"
+	mainMenu.Size = UDim2.new(1, 0, 1, 0)
+	mainMenu.BackgroundColor3 = WARNA_BG
+	mainMenu.BackgroundTransparency = 1
+	mainMenu.BorderSizePixel = 0
+	mainMenu.Parent = sidebar
+	
+	local titleMain = Instance.new("TextLabel")
+	titleMain.Name = "Title"
+	titleMain.Size = UDim2.new(1, -20, 0, 30)
+	titleMain.Position = UDim2.new(0, 10, 0, 10)
+	titleMain.BackgroundTransparency = 1
+	titleMain.TextColor3 = WARNA_TEKS
+	titleMain.Font = FONT_JUDUL
+	titleMain.TextSize = 18
+	titleMain.Text = "BUNDLES"
+	titleMain.TextXAlignment = Enum.TextXAlignment.Center
+	titleMain.Parent = mainMenu
+
+	local btnStopAll = Instance.new("TextButton")
+	btnStopAll.Name = "StopAll"
+	btnStopAll.Size = UDim2.new(1, -20, 0, 30)
+	btnStopAll.AnchorPoint = Vector2.new(0.5, 1)
+	btnStopAll.Position = UDim2.new(0.5, 0, 1, -10)
+	btnStopAll.BackgroundColor3 = WARNA_TOMBOL_STOP
+	btnStopAll.TextColor3 = WARNA_TEKS
+	btnStopAll.Font = FONT_UTAMA
+	btnStopAll.TextSize = 16
+	btnStopAll.Text = "Nonaktifkan Semua"
+	btnStopAll.Parent = mainMenu
+	Instance.new("UICorner", btnStopAll).CornerRadius = ROUNDCORN
+	
+	btnStopAll.MouseButton1Click:Connect(function()
+		-- Hentikan semua saklar
+		for _, bools in pairs(bundleConfigs) do
+			for _, boolVal in pairs(bools) do
+				boolVal.Value = false
+			end
+		end
+		updateAllButtons()
+	end)
+
+	local bundleListScroll = Instance.new("ScrollingFrame")
+	bundleListScroll.Name = "BundleListScroll"
+	bundleListScroll.Position = UDim2.new(0, 10, 0, 48)
+	bundleListScroll.Size = UDim2.new(1, -20, 1, -96)
+	bundleListScroll.BackgroundTransparency = 1
+	bundleListScroll.BorderSizePixel = 0
+	bundleListScroll.ScrollBarThickness = 4
+	bundleListScroll.Parent = mainMenu
+	
+	local listLayoutBundles = Instance.new("UIListLayout")
+	listLayoutBundles.Padding = UDim.new(0, 8)
+	-- Gunakan LayoutOrder untuk pengurutan
+	listLayoutBundles.SortOrder = Enum.SortOrder.LayoutOrder
+	listLayoutBundles.Parent = bundleListScroll
+
+	-- FIX 1: Sortir Kunci Bundle (Alphabetis) untuk pengurutan yang konsisten
+	local sortedBundleKeys = {}
+	for k in pairs(BUNDLE_DATABASE) do table.insert(sortedBundleKeys, k) end
+	table.sort(sortedBundleKeys) -- Sortir berdasarkan nama bundle (NFL, Vampire, Zombie)
+
+	-- BUAT TOMBOL UNTUK SETIAP BUNDLE
+	local bundleButtons = {}
+	local layoutOrder = 1
+	
+	for _, bundleName in ipairs(sortedBundleKeys) do
+		local btn = Instance.new("TextButton")
+		btn.Name = bundleName
+		btn.LayoutOrder = layoutOrder -- Gunakan LayoutOrder yang berurutan
+		btn.Size = UDim2.new(1, 0, 0, 35)
+		btn.BackgroundColor3 = WARNA_TOMBOL
+		btn.TextColor3 = WARNA_TEKS
+		btn.Font = FONT_UTAMA
+		btn.TextSize = 16
+		btn.Text = "Bundle " .. bundleName
+		btn.Parent = bundleListScroll
+		Instance.new("UICorner", btn).CornerRadius = ROUNDCORN
+		
+		btn.MouseButton1Click:Connect(function()
+			currentBundleName = bundleName
+			titleSettings.Text = "PENGATURAN " .. string.upper(bundleName)
+			updateAllButtons() 
+			mainMenu.Visible = false
+			settingsMenu.Visible = true
+		end)
+		
+		table.insert(bundleButtons, btn)
+		layoutOrder = layoutOrder + 1
+	end
+	
+	-- TOMBOL KEMBALI
+	btnBack.MouseButton1Click:Connect(function()
+		mainMenu.Visible = true
+		settingsMenu.Visible = false
+	end)
+	
+	-- ANIMASI SIDEBAR
+	local visible = false
+	local function setSidebarVisible(v)
+		visible = v
+		local targetX = v and SIDE_VISIBLE_X or SIDE_HIDDEN_X
+		TweenService:Create(sidebar, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position=UDim2.new(0, targetX, 0.5, -SIDE_HEIGHT/2 + SIDE_VERTICAL_ADJUST)}):Play()
+	end
+	
+	vampireBtn.MouseButton1Click:Connect(function()
+		setSidebarVisible(not visible)
+	end)
+end)
+
+
+-- 4. MESIN ANIMASI (DINAMIS)
+local function setupCharacter(character)
+	local humanoid = character:WaitForChild("Humanoid")
+	local animator = humanoid:WaitForChild("Animator")
+	if not (humanoid and animator) then return end
+
+	local CHANCE_IDLE_1 = 45
+	local CHANCE_IDLE_2 = 45
+	local RUN_SPEED_THRESHOLD = 20
+	local FADE_TIME = 0.2
+
+	local allTracks = {}
+	for bundleName, anims in pairs(BUNDLE_DATABASE) do
+		allTracks[bundleName] = {}
+		for animName, id in pairs(anims) do
+			-- Memuat track hanya jika ID adalah angka yang valid (tonumber)
+			if type(id) == "string" and tonumber(id) and tonumber(id) > 1000 and not string.find(id, "YOUR", 1, true) then
+				pcall(function()
+					local anim = Instance.new("Animation")
+					anim.AnimationId = "rbxassetid://" .. id
+					local track = animator:LoadAnimation(anim)
+					
+					if string.find(animName, "Idle") or string.find(animName, "Pose") then
+						track.Priority = Enum.AnimationPriority.Idle
+						track.Looped = false
+					elseif string.find(animName, "Jump") then
+						track.Priority = Enum.AnimationPriority.Core
+						track.Looped = false
+					else
+						track.Priority = Enum.AnimationPriority.Movement
+						track.Looped = true
+					end
+					allTracks[bundleName][animName] = track
+				end)
+			end
+		end
+	end
+
+	local currentTrack = nil
+	local currentTrackType = "None"
+	local jumpTrack = nil
+	local isJumping = false
+	local wasJumping = false
+
+	-- HELPER: Mencari bundle mana yang saklar animasinya AKTIF untuk jenis animasi tertentu
+	local function findActiveBundleConfig(animType)
+		for bundleName, bools in pairs(bundleConfigs) do
+			if bools[animType] and bools[animType].Value == true then
+				-- Jika ditemukan yang aktif, kembalikan bundleName dan tracknya
+				return bundleName, allTracks[bundleName] 
+			end
+		end
+		return "None", nil
+	end
+
+	local function stopCurrentTrack(trackTypeToStop)
+		if not currentTrack or not currentTrack.IsPlaying then return end
+		if trackTypeToStop == "All" or (trackTypeToStop == "Movement" and currentTrackType == "Movement") or (trackTypeToStop == "Idle" and currentTrackType == "Idle") then
+			pcall(function()
+				currentTrack:Stop(FADE_TIME)
+			end)
+			currentTrack = nil
+			currentTrackType = "None"
+		end
+	end
+
+	local function playTrack(track, trackType)
+		if not track then return end
+		if currentTrack == track and currentTrack.IsPlaying then return end
+		stopCurrentTrack("All") 
+		pcall(function()
+			track:Play(FADE_TIME)
+		end)
+		currentTrack = track
+		currentTrackType = trackType
+	end
+	
+	local function stopJumpTrack()
+		if jumpTrack and jumpTrack.IsPlaying then
+			pcall(function()
+				jumpTrack:Stop(FADE_TIME)
+			end)
+		end
+		jumpTrack = nil
+	end
+	
+	local function playJumpTrack(track)
+		if not track then return end
+		stopJumpTrack()
+		pcall(function()
+			track:Play(FADE_TIME)
+		end)
+		jumpTrack = track
+	end
+
+	local function playRandomIdle()
+		local bundleName, tracks = findActiveBundleConfig("Idle") -- Ambil bundle yang aktif untuk Idle
+		if bundleName == "None" or not tracks then return end
+		
+		local chance = math.random(1, 100)
+		local selectedTrack
+		if chance <= CHANCE_IDLE_1 and tracks.Idle1 then
+			selectedTrack = tracks.Idle1
+		elseif chance <= CHANCE_IDLE_1 + CHANCE_IDLE_2 and tracks.Idle2 then
+			selectedTrack = tracks.Idle2
+		elseif tracks.Pose then
+			selectedTrack = tracks.Pose
+		elseif tracks.Idle1 then
+			selectedTrack = tracks.Idle1
+		else
+			return
+		end
+		playTrack(selectedTrack, "Idle")
+	end
+
+	-- LOOP UTAMA
+	local hbConnection
+	hbConnection = RunService.Heartbeat:Connect(function()
+		if not humanoid or humanoid:GetState() == Enum.HumanoidStateType.Dead then
+			hbConnection:Disconnect()
+			return
+		end
+		
+		local state = humanoid:GetState()
+		local speed = humanoid.MoveDirection.Magnitude
+		
+		
+		-- CEK APAKAH SEDANG JUMP (Jumping atau Freefall)
+		isJumping = (state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall)
+		
+		-- HANDLE JUMP ANIMATION
+		local _, jumpTracks = findActiveBundleConfig("Jump") -- Cari Jump di semua bundle
+		if isJumping then
+			if jumpTracks and jumpTracks.Jump then
+				if not wasJumping then
+					playJumpTrack(jumpTracks.Jump)
+				end
+			else
+				if jumpTrack and jumpTrack.IsPlaying then
+					stopJumpTrack()
+				end
+			end
+		else
+			if jumpTrack and jumpTrack.IsPlaying then
+				stopJumpTrack()
+			end
+		end
+		
+		-- UPDATE STATUS JUMP
+		wasJumping = isJumping
+		
+		-- HANDLE ANIMASI MOVEMENT NORMAL (WALK/RUN/IDLE)
+		if not isJumping then
+			
+			if state == Enum.HumanoidStateType.Climbing then
+				stopCurrentTrack("Idle")
+				local _, climbTracks = findActiveBundleConfig("Climb")
+				if climbTracks and climbTracks.Climb then
+					playTrack(climbTracks.Climb, "Movement")
+				else
+					stopCurrentTrack("Movement")
+				end
+				
+			elseif speed > 0.1 then
+				stopCurrentTrack("Idle")
+				
+				local _, runTracks = findActiveBundleConfig("Run")
+				local _, walkTracks = findActiveBundleConfig("Walk")
+				
+				if humanoid.WalkSpeed > RUN_SPEED_THRESHOLD and runTracks and runTracks.Run then
+					playTrack(runTracks.Run, "Movement")
+					
+				elseif speed > 0.1 and walkTracks and walkTracks.Walk then
+					playTrack(walkTracks.Walk, "Movement")
+					
+				else
+					stopCurrentTrack("Movement")
+				end
+				
+			else
+				-- IDLE LOGIC
+				stopCurrentTrack("Movement")
+				local idleBundle, _ = findActiveBundleConfig("Idle")
+				
+				if idleBundle ~= "None" then
+					if not currentTrack or not currentTrack.IsPlaying then
+						playRandomIdle() 
+					end
+				else
+					stopCurrentTrack("Idle")
+				end
+			end
+		
+		else
+			-- Jika sedang melompat, paksa hentikan animasi Movement/Idle.
+			stopCurrentTrack("Movement")
+			stopCurrentTrack("Idle")
+		end
+	end)
+end
+
+-- 5. SAMBUNGKAN KE KARAKTER
+player.CharacterAdded:Connect(setupCharacter)
+if player.Character then
+	setupCharacter(player.Character)
+end
+
