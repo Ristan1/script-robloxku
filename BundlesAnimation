@@ -32,11 +32,41 @@ local BUNDLE_DATABASE = {
 	},
 	
 	["Zombie"] = {
+		Idle1 = "10921344533",
+		Idle2 = "10921345304",
+		Pose  = "10921347258",
+		Walk  = "10921355261",
+		Run   = "616163682",
+		Climb = "balum",
+		Jump  = "balum"
+	},
+	
+	["Pirate"] = {
 		Idle1 = "balum",
 		Idle2 = "balum",
 		Pose  = "balum",
-		Walk  = "balum",
-		Run   = "balum",
+		Walk  = "750785693",
+		Run   = "750783738",
+		Climb = "balum",
+		Jump  = "balum"
+	},
+	
+	["Walmart"] = {
+		Idle1 = "18747067405",
+		Idle2 = "18747063918",
+		Pose  = "18747065848",
+		Walk  = "18747074203",
+		Run   = "18747070484",
+		Climb = "balum",
+		Jump  = "balum"
+	},
+	
+	["adidas sport"] = {
+		Idle1 = "balum",
+		Idle2 = "balum",
+		Pose  = "balum",
+		Walk  = "18537392113",
+		Run   = "18537384940",
 		Climb = "balum",
 		Jump  = "balum"
 	},
@@ -651,4 +681,3 @@ player.CharacterAdded:Connect(setupCharacter)
 if player.Character then
 	setupCharacter(player.Character)
 end
-
