@@ -27,6 +27,7 @@ local AUTO_LOAD_SCRIPTS = {
     {Name = "NotifTeman", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/NotifTeman"},
     {Name = "BanList", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/BanList"},
     {Name = "EmoteDance", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/EmoteDance"},
+    {Name = "BundlesAnimation", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/BundlesAnimation"},
 }
 
 --================================================================
