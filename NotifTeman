@@ -336,14 +336,6 @@ end
 table.insert(ScriptInstance.Connections, Players.PlayerAdded:Connect(onPlayerAdded))
 table.insert(ScriptInstance.Connections, Players.PlayerRemoving:Connect(onPlayerRemoving))
 
--- Notifikasi bawaan Roblox saat script aktif
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "Notif Teman";
-    Text = "Script berhasil diaktifkan!";
-    Duration = 5;
-    Icon = "rbxassetid://7733964719";
-})
-
 -- Inisialisasi: cek teman yang sudah ada di server
 task.spawn(function()
     task.wait(2) 
@@ -366,21 +358,6 @@ task.spawn(function()
     local totalFriends = getFriendCount()
     print("[Friend Tracker] Script aktif! Total teman di server:", totalFriends)
     
-    if totalFriends > 0 then
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Notif Teman";
-            Text = totalFriends .. " teman ditemukan di server!";
-            Duration = 5;
-            Icon = "rbxassetid://7733964719";
-        })
-    else
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Notif Teman";
-            Text = "Tidak ada teman di server saat ini";
-            Duration = 5;
-            Icon = "rbxassetid://7733964719";
-        })
-    end
 end)
 
 print("=== Friend Tracker Loaded ===")
