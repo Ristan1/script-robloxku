@@ -141,8 +141,9 @@ local dances = {
 
 local emotes = {
 {name="Handstand", animId=97819762110446},
-{name="deat accurate", animId=88130117312312},
-{name="deat m2", animId=133057949552441},
+{name="Tragic-Death", animId=116149013529908},
+{name="Falling-back-Death", animId=102691551292124},
+{name="Fake-Death-MM2", animId=133057949552441},
 {name="slow backlip", animId=83263981931146},
 {name="ff push up", animId=76988349893259},
 {name="fake death", animId=118422508938639},
