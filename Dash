@@ -1,0 +1,497 @@
+-- LocalScript | Tempatkan di StarterPlayerScripts
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
+local Debris = game:GetService("Debris")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- [[ Konfigurasi Dash ]]
+local player = Players.LocalPlayer
+local dashCooldown = false
+local dashPower = 70
+local dashDuration = 0.2
+local cooldownTime = 1
+local animationId = "rbxassetid://7990625013" -- ID dari permintaan Anda
+local soundId = "rbxassetid://122283352809655"
+
+-- --- Konfigurasi Efek (Afterimage) ---
+local AFTERIMAGE_TRANSPARENCY = 0.5
+local AFTERIMAGE_LIFETIME = 2
+local AFTERIMAGE_INTERVAL = 0.03
+local DASH_COLOR = Color3.fromRGB(85, 0, 128)
+local SANDEVISTAN_MODE = true
+local SANDEVISTAN_COLORS = {
+    Color3.fromRGB(0, 115, 115),
+    Color3.fromRGB(77, 0, 115),
+    Color3.fromRGB(115, 0, 0),
+    Color3.fromRGB(115, 115, 0),
+    Color3.fromRGB(0, 115, 0)
+}
+local MAX_AFTERIMAGES = 20
+local VERTICAL_OFFSET = 5
+
+-- [[ Variabel Global ]]
+local effectsFolder
+local originalTransparencies = {} -- Untuk menyimpan transparansi asli pemain
+
+-- Buat folder efek di workspace
+local function getEffectsFolder()
+    if not effectsFolder or not effectsFolder.Parent then
+        effectsFolder = Instance.new("Folder")
+        effectsFolder.Name = "DashEffects"
+        effectsFolder.Parent = workspace
+    end
+    return effectsFolder
+end
+
+-- --- [[ FUNGSI EFEK BARU: BOLA API ]] ---
+
+-- Helper untuk menyembunyikan/menampilkan karakter
+local function toggleCharacterVisibility(character, isVisible)
+    if isVisible then
+        -- Kembalikan transparansi
+        for part, transparency in pairs(originalTransparencies) do
+            if part and part.Parent then
+                part.Transparency = transparency
+            end
+        end
+        originalTransparencies = {} -- Kosongkan cache
+    else
+        -- Sembunyikan karakter dan simpan transparansi asli
+        originalTransparencies = {}
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                originalTransparencies[part] = part.Transparency
+                part.Transparency = 1
+            end
+        end
+    end
+end
+
+-- Fungsi untuk membuat efek bola api
+local function createFireballEffects(parent)
+    local effectsContainer = {}
+
+    -- 1. Inti Bola Api
+    local coreFire = Instance.new("ParticleEmitter")
+    coreFire.Name = "DashFireball"
+    coreFire.Texture = "rbxassetid://2184919133" 
+    coreFire.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 200, 100)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 120, 0)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 50, 0))
+    })
+    coreFire.LightEmission = 1
+    coreFire.Size = NumberSequence.new(1.5, 3)
+    coreFire.Transparency = NumberSequence.new(0.1, 1)
+    coreFire.Lifetime = NumberRange.new(0.2, 0.4)
+    coreFire.Rate = 100
+    coreFire.Speed = NumberRange.new(1, 3)
+    coreFire.SpreadAngle = Vector2.new(360, 360)
+    coreFire.Enabled = true
+    coreFire.Parent = parent
+    table.insert(effectsContainer, coreFire)
+
+    -- 2. Aura / Percikan Api
+    local aura = Instance.new("ParticleEmitter")
+    aura.Name = "DashAura"
+    aura.Texture = "rbxassetid://260375960"
+    aura.Color = ColorSequence.new(Color3.fromRGB(255, 100, 0))
+    aura.LightEmission = 0.5
+    aura.Size = NumberSequence.new(4, 7)
+    aura.Transparency = NumberSequence.new(0.6, 1)
+    aura.Lifetime = NumberRange.new(0.3, 0.5)
+    aura.Rate = 50
+    aura.Speed = NumberRange.new(0.5, 1)
+    aura.SpreadAngle = Vector2.new(360, 360)
+    aura.Enabled = true
+    aura.Parent = parent
+    table.insert(effectsContainer, aura)
+
+    -- 3. Cahaya
+    local light = Instance.new("PointLight")
+    light.Name = "DashLight"
+    light.Color = Color3.fromRGB(255, 150, 0)
+    light.Brightness = 3
+    light.Range = 15
+    light.Parent = parent
+    table.insert(effectsContainer, light)
+
+    return effectsContainer
+end
+
+-- --- [[ FUNGSI EFEK ASLI (Afterimage) ]] ---
+
+local function getGradientColor(index, total)
+    index = total - index + 1
+    
+    local colorCount = #SANDEVISTAN_COLORS
+    local position = ((index-1) / (total-1)) * (colorCount-1)
+    local colorIndex = math.floor(position) + 1
+    local nextColorIndex = math.min(colorIndex + 1, colorCount)
+    local lerpAmount = position - math.floor(position)
+    
+    local color1 = SANDEVISTAN_COLORS[colorIndex]
+    local color2 = SANDEVISTAN_COLORS[nextColorIndex]
+    
+    return Color3.new(
+        color1.R + (color2.R - color1.R) * lerpAmount,
+        color1.G + (color2.G - color1.G) * lerpAmount,
+        color1.B + (color2.B - color1.B) * lerpAmount
+    )
+end
+
+-- PENTING: createAfterimage sekarang harus membuat klon bahkan jika pemain tidak terlihat
+local function createAfterimage(character, afterimageCount)
+    local clone = Instance.new("Model")
+    clone.Name = "DashAfterimage"
+    
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return end
+    
+    local rootCFrame = rootPart.CFrame
+    
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local originalPartTransparency = originalTransparencies[part]
+            
+            if originalPartTransparency == nil then
+                originalPartTransparency = part.Transparency
+            end
+            
+            if originalPartTransparency < 1 then
+                local clonePart = part:Clone()
+                
+                for _, child in pairs(clonePart:GetChildren()) do
+                    if not child:IsA("SpecialMesh") and 
+                       not child:IsA("Texture") and 
+                       not child:IsA("Decal") then
+                        child:Destroy()
+                    end
+                end
+                
+                clonePart.CanCollide = false
+                clonePart.CanQuery = false
+                clonePart.CanTouch = false
+                clonePart.Anchored = true
+                
+                if SANDEVISTAN_MODE then
+                    clonePart.Material = Enum.Material.Neon
+                    clonePart.Color = getGradientColor(afterimageCount, MAX_AFTERIMAGES)
+                    clonePart.Transparency = AFTERIMAGE_TRANSPARENCY
+                else
+                    clonePart.Transparency = AFTERIMAGE_TRANSPARENCY
+                    clonePart.Color = DASH_COLOR
+                    clonePart.Material = Enum.Material.Neon
+                end
+                
+                CollectionService:AddTag(clonePart, "DashEffect")
+                
+                clonePart.CFrame = rootCFrame:ToWorldSpace(rootPart.CFrame:ToObjectSpace(part.CFrame))
+                clonePart.Parent = clone
+            end
+        end
+    end
+    
+    if #clone:GetChildren() > 0 then
+        clone.Parent = getEffectsFolder()
+        Debris:AddItem(clone, AFTERIMAGE_LIFETIME)
+        
+        local startTime = tick()
+        local connection
+        connection = RunService.Heartbeat:Connect(function()
+            local elapsed = tick() - startTime
+            if elapsed >= AFTERIMAGE_LIFETIME then
+                connection:Disconnect()
+                return
+            end
+            
+            local fadeProgress = elapsed / AFTERIMAGE_LIFETIME
+            for _, part in pairs(clone:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Transparency = AFTERIMAGE_TRANSPARENCY + ((1 - AFTERIMAGE_TRANSPARENCY) * fadeProgress)
+                end
+            end
+        end)
+    else
+        clone:Destroy() -- Hancurkan model kosong
+    end
+end
+
+
+local function createDashRing(hrp)
+    local ring = Instance.new("Part")
+    ring.Size = Vector3.new(1, 1, 1)
+    ring.Transparency = 0.5
+    ring.CanCollide = false
+    ring.CanQuery = false
+    ring.CanTouch = false
+    ring.Anchored = true
+    ring.Material = Enum.Material.Neon
+    ring.Color = DASH_COLOR
+    ring.CFrame = hrp.CFrame
+    CollectionService:AddTag(ring, "DashEffect")
+    
+    local mesh = Instance.new("SpecialMesh")
+    mesh.MeshType = Enum.MeshType.FileMesh
+    mesh.MeshId = "rbxassetid://3270017"
+    mesh.Scale = Vector3.new(0, 0, 0)
+    mesh.Parent = ring
+    
+    ring.Parent = getEffectsFolder()
+    
+    local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(mesh, tweenInfo, {
+        Scale = Vector3.new(5, 5, 5)
+    })
+    tween:Play()
+    
+    local fadeTween = TweenService:Create(ring, tweenInfo, {
+        Transparency = 1
+    })
+    fadeTween:Play()
+    
+    Debris:AddItem(ring, 0.3)
+    return ring
+end
+
+
+-- [[ Fungsi Dash (BodyVelocity) -- KOMBINASI FINAL ]]
+local function doDash()
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char and char:FindFirstChild("Humanoid")
+    
+    if not hrp or not humanoid or dashCooldown then return end
+    
+    dashCooldown = true
+
+    -- --- [[ EFEK VISUAL GABUNGAN ]] ---
+    
+    -- 1. Efek Cincin
+    createDashRing(hrp)
+    
+    -- 2. Sembunyikan Karakter
+    toggleCharacterVisibility(char, false)
+    
+    -- 3. Efek Trail Putih (Dari skrip asli Anda)
+    local dashEffect = Instance.new("Trail")
+    dashEffect.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
+    dashEffect.Transparency = NumberSequence.new(0.7)
+    dashEffect.Lifetime = 0.2
+    CollectionService:AddTag(dashEffect, "DashEffect")
+    
+    local attachment0 = Instance.new("Attachment", hrp)
+    local attachment1 = Instance.new("Attachment", hrp)
+    attachment0.Position = Vector3.new(0, -1, 0)
+    attachment1.Position = Vector3.new(0, 1, 0)
+    
+    dashEffect.Attachment0 = attachment0
+    dashEffect.Attachment1 = attachment1
+    dashEffect.Parent = hrp
+    
+    -- 4. Efek Afterimage (Sandevistan)
+    local lastAfterimage = 0
+    local afterimageCount = 0
+    local dashLoopConnection
+    
+    dashLoopConnection = RunService.Heartbeat:Connect(function()
+        if tick() - lastAfterimage >= AFTERIMAGE_INTERVAL then
+            afterimageCount = (afterimageCount % MAX_AFTERIMAGES) + 1
+            createAfterimage(char, afterimageCount)
+            lastAfterimage = tick()
+        end
+    end)
+    
+    -- 5. Efek Bola Api (Partikel)
+    local fireballEffects = createFireballEffects(hrp)
+    -- --- [[ EFFAK VISUAL END ]] ---
+    
+
+    -- ANIMASI & SUARA ------------------------------
+    local track
+    if animationId ~= "rbxassetid://ANIMATION_ID" and humanoid then
+        local anim = Instance.new("Animation")
+        anim.AnimationId = animationId
+        local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", humanoid)
+        track = animator:LoadAnimation(anim)
+        track:Play()
+        Debris:AddItem(anim, dashDuration)
+    end
+
+    local dashSound
+    -- Cek juga log Anda, ada error "Failed to load sound"
+    -- Pastikan ID suara yang Anda masukkan di log (119266340872653) itu milik Anda atau publik.
+    -- Saya kembalikan ke ID awal: 122283352809655
+    if soundId ~= "rbxassetid://INSERT_SOUND_ID" then
+        dashSound = Instance.new("Sound")
+        dashSound.SoundId = soundId
+        dashSound.Volume = 1
+        dashSound.Parent = hrp
+        dashSound:Play()
+        
+        dashSound.Ended:Connect(function()
+            if dashSound then
+                dashSound:Destroy()
+            end
+        end)
+    end
+    -- ----------------------------------------------
+
+    -- LOGIKA MOVEMENT (BodyVelocity) ----------------
+    local dashDirection = hrp.CFrame.LookVector
+    local dashVector = dashDirection * dashPower + Vector3.new(0, VERTICAL_OFFSET, 0) 
+
+    local bv = Instance.new("BodyVelocity")
+    bv.Velocity = dashVector
+    bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+    bv.Parent = hrp
+    Debris:AddItem(bv, dashDuration)
+
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+    end
+
+    -- Durasi dash (movement)
+    task.wait(dashDuration)
+    
+    -- --- [[ PEMBERSIHAN GABUNGAN ]] ---
+    if bv and bv.Parent == hrp then
+        bv:Destroy()
+    end
+
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+    end
+    
+    if track then
+        track:Stop()
+        track:Destroy()
+    end
+    
+    -- 1. Kembalikan Karakter
+    toggleCharacterVisibility(char, true)
+    
+    -- 2. Hentikan loop Afterimage
+    dashLoopConnection:Disconnect()
+    
+    -- 3. Hapus Trail
+    dashEffect:Destroy()
+    attachment0:Destroy()
+    attachment1:Destroy()
+    
+    -- 4. Hapus Efek Bola Api
+    for _, effect in pairs(fireballEffects) do
+        if effect:IsA("ParticleEmitter") then
+            effect.Enabled = false
+            Debris:AddItem(effect, effect.Lifetime.Max + 0.2) 
+        else
+            effect:Destroy()
+        end
+    end
+    -- --- [[ AKHIR PEMBERSIHAN ]] ---
+    
+    -- Cooldown (Peraturan)
+    task.wait(cooldownTime)
+    dashCooldown = false
+end
+
+-- [[ Fungsi Pembuatan & Penghancuran GUI ]]
+-- ... (Tidak ada perubahan di bagian GUI, saya salin dari sebelumnya) ...
+
+local guiContainer
+local dashButton
+local cooldownOverlay
+
+local function createGUI()
+    if guiContainer and guiContainer.Parent then
+        guiContainer:Destroy()
+    end
+
+    guiContainer = Instance.new("ScreenGui")
+    guiContainer.Name = "ExecutorDashGUI"
+    guiContainer.Parent = player.PlayerGui
+    
+    dashButton = Instance.new("TextButton")
+    dashButton.Name = "DashButton"
+    
+    local buttonSize = UDim2.new(0, 45, 0, 45) 
+    local padding = 10
+    local jumpButtonHeight = 70
+    local buttonYOffset = buttonSize.Y.Offset + jumpButtonHeight + padding
+
+    dashButton.Size = buttonSize 
+    dashButton.Position = UDim2.new(0, 651, 0, 203)
+    dashButton.AnchorPoint = Vector2.new(0, 0)
+    
+    dashButton.BackgroundColor3 = Color3.fromRGB(85, 0, 128)
+    dashButton.BorderSizePixel = 0
+    dashButton.BackgroundTransparency = 0.6 
+    dashButton.Text = "⚡"
+    dashButton.TextColor3 = Color3.new(1, 1, 1)
+    dashButton.Font = Enum.Font.SourceSansBold
+    dashButton.TextSize = 20 
+    dashButton.ZIndex = 3 
+    dashButton.Parent = guiContainer
+
+    -- [[ ==== PERBAIKAN DI SINI ==== ]]
+    local corner = Instance.new("UICorner") -- Sebelumnya "UICornel"
+    corner.CornerRadius = UDim.new(0.5, 0) 
+    corner.Parent = dashButton
+    
+    cooldownOverlay = Instance.new("Frame")
+    cooldownOverlay.Name = "CooldownOverlay"
+    cooldownOverlay.Size = UDim2.new(1, 0, 1, 0)
+    cooldownOverlay.AnchorPoint = Vector2.new(0, 1)
+    cooldownOverlay.Position = UDim2.new(0, 0, 1, 0)
+    cooldownOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    cooldownOverlay.BackgroundTransparency = 0.4
+    cooldownOverlay.ZIndex = 4
+    cooldownOverlay.Parent = dashButton
+    
+    local overlayCorner = Instance.new("UICorner")
+    overlayCorner.CornerRadius = UDim.new(0.5, 0)
+    overlayCorner.Parent = cooldownOverlay
+
+    dashButton.MouseButton1Click:Connect(doDash)
+    dashButton.TouchTap:Connect(doDash)
+    
+    RunService.Heartbeat:Connect(function()
+        if dashCooldown then
+            cooldownOverlay.Size = UDim2.new(1, 0, 1, 0)
+        else
+            cooldownOverlay.Size = UDim2.new(1, 0, 0, 0)
+        end
+    end)
+end
+
+local function destroyGUI()
+    if guiContainer and guiContainer.Parent then
+        guiContainer:Destroy()
+        guiContainer = nil
+        dashButton = nil
+        cooldownOverlay = nil
+    end
+end
+
+-- [[ Penanganan Kematian/Respawn Pemain ]]
+
+local function setupDashButton()
+    local char = player.Character or player.CharacterAdded:Wait()
+    createGUI()
+    
+    local humanoid = char:WaitForChild("Humanoid")
+    humanoid.Died:Connect(function()
+        destroyGUI()
+    end)
+end
+
+player.CharacterAdded:Connect(setupDashButton)
+
+if player.Character then
+    setupDashButton()
+end
+
+print("✅ Executor Dash Script (DIPERBAIKI) Dimuat!")
