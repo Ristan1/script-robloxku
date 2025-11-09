@@ -29,7 +29,7 @@ local AUTO_LOAD_SCRIPTS = {
     {Name = "EmoteDance", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/EmoteDance"},
     {Name = "BundlesAnimation", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/BundlesAnimation"},
     {Name = "Dash", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Dash"},
-    {Name = "AutoLog", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/AutoLog"},
+  --{Name = "AutoLog", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/AutoLog"},
 }
 
 --================================================================
