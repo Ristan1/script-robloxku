@@ -1,0 +1,325 @@
+-- ==============================================
+-- 📋 Effect Copier — Layout Bersih 3 Kolom
+-- ✅ Jenis | Nama | Asset ID
+-- ✅ Tombol Salin di bawah
+-- ✅ Peningkatan: Pengambilan Nama Animasi dari Marketplace
+-- ==============================================
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local MarketplaceService = game:GetService("MarketplaceService") -- Diperlukan untuk cek nama animasi
+local task = task
+
+-- Cegah double-run
+if getgenv and getgenv().EffectCopierClean then return end
+if getgenv then getgenv().EffectCopierClean = true end
+
+-- === Notifikasi Custom ===
+local function showPopup(text, duration)
+	local popup = Instance.new("Frame")
+	popup.BackgroundTransparency = 0.6
+	popup.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+	popup.BorderSizePixel = 0
+	popup.Size = UDim2.new(0, 280, 0, 50)
+	popup.Position = UDim2.new(0.5, -140, 0.9, -60)
+	popup.AnchorPoint = Vector2.new(0.5, 0.5)
+
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.Font = Enum.Font.GothamBold
+	label.Text = text
+	label.TextColor3 = Color3.fromRGB(255, 255, 220)
+	label.TextScaled = true
+	label.Parent = popup
+
+	popup.Parent = LocalPlayer:WaitForChild("PlayerGui")
+	task.delay(duration or 2.5, function()
+		if popup and popup.Parent then popup:Destroy() end
+	end)
+end
+
+-- === Tunggu Karakter ===
+local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+task.wait(0.5)
+
+-- === Kumpulkan Efek ===
+local items = {}
+
+-- Scan objek (Aura dan Trail)
+local function scan(obj)
+	if not obj then return end
+	for _, v in ipairs(obj:GetDescendants()) do
+		if v:IsA("ParticleEmitter") and v.Enabled then
+			table.insert(items, {
+				Type = "Aura",
+				Name = v.Name,
+				ID = v.Texture or "Tidak diketahui"
+			})
+		elseif v:IsA("Trail") then
+			table.insert(items, {
+				Type = "Trail",
+				Name = v.Name,
+				ID = v.Texture or "Tidak diketahui"
+			})
+		end
+	end
+end
+
+scan(char)
+if LocalPlayer:FindFirstChild("PlayerGui") then
+	scan(LocalPlayer.PlayerGui)
+end
+
+-- Animasi (LOGIKA BARU DITINGKATKAN)
+local humanoid = char:FindFirstChild("Humanoid")
+if humanoid then
+	local animator = humanoid:FindFirstChild("Animator")
+	if animator then
+		for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+			local anim = track.Animation
+			if anim and anim.AnimationId then
+				local assetIdStr = anim.AnimationId:gsub("rbxassetid://", "")
+				local assetId = tonumber(assetIdStr)
+				local displayName = anim.Name
+				
+				if assetId then
+					local success, productInfo = pcall(function()
+						-- Coba ambil info produk dari Marketplace
+						return MarketplaceService:GetProductInfo(assetId)
+					end)
+					
+					if success and productInfo and productInfo.Name then
+						-- Jika berhasil, gunakan nama dari Marketplace (lebih akurat)
+						displayName = productInfo.Name
+					else
+						-- Fallback: Gunakan nama instance atau buat nama dari ID
+						if anim.Name == "Animation" or anim.Name == "Anim" then
+							displayName = "Anim_" .. assetIdStr:sub(-5)
+						end
+						
+						-- Tambahkan indikator jika pengambilan nama gagal, 
+						-- kecuali nama default-nya sudah cukup unik
+						if success == false and displayName:sub(1, 5) ~= "Anim_" then
+							displayName = displayName .. " (Asset)"
+						end
+					end
+				end
+
+				table.insert(items, {
+					Type = "Animasi",
+					Name = displayName,
+					ID = anim.AnimationId
+				})
+			end
+		end
+	end
+end
+
+-- === Tampilkan GUI ===
+if #items == 0 then
+	showPopup("❌ Tidak ada efek ditemukan!", 3)
+	if getgenv then getgenv().EffectCopierClean = nil end
+	return
+end
+
+-- Buat GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "EffectCopierClean"
+gui.ResetOnSpawn = false
+gui.Parent = LocalPlayer.PlayerGui
+
+-- Frame Utama
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 450, 0, 310)
+frame.Position = UDim2.new(1, -470, 0, 0)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+frame.BackgroundTransparency = 0.15
+frame.BorderSizePixel = 0
+frame.Parent = gui
+
+-- Corner
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = frame
+
+-- Judul
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -20, 0, 35)
+title.Position = UDim2.new(0, 10, 0, 5)
+title.BackgroundTransparency = 1
+title.Text = "📋 Efek Terdeteksi (" .. #items .. ")"
+title.TextColor3 = Color3.fromRGB(255, 255, 230)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+title.Parent = frame
+
+-- Header (3 Kolom)
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, -20, 0, 28)
+header.Position = UDim2.new(0, 10, 0, 45)
+header.BackgroundColor3 = Color3.fromRGB(35, 35, 50)
+header.BorderSizePixel = 0
+header.Parent = frame
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 4)
+headerCorner.Parent = header
+
+-- Header: Jenis
+local headerJenis = Instance.new("TextLabel")
+headerJenis.Size = UDim2.new(0.25, -5, 1, 0)
+headerJenis.Position = UDim2.new(0, 5, 0, 0)
+headerJenis.BackgroundTransparency = 1
+headerJenis.Text = "Jenis"
+headerJenis.TextColor3 = Color3.fromRGB(200, 200, 255)
+headerJenis.Font = Enum.Font.GothamBold
+headerJenis.TextSize = 14
+headerJenis.TextXAlignment = Enum.TextXAlignment.Left
+headerJenis.Parent = header
+
+-- Header: Nama
+local headerNama = Instance.new("TextLabel")
+headerNama.Size = UDim2.new(0.4, -5, 1, 0)
+headerNama.Position = UDim2.new(0.25, 0, 0, 0)
+headerNama.BackgroundTransparency = 1
+headerNama.Text = "Nama"
+headerNama.TextColor3 = Color3.fromRGB(200, 200, 255)
+headerNama.Font = Enum.Font.GothamBold
+headerNama.TextSize = 14
+headerNama.TextXAlignment = Enum.TextXAlignment.Left
+headerNama.Parent = header
+
+-- Header: Asset ID
+local headerID = Instance.new("TextLabel")
+headerID.Size = UDim2.new(0.35, -10, 1, 0)
+headerID.Position = UDim2.new(0.65, 0, 0, 0)
+headerID.BackgroundTransparency = 1
+headerID.Text = "Asset ID"
+headerID.TextColor3 = Color3.fromRGB(200, 200, 255)
+headerID.Font = Enum.Font.GothamBold
+headerID.TextSize = 14
+headerID.TextXAlignment = Enum.TextXAlignment.Left
+headerID.Parent = header
+
+-- ScrollingFrame
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size = UDim2.new(1, -20, 0, 170)
+scroll.Position = UDim2.new(0, 10, 0, 78)
+scroll.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+scroll.BackgroundTransparency = 0.3
+scroll.BorderSizePixel = 0
+scroll.CanvasSize = UDim2.new(0, 0, 0, #items * 32)
+scroll.ScrollBarThickness = 6
+scroll.ScrollBarImageColor3 = Color3.fromRGB(80, 120, 200)
+scroll.Parent = frame
+
+local scrollCorner = Instance.new("UICorner")
+scrollCorner.CornerRadius = UDim.new(0, 4)
+scrollCorner.Parent = scroll
+
+-- Isi Item (3 Kolom)
+for i, item in ipairs(items) do
+	local row = Instance.new("Frame")
+	row.Size = UDim2.new(1, -10, 0, 28)
+	row.Position = UDim2.new(0, 5, 0, (i - 1) * 32)
+	row.BackgroundColor3 = i % 2 == 0 and Color3.fromRGB(30, 30, 40) or Color3.fromRGB(25, 25, 35)
+	row.BackgroundTransparency = 0.5
+	row.BorderSizePixel = 0
+	row.Parent = scroll
+
+	-- Kolom 1: Jenis
+	local colJenis = Instance.new("TextLabel")
+	colJenis.Size = UDim2.new(0.25, -5, 1, 0)
+	colJenis.Position = UDim2.new(0, 5, 0, 0)
+	colJenis.BackgroundTransparency = 1
+	colJenis.Text = item.Type
+	colJenis.TextColor3 = item.Type == "Aura" and Color3.fromRGB(255, 180, 180) or
+						   item.Type == "Trail" and Color3.fromRGB(180, 255, 255) or
+						   Color3.fromRGB(255, 255, 180)
+	colJenis.Font = Enum.Font.GothamMedium
+	colJenis.TextSize = 13
+	colJenis.TextXAlignment = Enum.TextXAlignment.Left
+	colJenis.Parent = row
+
+	-- Kolom 2: Nama
+	local colNama = Instance.new("TextLabel")
+	colNama.Size = UDim2.new(0.4, -5, 1, 0)
+	colNama.Position = UDim2.new(0.25, 0, 0, 0)
+	colNama.BackgroundTransparency = 1
+	colNama.Text = item.Name
+	colNama.TextColor3 = Color3.fromRGB(220, 220, 255)
+	colNama.Font = Enum.Font.Gotham
+	colNama.TextSize = 13
+	colNama.TextXAlignment = Enum.TextXAlignment.Left
+	colNama.TextTruncate = Enum.TextTruncate.AtEnd
+	colNama.Parent = row
+
+	-- Kolom 3: Asset ID
+	local cleanID = tostring(item.ID):gsub("rbxassetid://", "")
+	local colID = Instance.new("TextLabel")
+	colID.Size = UDim2.new(0.35, -10, 1, 0)
+	colID.Position = UDim2.new(0.65, 0, 0, 0)
+	colID.BackgroundTransparency = 1
+	colID.Text = cleanID
+	colID.TextColor3 = Color3.fromRGB(180, 220, 255)
+	colID.Font = Enum.Font.Code
+	colID.TextSize = 12
+	colID.TextXAlignment = Enum.TextXAlignment.Left
+	colID.TextTruncate = Enum.TextTruncate.AtEnd
+	colID.Parent = row
+end
+
+-- Tombol Salin
+local copyBtn = Instance.new("TextButton")
+copyBtn.Size = UDim2.new(0, 200, 0, 40)
+copyBtn.Position = UDim2.new(0.5, -100, 0, 260)
+copyBtn.Text = "📋 Salin Semua"
+copyBtn.BackgroundColor3 = Color3.fromRGB(60, 120, 220)
+copyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+copyBtn.Font = Enum.Font.GothamBold
+copyBtn.TextSize = 16
+copyBtn.BorderSizePixel = 0
+copyBtn.Parent = frame
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 6)
+btnCorner.Parent = copyBtn
+
+-- Fungsi Salin
+copyBtn.MouseButton1Click:Connect(function()
+	local lines = {}
+	for _, it in ipairs(items) do
+		local cleanID = tostring(it.ID):gsub("rbxassetid://", "")
+		table.insert(lines, string.format("%s | %s | %s", it.Type, it.Name, cleanID))
+	end
+	local full = table.concat(lines, "\n")
+	pcall(setclipboard, full)
+	showPopup("✅ " .. #items .. " item disalin!", 2)
+end)
+
+-- === Logika Auto-Hapus (Reset saat mouse bergerak) ===
+local TIMEOUT_DETIK = 10 
+local lastInteractionTime = tick()
+local autoDeleteConnection = nil
+
+local function resetTimer()
+	lastInteractionTime = tick()
+end
+
+-- Reset timer jika mouse masuk ke frame utama atau area scroll
+frame.MouseEnter:Connect(resetTimer)
+scroll.MouseEnter:Connect(resetTimer)
+copyBtn.MouseEnter:Connect(resetTimer)
+
+-- Cek setiap frame
+autoDeleteConnection = RunService.Heartbeat:Connect(function()
+	if tick() - lastInteractionTime > TIMEOUT_DETIK then
+		if gui and gui.Parent then gui:Destroy() end
+		if getgenv then getgenv().EffectCopierClean = nil end
+		autoDeleteConnection:Disconnect() -- Hentikan loop
+	end
+end)
+
+showPopup("✅ " .. #items .. " efek ditemukan!", 2)
