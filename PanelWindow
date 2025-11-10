@@ -88,6 +88,7 @@ local ToolOwnerFeatures = {
     {Name = "BanPemain", Icon = "🚷", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/PanelBannya"},
     {Name = "Tester Notif Teman", Icon = "🚻", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/TesterNotifTeman"},
     {Name = "Sett Posisi Frame", Icon = "🛄", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/SetPosisiFrame"}, 
+    {Name = "Cek Asset Id", Icon = 👓", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/CekAssetId"}, 
 }
 
 ---
