@@ -1,0 +1,1125 @@
+-- =============================================================================================
+-- WINDOWS STYLE GUI PANEL - DENGAN MENU BRING SCRIPT LOADER (FULL DENGAN PERBAIKAN ERROR SUARA)
+-- =============================================================================================
+
+-- *********************************************************************************************
+-- 1. DEKLARASI SERVICE DAN VARIABEL GLOBAL
+-- *********************************************************************************************
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService") 
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- ** Variabel Suara ** !!! GANTI ID INI DENGAN ID AUDIO ROBLOX YANG AKTIF !!!
+local CLICK_SOUND_ID = "rbxassetid://70844388753756"   -- Contoh: Suara Klik (Ganti!)
+local HOVER_SOUND_ID = "rbxassetid://87437544236708"   -- Contoh: Suara Hover/MouseOver (Ganti!)
+local SCROLL_SOUND_ID = "rbxassetid://115916891254154"  -- Contoh: Suara Gulir (Ganti!)
+
+-- ** Variabel Desain dan Ukuran **
+local CORNER_RADIUS = UDim.new(0, 6)   
+local PANEL_BORDER_COLOR = Color3.fromRGB(35, 35, 35) 
+local PANEL_BORDER_THICKNESS = 1      
+local TITLE_BAR_HEIGHT = 40           
+local BUTTON_SIZE = 40                
+local TEXT_PADDING = 10 
+
+local BACKGROUND_ASSET_ID = "rbxassetid://75384310624665"
+
+local defaultPanelSize = UDim2.new(0.5, 0, 0.7, 0) 
+local defaultPanelPosition = UDim2.new(0.5, 0, 0.5, 0) 
+local fullscreenPanelSize = UDim2.new(1, 0, 1, 0)
+
+local TOTAL_BUTTON_WIDTH = BUTTON_SIZE * 4 
+local minimizePanelSize = UDim2.new(0, TOTAL_BUTTON_WIDTH, 0, TITLE_BAR_HEIGHT) 
+
+-- ** Variabel Transparansi **
+local currentSidebarTransparency = 1
+local currentMenuItemTransparency = 0.5
+local currentContentTransparency = 1 
+local currentTextBoxTransparency = 0.5
+
+-- ** Variabel State **
+local isMinimized = false
+local isFullscreen = false
+local isDragging = false
+local dragStartPos = Vector2.new(0, 0)
+local frameStartPos = UDim2.new(0, 0, 0, 0)
+
+-- ** Daftar Script untuk Menu Bring **
+local BringScripts = {
+    {Name = "AntiLag", Icon = "😎", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/antilag"},
+    {Name = "Teleport Tulis", Icon = "✍️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/teleport"},
+    {Name = "Teleport Ketuk", Icon = "👇", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/teleport%20ketuk"},
+    {Name = "Teleport Dekat", Icon = "⌛️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Tptool"},
+    {Name = "Terbang", Icon = "✈️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/terbang"},
+    {Name = "Invisible & spectate", Icon = "👻", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Invisible%26Spectate"},
+    {Name = "Liat Admin", Icon = "🔍", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/liat%20admin%20dan%20owner"},
+    {Name = "Lari Cepat", Icon = "⚡️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/lari%20cepat"},
+}
+
+-- ** Struktur Data Baru untuk Menu Lain **
+local MainFeatures = {
+    {Name = "Auto Farm Level", Icon = "⚙️", URL = "balum"},
+    {Name = "ESP Player", Icon = "👁️", URL = "balum"},
+    {Name = "No Clip", Icon = "🧱", URL = "balum"},
+}
+
+local TeleportOptions = {
+    {Name = "Teleport ke Titik", Icon = "📍", URL = "balum"},
+    {Name = "Teleport ke Player", Icon = "👥", URL = "balum"},
+    {Name = "Teleport ke Koordinat", Icon = "🗺️", URL = "balum"},
+}
+
+local LocalPlayerMods = {
+    {Name = "God Mode (Kebal)", Icon = "🛡️", URL = "balum"},
+    {Name = "Fly Mode", Icon = "🚀", URL = "balum"},
+    {Name = "Speed Hack (x2)", Icon = "⏩", URL = "balum"},
+}
+
+local MisFeatures = {
+    {Name = "Anti-Ragdoll", Icon = "🤸", URL = "balum"},
+    {Name = "Force Field", Icon = "🔮", URL = "balum"},
+}
+
+local ToolOwnerFeatures = {
+    {Name = "BanPemain", Icon = "🚷", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/PanelBannya"},
+    {Name = "Tester Notif Teman", Icon = "🚻", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/TesterNotifTeman"},
+    {Name = "Sett Posisi Frame", Icon = "🛄", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/SetPosisiFrame"}, 
+}
+
+---
+-- *********************************************************************************************
+-- FUNGSI PEMBANTU SUARA (DIPERBAIKI UNTUK MENGHINDARI ERROR INDEX BOOLEAN)
+-- *********************************************************************************************
+
+local function PlaySound(assetId, volume)
+    -- Lakukan pemeriksaan dasar untuk ID aset yang valid
+    if not SoundService or not assetId or not assetId:match("rbxassetid://") then return end
+    
+    -- Buat objek Sound
+    local sound = Instance.new("Sound")
+    sound.SoundId = assetId
+    sound.Volume = volume or 0.5 
+    sound.Parent = SoundService -- Parent ke SoundService
+    
+    -- Gunakan event 'Ended' untuk menghapus sound setelah selesai
+    local connection
+    connection = sound.Ended:Connect(function()
+        sound:Destroy()
+        -- Putuskan koneksi agar fungsi tidak mencoba memutuskan koneksi yang sudah terputus
+        if connection then
+            connection:Disconnect()
+        end
+    end)
+    
+    -- Fallback untuk menghapus sound jika gagal dimuat/dimainkan
+    task.spawn(function()
+        task.wait(5)
+        if sound.Parent and not sound.IsPlaying then
+            sound:Destroy()
+        end
+    end)
+    
+    sound:Play()
+end
+
+---
+-- *********************************************************************************************
+-- 2. KONSTRUKSI GUI
+-- *********************************************************************************************
+
+local CONTENT_BG_COLOR = Color3.new(0, 0, 0)
+local BUTTON_NORMAL_COLOR = CONTENT_BG_COLOR 
+local BUTTON_HOVER_COLOR = Color3.fromRGB(20, 20, 20) 
+local BUTTON_ACTIVE_COLOR = Color3.fromRGB(80, 80, 80) 
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ExecutorPanelGUI"
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+local MainPanelFrame = Instance.new("Frame")
+MainPanelFrame.Name = "MainPanel"
+MainPanelFrame.Size = defaultPanelSize
+MainPanelFrame.Position = defaultPanelPosition
+MainPanelFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainPanelFrame.BackgroundColor3 = Color3.new(0, 0, 0) 
+MainPanelFrame.BackgroundTransparency = 1 
+MainPanelFrame.BorderSizePixel = 0
+MainPanelFrame.Active = true 
+MainPanelFrame.ZIndex = 10 
+MainPanelFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = CORNER_RADIUS
+MainCorner.Parent = MainPanelFrame
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = PANEL_BORDER_COLOR
+MainStroke.Thickness = PANEL_BORDER_THICKNESS
+MainStroke.Parent = MainPanelFrame
+
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, TITLE_BAR_HEIGHT) 
+TitleBar.Position = UDim2.new(0, 0, 0, 0)
+TitleBar.BackgroundColor3 = Color3.fromRGB(60, 60, 60) 
+TitleBar.BackgroundTransparency = 0 
+TitleBar.BorderSizePixel = 0
+TitleBar.Active = true 
+TitleBar.ZIndex = 11
+TitleBar.Parent = MainPanelFrame
+
+local TitleTextContainer = Instance.new("Frame")
+TitleTextContainer.Name = "TitleTextContainer"
+TitleTextContainer.Size = UDim2.new(1, -TOTAL_BUTTON_WIDTH, 1, 0) 
+TitleTextContainer.Position = UDim2.new(0, 0, 0, 0) 
+TitleTextContainer.BackgroundTransparency = 1
+TitleTextContainer.ClipsDescendants = true 
+TitleTextContainer.ZIndex = 12
+TitleTextContainer.Parent = TitleBar
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Name = "TitleLabel"
+TitleLabel.Size = UDim2.new(1, 0, 1, 0) 
+TitleLabel.Position = UDim2.new(0, 0, 0, 0) 
+TitleLabel.Text = "HUB | Dev: RISTAN"
+local originalTitleText = TitleLabel.Text 
+TitleLabel.Font = Enum.Font.SourceSansBold
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextSize = 18
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.ZIndex = 13 
+TitleLabel.Parent = TitleTextContainer
+
+local TitlePadding = Instance.new("UIPadding")
+TitlePadding.PaddingLeft = UDim.new(0, TEXT_PADDING)
+TitlePadding.Parent = TitleLabel
+
+local function CreateControlBtn(name, text, positionXOffset, bgColor)
+    local Button = Instance.new("TextButton")
+    Button.Name = name
+    Button.Size = UDim2.new(0, BUTTON_SIZE, 1, 0)
+    Button.AnchorPoint = Vector2.new(1, 0) 
+    Button.Position = UDim2.new(1, positionXOffset, 0, 0)
+    Button.BackgroundColor3 = bgColor
+    Button.BackgroundTransparency = 0
+    Button.Text = text
+    Button.Font = Enum.Font.SourceSansBold
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.TextSize = 20
+    Button.ZIndex = 12
+    Button.Parent = TitleBar
+    return Button
+end
+
+local FullscreenButton = CreateControlBtn("FullscreenButton", "↕️", -BUTTON_SIZE * 3, Color3.fromRGB(60, 60, 60))
+local MinimizeButton = CreateControlBtn("MinimizeButton", "⛔️", -BUTTON_SIZE * 2, Color3.fromRGB(60, 60, 60))
+local CloseButton = CreateControlBtn("CloseButton", "❌️", -BUTTON_SIZE, Color3.fromRGB(60, 60, 60))
+local DragButton = CreateControlBtn("DragButton", "🔄", 0, Color3.fromRGB(60, 60, 60)) 
+
+local DragCorner = Instance.new("UICorner")
+DragCorner.CornerRadius = CORNER_RADIUS
+DragCorner.Parent = DragButton
+
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = CORNER_RADIUS
+MinCorner.Parent = MinimizeButton 
+
+local FullCorner = Instance.new("UICorner")
+FullCorner.CornerRadius = CORNER_RADIUS
+FullCorner.Parent = FullscreenButton 
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = CORNER_RADIUS
+CloseCorner.Parent = CloseButton 
+
+local BackgroundImage = Instance.new("ImageLabel")
+BackgroundImage.Name = "ContentBackground"
+BackgroundImage.Size = UDim2.new(1, 0, 1, -TITLE_BAR_HEIGHT)
+BackgroundImage.Position = UDim2.new(0, 0, 0, TITLE_BAR_HEIGHT)
+BackgroundImage.BackgroundTransparency = 1 
+BackgroundImage.ImageColor3 = Color3.new(1, 1, 1) 
+BackgroundImage.ImageTransparency = 0 
+BackgroundImage.Image = BACKGROUND_ASSET_ID 
+BackgroundImage.ScaleType = Enum.ScaleType.Crop 
+BackgroundImage.ZIndex = 9 
+BackgroundImage.Parent = MainPanelFrame
+
+local SidebarFrame = Instance.new("ScrollingFrame")
+SidebarFrame.Name = "SidebarMenu"
+SidebarFrame.Size = UDim2.new(0.25, 0, 1, -TITLE_BAR_HEIGHT)
+SidebarFrame.Position = UDim2.new(0, 0, 0, TITLE_BAR_HEIGHT)
+SidebarFrame.BackgroundColor3 = CONTENT_BG_COLOR
+SidebarFrame.BackgroundTransparency = currentSidebarTransparency
+SidebarFrame.BorderSizePixel = 0
+SidebarFrame.ZIndex = 11
+SidebarFrame.Parent = MainPanelFrame
+
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.Padding = UDim.new(0, 5)
+ListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+ListLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ListLayout.Parent = SidebarFrame
+
+local MainContentFrame = Instance.new("Frame")
+MainContentFrame.Name = "MainContent"
+MainContentFrame.Size = UDim2.new(0.75, 0, 1, -TITLE_BAR_HEIGHT)
+MainContentFrame.Position = UDim2.new(0.25, 0, 0, TITLE_BAR_HEIGHT)
+MainContentFrame.BackgroundColor3 = CONTENT_BG_COLOR
+MainContentFrame.BackgroundTransparency = currentContentTransparency
+MainContentFrame.BorderSizePixel = 0
+MainContentFrame.ZIndex = 11
+MainContentFrame.Parent = MainPanelFrame
+
+local function CreateMenuItem(name, text, layoutOrder)
+    local Button = Instance.new("TextButton")
+    Button.Name = name .. "Button"
+    Button.Size = UDim2.new(1, 0, 0, 30)
+    Button.BackgroundColor3 = BUTTON_NORMAL_COLOR 
+    Button.BackgroundTransparency = currentMenuItemTransparency
+    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Button.Text = text
+    Button.Font = Enum.Font.SourceSans
+    Button.TextSize = 14
+    Button.TextXAlignment = Enum.TextXAlignment.Left
+    Button.LayoutOrder = layoutOrder
+    Button.ZIndex = 12
+    Button.Parent = SidebarFrame
+
+    local Padding = Instance.new("UIPadding")
+    Padding.PaddingLeft = UDim.new(0, 10)
+    Padding.Parent = Button
+    
+    local ItemCorner = Instance.new("UICorner")
+    ItemCorner.CornerRadius = UDim.new(0, 4)
+    ItemCorner.Parent = Button
+
+    local ItemStroke = Instance.new("UIStroke")
+    ItemStroke.Color = PANEL_BORDER_COLOR
+    ItemStroke.Thickness = 0.5 
+    ItemStroke.Parent = Button
+
+    -- PENAMBAHAN SUARA HOVER
+    Button.MouseEnter:Connect(function()
+        PlaySound(HOVER_SOUND_ID, 0.3) 
+        Button:TweenBackgroundColor3(BUTTON_HOVER_COLOR, Enum.EasingDirection.Out, Enum.EasingStyle.Linear, 0.1, true)
+        Button.BackgroundTransparency = currentMenuItemTransparency 
+    end)
+    Button.MouseLeave:Connect(function()
+        if Button.BackgroundColor3 ~= BUTTON_ACTIVE_COLOR then
+            Button:TweenBackgroundColor3(BUTTON_NORMAL_COLOR, Enum.EasingDirection.Out, Enum.EasingStyle.Linear, 0.1, true)
+            Button.BackgroundTransparency = currentMenuItemTransparency
+        end
+    end)
+    
+    -- PENAMBAHAN SUARA KLIK MENU UTAMA
+    Button.MouseButton1Click:Connect(function()
+        PlaySound(CLICK_SOUND_ID, 0.4) 
+    end)
+
+    return Button
+end
+
+local InfoBtn = CreateMenuItem("Info", "Info", 1)
+local MainBtn = CreateMenuItem("Main", "> Main", 2)
+local BringBtn = CreateMenuItem("Bring", "Bring", 3)
+local TeleportBtn = CreateMenuItem("Teleport", "Teleport", 4)
+local LocalPlayerBtn = CreateMenuItem("LocalPlayer", "@LocalPlayer", 5)
+local MisBtn = CreateMenuItem("Mis", "Mis", 6)
+local ToolOwnerBtn = CreateMenuItem("ToolOwner", "ToolOwner", 7)
+local SettingsBtn = CreateMenuItem("Settings", "Settings", 8)
+
+local function activateMenu(menuName)
+    local activeBtn = SidebarFrame:FindFirstChild(menuName .. "Button")
+
+    for _, btn in pairs(SidebarFrame:GetChildren()) do
+        if btn:IsA("TextButton") then
+             btn.BackgroundColor3 = BUTTON_NORMAL_COLOR 
+             btn.BackgroundTransparency = currentMenuItemTransparency
+        end
+    end
+    
+    if activeBtn then
+        activeBtn.BackgroundColor3 = BUTTON_ACTIVE_COLOR 
+        activeBtn.BackgroundTransparency = 0.1 
+    end
+    
+    for _, child in pairs(MainContentFrame:GetChildren()) do
+        if child:IsA("Frame") and child.Name:match("Content$") then
+            child.Visible = false
+        end
+    end
+    
+    local targetContent = MainContentFrame:FindFirstChild(menuName .. "Content")
+    if targetContent then
+        targetContent.Visible = true
+    end
+end
+
+---
+-- *********************************************************************************************
+-- FUNGSI PEMBANTU UNTUK KONTEN TEKS (KHUSUS INFO)
+-- *********************************************************************************************
+
+local function CreateMenuContent(menuName, titleText, bodyMessage)
+    local ContentFrame = Instance.new("Frame")
+    ContentFrame.Name = menuName .. "Content" 
+    ContentFrame.Size = UDim2.new(1, 0, 1, 0)
+    ContentFrame.Position = UDim2.new(0, 0, 0, 0)
+    ContentFrame.BackgroundTransparency = 1 
+    ContentFrame.Visible = false 
+    ContentFrame.Parent = MainContentFrame
+
+    local TextBoxBg = Instance.new("ScrollingFrame")
+    TextBoxBg.Name = "TextBoxBackground"
+    TextBoxBg.Size = UDim2.new(1, -20, 1, -20)
+    TextBoxBg.Position = UDim2.new(0, 10, 0, 10)
+    TextBoxBg.BackgroundColor3 = CONTENT_BG_COLOR
+    TextBoxBg.BackgroundTransparency = currentTextBoxTransparency
+    TextBoxBg.BorderSizePixel = 0
+    TextBoxBg.ZIndex = 11
+    
+    TextBoxBg.CanvasSize = UDim2.new(0, 0, 0, 0) 
+    TextBoxBg.AutomaticCanvasSize = Enum.AutomaticSize.Y 
+    TextBoxBg.ScrollBarThickness = 6
+    TextBoxBg.ScrollingDirection = Enum.ScrollingDirection.Y
+    TextBoxBg.Parent = ContentFrame
+    
+    local TextBoxCorner = Instance.new("UICorner")
+    TextBoxCorner.CornerRadius = CORNER_RADIUS
+    TextBoxCorner.Parent = TextBoxBg
+    
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Name = "ContentTitle"
+    TitleLabel.Size = UDim2.new(1, 0, 0, 30)
+    TitleLabel.Position = UDim2.new(0, 0, 0, 0)
+    TitleLabel.Text = titleText
+    TitleLabel.Font = Enum.Font.SourceSansBold
+    TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TitleLabel.TextSize = 18
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    TitleLabel.ZIndex = 12
+    TitleLabel.Parent = TextBoxBg 
+
+    local InfoLayout = Instance.new("UIListLayout")
+    InfoLayout.Padding = UDim.new(0, 5)
+    InfoLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    InfoLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+    InfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    InfoLayout.Parent = TextBoxBg 
+
+    local InfoSpacer = Instance.new("Frame")
+    InfoSpacer.Name = "Spacer"
+    InfoSpacer.Size = UDim2.new(1, 0, 0, 10) -- Jarak antara judul dan body
+    InfoSpacer.BackgroundTransparency = 1
+    InfoSpacer.LayoutOrder = 1
+    InfoSpacer.Parent = TextBoxBg
+    
+    local BodyLabel = Instance.new("TextLabel")
+    BodyLabel.Name = "ContentBody"
+    BodyLabel.Size = UDim2.new(1, -20, 0, 0) 
+    BodyLabel.AutomaticSize = Enum.AutomaticSize.Y 
+    BodyLabel.Text = bodyMessage
+    BodyLabel.Font = Enum.Font.SourceSans
+    BodyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    BodyLabel.TextSize = 14
+    BodyLabel.BackgroundTransparency = 1
+    BodyLabel.TextWrapped = true
+    BodyLabel.TextXAlignment = Enum.TextXAlignment.Left
+    BodyLabel.TextYAlignment = Enum.TextYAlignment.Top
+    BodyLabel.ZIndex = 12
+    BodyLabel.LayoutOrder = 2
+    BodyLabel.Parent = TextBoxBg 
+    
+    local BodyPadding = Instance.new("UIPadding")
+    BodyPadding.PaddingLeft = UDim.new(0, 10)
+    BodyPadding.PaddingRight = UDim.new(0, 10)
+    BodyPadding.Parent = BodyLabel
+    
+    return ContentFrame
+end
+
+
+---
+-- *********************************************************************************************
+-- FUNGSI PEMBANTU UNTUK KONTEN BERBASIS TOMBOL (MENU SCRIPT LOADER)
+-- *********************************************************************************************
+
+-- Fungsi untuk load script
+local function loadScript(url, scriptName)
+    local success, result = pcall(function()
+        -- Menggunakan game:HttpGet sebagai fungsi untuk mendapatkan script dari URL
+        return loadstring(game:HttpGet(url, true))() 
+    end)
+    
+    if success then
+        print("✅ Script berhasil dimuat: " .. scriptName)
+        
+        -- !!! SCRIPT BARU DITAMBAHKAN DI SINI !!!
+        -- Perintah untuk menutup atau menghapus GUI utama
+        if ScreenGui then
+            ScreenGui:Destroy()
+            print("✅ GUI Utama berhasil ditutup setelah loadscript berhasil.")
+        end
+        -- !!! AKHIR SCRIPT BARU !!!
+        
+    else
+        warn("❌ Gagal memuat script: " .. scriptName)
+        warn("Error: " .. tostring(result))
+    end
+end
+
+local function CreateButtonContent(menuName, titleText, scriptList)
+    local ContentFrame = Instance.new("Frame")
+    ContentFrame.Name = menuName .. "Content" 
+    ContentFrame.Size = UDim2.new(1, 0, 1, 0)
+    ContentFrame.Position = UDim2.new(0, 0, 0, 0)
+    ContentFrame.BackgroundTransparency = 1 
+    ContentFrame.Visible = false 
+    ContentFrame.Parent = MainContentFrame
+
+    local TextBoxBg = Instance.new("ScrollingFrame")
+    TextBoxBg.Name = "TextBoxBackground"
+    TextBoxBg.Size = UDim2.new(1, -20, 1, -20)
+    TextBoxBg.Position = UDim2.new(0, 10, 0, 10)
+    TextBoxBg.BackgroundColor3 = CONTENT_BG_COLOR
+    TextBoxBg.BackgroundTransparency = currentTextBoxTransparency
+    TextBoxBg.BorderSizePixel = 0
+    TextBoxBg.ZIndex = 11
+    TextBoxBg.CanvasSize = UDim2.new(0, 0, 0, 0)
+    TextBoxBg.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    TextBoxBg.ScrollBarThickness = 6
+    TextBoxBg.ScrollingDirection = Enum.ScrollingDirection.Y
+    TextBoxBg.Parent = ContentFrame
+
+    local TextBoxCorner = Instance.new("UICorner")
+    TextBoxCorner.CornerRadius = CORNER_RADIUS
+    TextBoxCorner.Parent = TextBoxBg
+
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Name = "ContentTitle"
+    TitleLabel.Size = UDim2.new(1, 0, 0, 30)
+    TitleLabel.Text = titleText
+    TitleLabel.Font = Enum.Font.SourceSansBold
+    TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TitleLabel.TextSize = 18
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    TitleLabel.ZIndex = 12
+    TitleLabel.Parent = TextBoxBg
+
+    local ScriptLayout = Instance.new("UIListLayout")
+    ScriptLayout.Padding = UDim.new(0, 4) -- Jarak antar tombol 
+    ScriptLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    ScriptLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+    ScriptLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    ScriptLayout.Parent = TextBoxBg
+
+    local Spacer = Instance.new("Frame")
+    Spacer.Name = "Spacer"
+    Spacer.Size = UDim2.new(1, 0, 0, 10) -- Jarak antara judul dan tombol
+    Spacer.BackgroundTransparency = 1
+    Spacer.LayoutOrder = 1
+    Spacer.Parent = TextBoxBg
+
+    -- Buat tombol untuk setiap fitur/script
+    for i, scriptData in ipairs(scriptList) do
+        local ScriptButton = Instance.new("TextButton")
+        ScriptButton.Name = "Script_" .. i
+        ScriptButton.Size = UDim2.new(1, -20, 0, 40)
+        ScriptButton.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        ScriptButton.BackgroundTransparency = 0.3
+        ScriptButton.BorderSizePixel = 0
+        ScriptButton.Text = scriptData.Icon .. "  " .. scriptData.Name
+        ScriptButton.Font = Enum.Font.SourceSansBold
+        ScriptButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        ScriptButton.TextSize = 16
+        ScriptButton.TextXAlignment = Enum.TextXAlignment.Left
+        ScriptButton.ZIndex = 12
+        ScriptButton.LayoutOrder = i + 1
+        ScriptButton.Parent = TextBoxBg
+
+        local ButtonCorner = Instance.new("UICorner")
+        ButtonCorner.CornerRadius = UDim.new(0, 6)
+        ButtonCorner.Parent = ScriptButton
+
+        local ButtonPadding = Instance.new("UIPadding")
+        ButtonPadding.PaddingLeft = UDim.new(0, 15)
+        ButtonPadding.Parent = ScriptButton
+
+        local ButtonStroke = Instance.new("UIStroke")
+        ButtonStroke.Color = Color3.fromRGB(70, 70, 70)
+        ButtonStroke.Thickness = 1
+        ButtonStroke.Parent = ScriptButton
+
+        -- Hover effect
+        ScriptButton.MouseEnter:Connect(function()
+            PlaySound(HOVER_SOUND_ID, 0.3)
+            ScriptButton:TweenBackgroundColor3(Color3.fromRGB(60, 60, 60), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+        end)
+
+        ScriptButton.MouseLeave:Connect(function()
+            ScriptButton:TweenBackgroundColor3(Color3.fromRGB(40, 40, 40), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+        end)
+
+        -- Load script saat diklik (DITAMBAHKAN SUARA KLIK)
+        ScriptButton.MouseButton1Click:Connect(function()
+            PlaySound(CLICK_SOUND_ID, 0.6) 
+            ScriptButton.Text = "⏳ Loading..."
+            -- Call loadScript (fungsi loadScript sekarang memiliki logic penutupan GUI)
+            loadScript(scriptData.URL, scriptData.Name)
+            wait(0.5)
+            -- Catatan: Jika script di atas berhasil, baris di bawah ini TIDAK AKAN dieksekusi 
+            -- karena ScreenGui:Destroy() akan menghentikan skrip GUI ini.
+            ScriptButton.Text = scriptData.Icon .. "  " .. scriptData.Name 
+        end)
+    end
+
+    return ContentFrame
+end
+
+
+---
+-- *********************************************************************************************
+-- 3. INICIALISASI KONTEN MENU
+-- *********************************************************************************************
+
+-- Konten Info (MENGGUNAKAN FUNGSI TEKS)
+local InfoContent = CreateMenuContent("Info", "INFORMASI PANEL EXECUTOR", 
+"Selamat datang di Foxname Executor. \n\nPanel ini dibuat oleh Cáo Mod untuk menyediakan akses cepat ke berbagai fitur game dan skrip. \n\nFitur-fitur utama diatur per kategori: \n\n- **Main:** Fitur inti seperti Auto Farm dan ESP. \n- **Bring:** Pemuat skrip khusus dari URL eksternal. \n- **Teleport:** Opsi pergerakan dan navigasi cepat. \n- **@LocalPlayer:** Modifikasi karakter lokal (God Mode, Speed). \n- **Mis & ToolOwner:** Fitur tambahan dan kontrol lingkungan. \n- **Settings:** Pengaturan tampilan (transparansi, dll.).")
+    
+-- Konten Main (Menggunakan CreateButtonContent)
+local MainContent = CreateButtonContent("Main", "MAIN FEATURES", MainFeatures)
+
+-- Konten Bring (Menggunakan CreateButtonContent)
+local BringContent = CreateButtonContent("Bring", "BRING - SCRIPT LOADER", BringScripts)
+
+-- Konten Teleport (Menggunakan CreateButtonContent)
+local TeleportContent = CreateButtonContent("Teleport", "MOVEMENT - TELEPORT", TeleportOptions)
+
+-- Konten LocalPlayer (Menggunakan CreateButtonContent)
+local LocalPlayerContent = CreateButtonContent("LocalPlayer", "PLAYER MODIFICATION (@LOCALPLAYER)", LocalPlayerMods)
+
+-- Konten Mis (Menggunakan CreateButtonContent)
+local MisContent = CreateButtonContent("Mis", "MISCELLANEOUS (LAIN-LAIN)", MisFeatures)
+
+-- Konten ToolOwner (Menggunakan CreateButtonContent)
+local ToolOwnerContent = CreateButtonContent("ToolOwner", "ToolOwner", ToolOwnerFeatures)
+
+
+-- KONTEN SETTINGS - INI ADALAH KODE LAMA UNTUK MENGINISIALISASI FRAME KOSONG UNTUK SLIDER
+local SettingsContent = Instance.new("Frame")
+SettingsContent.Name = "SettingsContent"
+SettingsContent.Size = UDim2.new(1, 0, 1, 0)
+SettingsContent.Position = UDim2.new(0, 0, 0, 0)
+SettingsContent.BackgroundTransparency = 1 
+SettingsContent.Visible = false 
+SettingsContent.Parent = MainContentFrame
+
+local SettingsBoxBg = Instance.new("ScrollingFrame")
+SettingsBoxBg.Name = "TextBoxBackground"
+SettingsBoxBg.Size = UDim2.new(1, -20, 1, -20)
+SettingsBoxBg.Position = UDim2.new(0, 10, 0, 10)
+SettingsBoxBg.BackgroundColor3 = CONTENT_BG_COLOR
+SettingsBoxBg.BackgroundTransparency = currentTextBoxTransparency
+SettingsBoxBg.BorderSizePixel = 0
+SettingsBoxBg.ZIndex = 11
+SettingsBoxBg.CanvasSize = UDim2.new(0, 0, 0, 0)
+SettingsBoxBg.AutomaticCanvasSize = Enum.AutomaticSize.Y
+SettingsBoxBg.ScrollBarThickness = 6
+SettingsBoxBg.ScrollingDirection = Enum.ScrollingDirection.Y
+SettingsBoxBg.Parent = SettingsContent
+
+local SettingsTextBoxCorner = Instance.new("UICorner")
+SettingsTextBoxCorner.CornerRadius = CORNER_RADIUS
+SettingsTextBoxCorner.Parent = SettingsBoxBg
+
+
+-- Hubungkan tombol menu
+InfoBtn.MouseButton1Click:Connect(function() activateMenu("Info") end)
+MainBtn.MouseButton1Click:Connect(function() activateMenu("Main") end)
+BringBtn.MouseButton1Click:Connect(function() activateMenu("Bring") end)
+TeleportBtn.MouseButton1Click:Connect(function() activateMenu("Teleport") end)
+LocalPlayerBtn.MouseButton1Click:Connect(function() activateMenu("LocalPlayer") end)
+MisBtn.MouseButton1Click:Connect(function() activateMenu("Mis") end)
+ToolOwnerBtn.MouseButton1Click:Connect(function() activateMenu("ToolOwner") end)
+SettingsBtn.MouseButton1Click:Connect(function() activateMenu("Settings") end)
+
+---
+-- *********************************************************************************************
+-- 4. FUNGSIONALITAS DRAGGABLE (TIDAK BERUBAH)
+-- *********************************************************************************************
+
+local function onInputBegan(input, source)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        if isMinimized and (source == TitleBar or source == DragButton) then
+             isDragging = true
+             dragStartPos = input.Position  
+             frameStartPos = MainPanelFrame.Position
+        end
+    end
+end
+
+local function onInputChanged(input)
+    if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local currentPos = input.Position
+        local delta = currentPos - dragStartPos
+        
+        local newX = frameStartPos.X.Offset + delta.X
+        local newY = frameStartPos.Y.Offset + delta.Y
+        
+        MainPanelFrame.Position = UDim2.new(frameStartPos.X.Scale, newX, frameStartPos.Y.Scale, newY)
+    end
+end
+
+local function onInputEnded(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        isDragging = false
+    end
+end
+
+TitleBar.InputBegan:Connect(function(input) onInputBegan(input, TitleBar) end)
+DragButton.InputBegan:Connect(function(input) onInputBegan(input, DragButton) end)
+UserInputService.InputChanged:Connect(onInputChanged)
+UserInputService.InputEnded:Connect(onInputEnded)
+
+---
+-- *********************************************************************************************
+-- 5. LOGIKA RUNNING TEXT (MARQUEE) (TIDAK BERUBAH)
+-- *********************************************************************************************
+
+local marqueeConnection = nil
+
+local function startMarquee()
+    if marqueeConnection then return end
+    
+    if not isMinimized and isFullscreen == false then
+        TitleLabel.Text = originalTitleText
+        TitleLabel.Position = UDim2.new(0, 0, 0, 0)
+        TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        return
+    end
+
+    local fullText = originalTitleText .. "    " .. originalTitleText 
+    TitleLabel.Text = fullText
+    
+    local textBounds = TitleLabel.TextBounds
+    local containerWidth = TitleTextContainer.AbsoluteSize.X
+    local textWidth = textBounds.X
+    
+    if textWidth < containerWidth then
+        TitleLabel.Position = UDim2.new(0, 0, 0, 0)
+        TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        return
+    end
+    
+    local distance = -(textWidth / 2) 
+    local duration = (textWidth / 2) / 30 
+    
+    local marqueeTweenInfo = TweenInfo.new(
+        duration, 
+        Enum.EasingStyle.Linear, 
+        Enum.EasingDirection.InOut, 
+        -1, 
+        false
+    )
+    
+    local targetPosition = {Position = UDim2.new(0, distance, 0, 0)}
+    local marqueeTween = TweenService:Create(TitleLabel, marqueeTweenInfo, targetPosition)
+    
+    marqueeConnection = marqueeTween
+    marqueeTween:Play()
+end
+
+local function stopMarquee()
+    if marqueeConnection then
+        marqueeConnection:Cancel()
+        marqueeConnection = nil
+    end
+    TitleLabel.Text = originalTitleText
+    TitleLabel.Position = UDim2.new(0, 0, 0, 0)
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+end
+
+---
+-- *********************************************************************************************
+-- 6. INTERAKSI TOMBOL WINDOWS 
+-- *********************************************************************************************
+
+local function setContentVisibility(isVisible)
+    SidebarFrame.Visible = isVisible
+    MainContentFrame.Visible = isVisible
+    BackgroundImage.Visible = isVisible
+end
+
+CloseButton.MouseButton1Click:Connect(function()
+    PlaySound(CLICK_SOUND_ID, 0.7) 
+    stopMarquee()
+    ScreenGui:Destroy()
+end)
+
+MinimizeButton.MouseButton1Click:Connect(function()
+    PlaySound(CLICK_SOUND_ID, 0.7) 
+    if not isMinimized then
+        setContentVisibility(false) 
+        
+        MainPanelFrame:TweenSizeAndPosition( 
+            minimizePanelSize,
+            MainPanelFrame.Position, 
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.3,
+            true
+        )
+        isMinimized = true
+        startMarquee()
+        
+    else
+        setContentVisibility(true) 
+        
+        MainPanelFrame:TweenSizeAndPosition(
+            defaultPanelSize,
+            defaultPanelPosition, 
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.3,
+            true
+        )
+        isMinimized = false
+        stopMarquee() 
+    end
+    
+    if isFullscreen then
+        isFullscreen = false
+        FullscreenButton.Text = "↕️" 
+    end
+end)
+
+FullscreenButton.MouseButton1Click:Connect(function()
+    PlaySound(CLICK_SOUND_ID, 0.7) 
+    if not isFullscreen then
+        setContentVisibility(true) 
+        
+        MainPanelFrame:TweenSizeAndPosition( 
+            fullscreenPanelSize,
+            UDim2.new(0.5, 0, 0.5, 0), 
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.3,
+            true
+        )
+        
+        FullscreenButton.Text = "⏏️" 
+        
+        if isMinimized then
+            isMinimized = false 
+            stopMarquee()
+        end
+        
+    else
+        MainPanelFrame:TweenSizeAndPosition(
+            defaultPanelSize,
+            defaultPanelPosition, 
+            Enum.EasingDirection.Out,
+            Enum.EasingStyle.Quad,
+            0.3,
+            true
+        )
+        FullscreenButton.Text = "↕️" 
+    end
+    
+    isFullscreen = not isFullscreen
+end)
+
+---
+-- *********************************************************************************************
+-- 7. FUNGSI SLIDER KUSTOM (TIDAK BERUBAH)
+-- *********************************************************************************************
+
+local function CreateSliderBackground(parent, name, title, initialValue)
+    local SliderContainer = Instance.new("Frame")
+    SliderContainer.Name = name .. "Container"
+    SliderContainer.Size = UDim2.new(1, 0, 0, 50)
+    SliderContainer.BackgroundTransparency = 1
+    SliderContainer.Parent = parent
+    
+    local SliderTitle = Instance.new("TextLabel")
+    SliderTitle.Name = "SliderTitle"
+    SliderTitle.Size = UDim2.new(1, 0, 0, 20)
+    SliderTitle.Position = UDim2.new(0, 0, 0, 0)
+    SliderTitle.Text = title .. " (" .. string.format("%.2f", initialValue) .. ")"
+    SliderTitle.Font = Enum.Font.SourceSans
+    SliderTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SliderTitle.TextSize = 14
+    SliderTitle.BackgroundTransparency = 1
+    SliderTitle.TextXAlignment = Enum.TextXAlignment.Left
+    SliderTitle.ZIndex = 12
+    SliderTitle.Parent = SliderContainer
+
+    local TitlePadding = Instance.new("UIPadding")
+    TitlePadding.PaddingLeft = UDim.new(0, 10)
+    TitlePadding.Parent = SliderTitle
+    
+    local SliderBarBackground = Instance.new("Frame")
+    SliderBarBackground.Name = "SliderBarBackground"
+    SliderBarBackground.Size = UDim2.new(1, -20, 0, 10) 
+    SliderBarBackground.Position = UDim2.new(0, 10, 0, 25) 
+    SliderBarBackground.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    SliderBarBackground.BackgroundTransparency = 0
+    SliderBarBackground.BorderSizePixel = 0
+    SliderBarBackground.ZIndex = 12
+    SliderBarBackground.Active = true
+    SliderBarBackground.Parent = SliderContainer
+    
+    local BarCorner = Instance.new("UICorner")
+    BarCorner.CornerRadius = UDim.new(0, 4)
+    BarCorner.Parent = SliderBarBackground
+    
+    local SliderBarValue = Instance.new("Frame")
+    SliderBarValue.Name = "SliderBarValue"
+    SliderBarValue.Size = UDim2.new(initialValue, 0, 1, 0)
+    SliderBarValue.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    SliderBarValue.BackgroundTransparency = 0
+    SliderBarValue.BorderSizePixel = 0
+    SliderBarValue.ZIndex = 13
+    SliderBarValue.Parent = SliderBarBackground
+    
+    local ValueCorner = Instance.new("UICorner")
+    ValueCorner.CornerRadius = UDim.new(0, 4)
+    ValueCorner.Parent = SliderBarValue
+    
+    local SliderHandle = Instance.new("Frame")
+    SliderHandle.Name = "SliderHandle"
+    SliderHandle.Size = UDim2.new(0, 10, 0, 16) 
+    SliderHandle.Position = UDim2.new(initialValue, -5, 0.5, -8)
+    SliderHandle.AnchorPoint = Vector2.new(0, 0.5)
+    SliderHandle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    SliderHandle.BackgroundTransparency = 0
+    SliderHandle.BorderSizePixel = 0
+    SliderHandle.ZIndex = 14
+    SliderHandle.Active = true
+    SliderHandle.Parent = SliderBarBackground
+    
+    local HandleCorner = Instance.new("UICorner")
+    HandleCorner.CornerRadius = UDim.new(0, 5)
+    HandleCorner.Parent = SliderHandle
+    
+    return SliderContainer, SliderBarBackground, SliderBarValue, SliderHandle, SliderTitle
+end
+
+local function CreateTransparencySlider(parent, name, title, initialValue, callback)
+    local container, bgBar, valueBar, handle, titleLabel = CreateSliderBackground(parent, name, title, initialValue)
+    
+    local isDraggingSlider = false
+    
+    local function updateSlider(input)
+        local barWidth = bgBar.AbsoluteSize.X
+        if barWidth > 0 then
+            local newX = input.Position.X - bgBar.AbsolutePosition.X
+            local clampedX = math.max(0, math.min(barWidth, newX))
+            local percentage = clampedX / barWidth
+            local roundedValue = math.floor(percentage * 100) / 100 
+
+            valueBar.Size = UDim2.new(percentage, 0, 1, 0)
+            handle.Position = UDim2.new(percentage, -5, 0.5, -8)
+            titleLabel.Text = title .. " (" .. string.format("%.2f", roundedValue) .. ")"
+
+            callback(roundedValue)
+        end
+    end
+    
+    local function onSliderInputBegan(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDraggingSlider = true
+            updateSlider(input) 
+        end
+    end
+    
+    local function onSliderInputChanged(input)
+        if isDraggingSlider then
+            updateSlider(input)
+        end
+    end
+
+    local function onSliderInputEnded(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDraggingSlider = false
+        end
+    end
+
+    bgBar.InputBegan:Connect(onSliderInputBegan)
+    handle.InputBegan:Connect(onSliderInputBegan) 
+    
+    UserInputService.InputChanged:Connect(onSliderInputChanged)
+    UserInputService.InputEnded:Connect(onSliderInputEnded)
+
+    return container
+end
+
+---
+-- *********************************************************************************************
+-- 8. PENGATURAN KONTEN SETTINGS (INTEGRASI SLIDER)
+-- *********************************************************************************************
+
+-- Mengambil objek SettingsBoxBg yang sudah dibuat di bagian inisialisasi konten
+local SettingsBoxBg = SettingsContent:FindFirstChild("TextBoxBackground")
+
+-- Membersihkan konten lama sebelum menambahkan slider
+for _, child in pairs(SettingsBoxBg:GetChildren()) do
+    child:Destroy()
+end
+
+local SettingsTitle = Instance.new("TextLabel")
+SettingsTitle.Name = "ContentTitle"
+SettingsTitle.Size = UDim2.new(1, 0, 0, 30)
+SettingsTitle.Position = UDim2.new(0, 0, 0, 0)
+SettingsTitle.Text = "PANEL SETTINGS"
+SettingsTitle.Font = Enum.Font.SourceSansBold
+SettingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+SettingsTitle.TextSize = 18
+SettingsTitle.BackgroundTransparency = 1
+SettingsTitle.TextXAlignment = Enum.TextXAlignment.Center
+SettingsTitle.ZIndex = 12
+SettingsTitle.Parent = SettingsBoxBg
+
+local SliderLayout = Instance.new("UIListLayout")
+SliderLayout.Padding = UDim.new(0, 10)
+SliderLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+SliderLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+SliderLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SliderLayout.Parent = SettingsBoxBg
+
+CreateTransparencySlider(
+    SettingsBoxBg, 
+    "SidebarFrameTransSlider", 
+    "Sidebar Frame Background Transparency", 
+    currentSidebarTransparency, 
+    function(value)
+        currentSidebarTransparency = value
+        SidebarFrame.BackgroundTransparency = value
+    end
+)
+
+CreateTransparencySlider(
+    SettingsBoxBg, 
+    "MenuItemTransSlider", 
+    "Sidebar Menu Item (Textbox) Transparency", 
+    currentMenuItemTransparency,
+    function(value)
+        currentMenuItemTransparency = value
+        
+        for _, btn in pairs(SidebarFrame:GetChildren()) do
+            if btn:IsA("TextButton") then
+                 btn.BackgroundTransparency = value
+            end
+        end
+
+        local currentActiveMenuName = "Info"
+        for _, btn in pairs(SidebarFrame:GetChildren()) do
+            if btn:IsA("TextButton") and btn.BackgroundColor3 == BUTTON_ACTIVE_COLOR then
+                currentActiveMenuName = btn.Name:gsub("Button", "")
+                break
+            end
+        end
+        activateMenu(currentActiveMenuName)
+    end
+)
+
+CreateTransparencySlider(
+    SettingsBoxBg, 
+    "MainContentTransSlider", 
+    "Main Content Frame Transparency", 
+    currentContentTransparency, 
+    function(value)
+        currentContentTransparency = value
+        MainContentFrame.BackgroundTransparency = value
+    end
+)
+
+CreateTransparencySlider(
+    SettingsBoxBg, 
+    "TextBoxTransSlider", 
+    "Content Textbox Transparency", 
+    currentTextBoxTransparency, 
+    function(value)
+        currentTextBoxTransparency = value
+        
+        for _, content in pairs(MainContentFrame:GetChildren()) do
+            if content:IsA("Frame") and content.Name:match("Content$") then
+                local textBoxBg = content:FindFirstChild("TextBoxBackground")
+                if textBoxBg then
+                    textBoxBg.BackgroundTransparency = value
+                end
+            end
+        end
+    end
+)
+
+---
+-- *********************************************************************************************
+-- 9. INISIALISASI
+-- *********************************************************************************************
+
+activateMenu("Info")
+
+---
+-- *********************************************************************************************
+-- 10. FUNGSIONALITAS SUARA GULIR (DITAMBAHKAN)
+-- *********************************************************************************************
+
+local SCROLL_COOLDOWN = 0.1 -- Batasi suara gulir dimainkan setiap 0.1 detik
+local scrollDebounce = false
+
+local function setupScrollSound(scrollingFrame)
+    local lastCanvasPosition = scrollingFrame.CanvasPosition
+    
+    scrollingFrame:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+        -- Hanya putar suara jika posisi kanvas benar-benar berubah
+        if (scrollingFrame.CanvasPosition.Y - lastCanvasPosition.Y) ~= 0 then
+            
+            if not scrollDebounce then
+                scrollDebounce = true
+                
+                -- Putar suara gulir (volume lebih rendah)
+                PlaySound(SCROLL_SOUND_ID, 0.2) 
+                
+                -- Reset debounce setelah cooldown
+                task.wait(SCROLL_COOLDOWN)
+                scrollDebounce = false
+            end
+
+            lastCanvasPosition = scrollingFrame.CanvasPosition
+        end
+    end)
+end
+
+-- Terapkan suara gulir ke SidebarMenu
+setupScrollSound(SidebarFrame)
+
+-- Terapkan suara gulir ke semua konten scrolling (termasuk SettingsBoxBg)
+for _, childContent in pairs(MainContentFrame:GetChildren()) do
+    if childContent:IsA("Frame") and childContent.Name:match("Content$") then
+        local contentBg = childContent:FindFirstChild("TextBoxBackground")
+        if contentBg and contentBg:IsA("ScrollingFrame") then
+            setupScrollSound(contentBg)
+        end
+    end
+end
+
+
+---
+-- *********************************************************************************************
+-- 11. AKHIR SKRIP
+-- *********************************************************************************************
+
+print("✅ Panel Executor dengan Menu Bring Script Loader berhasil dimuat!")
+print("📋 Total script tersedia: " .. #BringScripts)
