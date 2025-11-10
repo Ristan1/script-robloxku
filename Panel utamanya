@@ -101,8 +101,8 @@ local AllScripts = {
     {Name = "Copy Id", Icon = "📥", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Copy%20Id"},
     {Name = "Infinite Jump", Icon = "⏫️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/InfinitejumpOnOff"},
     {Name = "Tombol Lompat", Icon = "🦶", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/tombol%20lompat"}, 
-    {Name = "Xray", Icon = "📵", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Xray"}, 
-    {Name = "ConsoleLog", Icon = 📋", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/ConsoleLog"}, 
+    {Name = "Xray", Icon = "📵", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Xray"},
+    {Name = "Console Log", Icon = "📋", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/ConsoleLog"}, 
 }
 
 local ScriptsInWheel = {}
