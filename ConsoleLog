@@ -1,0 +1,588 @@
+-- Console Logger untuk Mobile Executor
+-- Dibuat untuk monitoring log client-side
+
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local LogService = game:GetService("LogService")
+
+-- Variabel untuk menyimpan log
+local logs = {}
+local maxLogs = 500
+
+-- Buat ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ConsoleLogger"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Protection untuk executor
+if gethui then
+    screenGui.Parent = gethui()
+elseif syn and syn.protect_gui then
+    syn.protect_gui(screenGui)
+    screenGui.Parent = game:GetService("CoreGui")
+else
+    screenGui.Parent = game:GetService("CoreGui")
+end
+
+-- Main Frame
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 450, 0, 350)
+mainFrame.Position = UDim2.new(0.5, -225, 0.5, -175)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+-- Corner untuk main frame
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 12)
+mainCorner.Parent = mainFrame
+
+-- Shadow effect
+local shadow = Instance.new("ImageLabel")
+shadow.Name = "Shadow"
+shadow.Size = UDim2.new(1, 30, 1, 30)
+shadow.Position = UDim2.new(0, -15, 0, -15)
+shadow.BackgroundTransparency = 1
+shadow.Image = "rbxasset://textures/ui/Controls/WindowShadow.png"
+shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+shadow.ImageTransparency = 0.5
+shadow.ScaleType = Enum.ScaleType.Slice
+shadow.SliceCenter = Rect.new(10, 10, 118, 118)
+shadow.ZIndex = 0
+shadow.Parent = mainFrame
+
+-- Header
+local header = Instance.new("Frame")
+header.Name = "Header"
+header.Size = UDim2.new(1, 0, 0, 75)
+header.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+header.BorderSizePixel = 0
+header.Parent = mainFrame
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 12)
+headerCorner.Parent = header
+
+-- Fix corner bawah header
+local headerCoverBottom = Instance.new("Frame")
+headerCoverBottom.Size = UDim2.new(1, 0, 0, 12)
+headerCoverBottom.Position = UDim2.new(0, 0, 1, -12)
+headerCoverBottom.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+headerCoverBottom.BorderSizePixel = 0
+headerCoverBottom.Parent = header
+
+-- Title
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Size = UDim2.new(1, -100, 0, 35)
+title.Position = UDim2.new(0, 15, 0, 5)
+title.BackgroundTransparency = 1
+title.Text = "📋 Console Logger"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 16
+title.Font = Enum.Font.GothamBold
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = header
+
+-- Buttons Container
+local buttonsContainer = Instance.new("Frame")
+buttonsContainer.Name = "ButtonsContainer"
+buttonsContainer.Size = UDim2.new(0, 100, 0, 35)
+buttonsContainer.Position = UDim2.new(1, -110, 0, 5)
+buttonsContainer.BackgroundTransparency = 1
+buttonsContainer.Parent = header
+
+-- Function untuk membuat button
+local function createHeaderButton(text, position, color)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0, 30, 0, 30)
+    button.Position = position
+    button.BackgroundColor3 = color
+    button.BorderSizePixel = 0
+    button.Text = text
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextSize = 18
+    button.Font = Enum.Font.GothamBold
+    button.Parent = buttonsContainer
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = button
+    
+    return button
+end
+
+-- Clear Button
+local clearBtn = createHeaderButton("🗑", UDim2.new(0, 0, 0, 0), Color3.fromRGB(220, 50, 50))
+
+-- Minimize Button
+local minimizeBtn = createHeaderButton("−", UDim2.new(0, 35, 0, 0), Color3.fromRGB(240, 180, 50))
+
+-- Close Button
+local closeBtn = createHeaderButton("×", UDim2.new(0, 70, 0, 0), Color3.fromRGB(220, 50, 50))
+
+-- Filter Row
+local filterRow = Instance.new("Frame")
+filterRow.Name = "FilterRow"
+filterRow.Size = UDim2.new(1, -20, 0, 32)
+filterRow.Position = UDim2.new(0, 10, 0, 40)
+filterRow.BackgroundTransparency = 1
+filterRow.Parent = header
+
+-- Log Label
+local logLabel = Instance.new("TextLabel")
+logLabel.Name = "LogLabel"
+logLabel.Size = UDim2.new(0, 35, 1, 0)
+logLabel.BackgroundTransparency = 1
+logLabel.Text = "Log"
+logLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+logLabel.TextSize = 12
+logLabel.Font = Enum.Font.GothamMedium
+logLabel.TextXAlignment = Enum.TextXAlignment.Left
+logLabel.Parent = filterRow
+
+-- Filter Container
+local filterContainer = Instance.new("Frame")
+filterContainer.Name = "FilterContainer"
+filterContainer.Size = UDim2.new(1, -40, 1, 0)
+filterContainer.Position = UDim2.new(0, 40, 0, 0)
+filterContainer.BackgroundTransparency = 1
+filterContainer.Parent = filterRow
+
+local filterLayout = Instance.new("UIListLayout")
+filterLayout.FillDirection = Enum.FillDirection.Horizontal
+filterLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+filterLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+filterLayout.SortOrder = Enum.SortOrder.LayoutOrder
+filterLayout.Padding = UDim.new(0, 6)
+filterLayout.Parent = filterContainer
+
+-- Filter state
+local filters = {
+    Output = true,
+    Information = true,
+    Warning = true,
+    Error = true
+}
+
+-- Function untuk membuat filter checkbox
+local function createFilterCheckbox(filterName, icon, text, order)
+    local frame = Instance.new("Frame")
+    frame.Name = filterName .. "Filter"
+    frame.Size = UDim2.new(0, 80, 1, 0)
+    frame.BackgroundTransparency = 1
+    frame.LayoutOrder = order
+    frame.Parent = filterContainer
+    
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    button.BorderSizePixel = 0
+    button.Text = ""
+    button.Parent = frame
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 6)
+    btnCorner.Parent = button
+    
+    local checkbox = Instance.new("Frame")
+    checkbox.Name = "Checkbox"
+    checkbox.Size = UDim2.new(0, 16, 0, 16)
+    checkbox.Position = UDim2.new(0, 5, 0.5, -8)
+    checkbox.BackgroundColor3 = Color3.fromRGB(50, 150, 220)
+    checkbox.BorderSizePixel = 0
+    checkbox.Parent = button
+    
+    local checkCorner = Instance.new("UICorner")
+    checkCorner.CornerRadius = UDim.new(0, 3)
+    checkCorner.Parent = checkbox
+    
+    local checkmark = Instance.new("TextLabel")
+    checkmark.Size = UDim2.new(1, 0, 1, 0)
+    checkmark.BackgroundTransparency = 1
+    checkmark.Text = "✓"
+    checkmark.TextColor3 = Color3.fromRGB(255, 255, 255)
+    checkmark.TextSize = 11
+    checkmark.Font = Enum.Font.GothamBold
+    checkmark.Parent = checkbox
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -26, 1, 0)
+    label.Position = UDim2.new(0, 24, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = icon .. " " .. text
+    label.TextColor3 = Color3.fromRGB(220, 220, 220)
+    label.TextSize = 11
+    label.Font = Enum.Font.GothamMedium
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = button
+    
+    return button, checkbox, checkmark
+end
+
+local outputBtn, outputCheck, outputMark = createFilterCheckbox("Output", "📝", "Output", 1)
+local infoBtn, infoCheck, infoMark = createFilterCheckbox("Information", "ℹ️", "Info", 2)
+local warnBtn, warnCheck, warnMark = createFilterCheckbox("Warning", "⚠️", "Warn", 3)
+local errorBtn, errorCheck, errorMark = createFilterCheckbox("Error", "❌", "Error", 4)
+
+-- Logs Container
+local logsContainer = Instance.new("ScrollingFrame")
+logsContainer.Name = "LogsContainer"
+logsContainer.Size = UDim2.new(1, -20, 1, -130)
+logsContainer.Position = UDim2.new(0, 10, 0, 85)
+logsContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+logsContainer.BorderSizePixel = 0
+logsContainer.ScrollBarThickness = 6
+logsContainer.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 120)
+logsContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+logsContainer.Parent = mainFrame
+
+local logsCorner = Instance.new("UICorner")
+logsCorner.CornerRadius = UDim.new(0, 8)
+logsCorner.Parent = logsContainer
+
+local logsLayout = Instance.new("UIListLayout")
+logsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+logsLayout.Padding = UDim.new(0, 3)
+logsLayout.Parent = logsContainer
+
+-- Bottom Buttons Frame
+local bottomFrame = Instance.new("Frame")
+bottomFrame.Name = "BottomFrame"
+bottomFrame.Size = UDim2.new(1, -20, 0, 35)
+bottomFrame.Position = UDim2.new(0, 10, 1, -45)
+bottomFrame.BackgroundTransparency = 1
+bottomFrame.Parent = mainFrame
+
+local bottomLayout = Instance.new("UIListLayout")
+bottomLayout.FillDirection = Enum.FillDirection.Horizontal
+bottomLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+bottomLayout.SortOrder = Enum.SortOrder.LayoutOrder
+bottomLayout.Padding = UDim.new(0, 8)
+bottomLayout.Parent = bottomFrame
+
+-- Function untuk membuat bottom button
+local function createBottomButton(text, order)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0, 130, 0, 35)
+    button.BackgroundColor3 = Color3.fromRGB(50, 120, 220)
+    button.BorderSizePixel = 0
+    button.Text = text
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextSize = 13
+    button.Font = Enum.Font.GothamSemibold
+    button.LayoutOrder = order
+    button.Parent = bottomFrame
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = button
+    
+    return button
+end
+
+local copyAllBtn = createBottomButton("📋 Salin Semua", 1)
+local copySelectedBtn = createBottomButton("📄 Salin Pilihan", 2)
+
+-- Minimized Frame
+local minimizedFrame = Instance.new("Frame")
+minimizedFrame.Name = "MinimizedFrame"
+minimizedFrame.Size = UDim2.new(0, 50, 0, 50)
+minimizedFrame.Position = UDim2.new(1, -60, 1, -60)
+minimizedFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+minimizedFrame.BorderSizePixel = 0
+minimizedFrame.Visible = false
+minimizedFrame.Active = true
+minimizedFrame.Draggable = true
+minimizedFrame.Parent = screenGui
+
+local minCorner = Instance.new("UICorner")
+minCorner.CornerRadius = UDim.new(0, 25)
+minCorner.Parent = minimizedFrame
+
+local minButton = Instance.new("TextButton")
+minButton.Size = UDim2.new(1, 0, 1, 0)
+minButton.BackgroundTransparency = 1
+minButton.Text = "📋"
+minButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+minButton.TextSize = 24
+minButton.Font = Enum.Font.GothamBold
+minButton.Parent = minimizedFrame
+
+-- Variables
+local selectedLog = nil
+local isMinimized = false
+
+-- Function untuk update visibility log berdasarkan filter
+local function updateLogVisibility()
+    for _, log in ipairs(logs) do
+        local shouldShow = false
+        
+        if log.type == Enum.MessageType.MessageOutput and filters.Output then
+            shouldShow = true
+        elseif log.type == Enum.MessageType.MessageInfo and filters.Information then
+            shouldShow = true
+        elseif log.type == Enum.MessageType.MessageWarning and filters.Warning then
+            shouldShow = true
+        elseif log.type == Enum.MessageType.MessageError and filters.Error then
+            shouldShow = true
+        end
+        
+        log.frame.Visible = shouldShow
+    end
+    
+    -- Update canvas size
+    task.wait()
+    logsContainer.CanvasSize = UDim2.new(0, 0, 0, logsLayout.AbsoluteContentSize.Y + 10)
+end
+
+-- Filter button handlers
+local function toggleFilter(filterName, checkbox, checkmark, button)
+    filters[filterName] = not filters[filterName]
+    
+    if filters[filterName] then
+        checkbox.BackgroundColor3 = Color3.fromRGB(50, 150, 220)
+        checkmark.Visible = true
+        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 45, 50)}):Play()
+    else
+        checkbox.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+        checkmark.Visible = false
+        TweenService:Create(button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 35, 40)}):Play()
+    end
+    
+    updateLogVisibility()
+end
+
+outputBtn.MouseButton1Click:Connect(function()
+    toggleFilter("Output", outputCheck, outputMark, outputBtn)
+end)
+
+infoBtn.MouseButton1Click:Connect(function()
+    toggleFilter("Information", infoCheck, infoMark, infoBtn)
+end)
+
+warnBtn.MouseButton1Click:Connect(function()
+    toggleFilter("Warning", warnCheck, warnMark, warnBtn)
+end)
+
+errorBtn.MouseButton1Click:Connect(function()
+    toggleFilter("Error", errorCheck, errorMark, errorBtn)
+end)
+
+-- Functions
+local function animateButton(button)
+    local tween = TweenService:Create(button, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(70, 70, 80)})
+    tween:Play()
+    tween.Completed:Wait()
+    tween = TweenService:Create(button, TweenInfo.new(0.1), {BackgroundColor3 = button.BackgroundColor3})
+    tween:Play()
+end
+
+local function addLog(message, logType)
+    if #logs >= maxLogs then
+        table.remove(logs, 1)
+        logsContainer:GetChildren()[2]:Destroy()
+    end
+    
+    local logFrame = Instance.new("Frame")
+    logFrame.Size = UDim2.new(1, -10, 0, 0)
+    logFrame.AutomaticSize = Enum.AutomaticSize.Y
+    logFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    logFrame.BorderSizePixel = 0
+    logFrame.Parent = logsContainer
+    
+    local logCorner = Instance.new("UICorner")
+    logCorner.CornerRadius = UDim.new(0, 6)
+    logCorner.Parent = logFrame
+    
+    local typeColor = Color3.fromRGB(150, 150, 150)
+    local typeIcon = "ℹ️"
+    
+    if logType == Enum.MessageType.MessageWarning then
+        typeColor = Color3.fromRGB(240, 180, 50)
+        typeIcon = "⚠️"
+    elseif logType == Enum.MessageType.MessageError then
+        typeColor = Color3.fromRGB(220, 50, 50)
+        typeIcon = "❌"
+    elseif logType == Enum.MessageType.MessageInfo then
+        typeColor = Color3.fromRGB(50, 150, 220)
+        typeIcon = "ℹ️"
+    end
+    
+    local indicator = Instance.new("Frame")
+    indicator.Size = UDim2.new(0, 4, 1, 0)
+    indicator.BackgroundColor3 = typeColor
+    indicator.BorderSizePixel = 0
+    indicator.Parent = logFrame
+    
+    local logText = Instance.new("TextLabel")
+    logText.Size = UDim2.new(1, -15, 1, 0)
+    logText.Position = UDim2.new(0, 10, 0, 0)
+    logText.BackgroundTransparency = 1
+    logText.Text = typeIcon .. " " .. message
+    logText.TextColor3 = Color3.fromRGB(230, 230, 230)
+    logText.TextSize = 12
+    logText.Font = Enum.Font.Code
+    logText.TextXAlignment = Enum.TextXAlignment.Left
+    logText.TextYAlignment = Enum.TextYAlignment.Top
+    logText.TextWrapped = true
+    logText.AutomaticSize = Enum.AutomaticSize.Y
+    logText.Parent = logFrame
+    
+    local logPadding = Instance.new("UIPadding")
+    logPadding.PaddingTop = UDim.new(0, 5)
+    logPadding.PaddingBottom = UDim.new(0, 5)
+    logPadding.Parent = logFrame
+    
+    -- Make log selectable
+    local selectBtn = Instance.new("TextButton")
+    selectBtn.Size = UDim2.new(1, 0, 1, 0)
+    selectBtn.BackgroundTransparency = 1
+    selectBtn.Text = ""
+    selectBtn.Parent = logFrame
+    
+    selectBtn.MouseButton1Click:Connect(function()
+        if selectedLog then
+            selectedLog.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+        end
+        selectedLog = logFrame
+        logFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+    end)
+    
+    table.insert(logs, {frame = logFrame, text = message, type = logType})
+    
+    -- Update visibility berdasarkan filter
+    task.spawn(function()
+        task.wait()
+        updateLogVisibility()
+    end)
+    
+    logsContainer.CanvasSize = UDim2.new(0, 0, 0, logsLayout.AbsoluteContentSize.Y + 10)
+    logsContainer.CanvasPosition = Vector2.new(0, logsContainer.CanvasSize.Y.Offset)
+end
+
+local function clearLogs()
+    for _, log in ipairs(logs) do
+        log.frame:Destroy()
+    end
+    logs = {}
+    selectedLog = nil
+    logsContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+end
+
+local function copyToClipboard(text)
+    if setclipboard then
+        setclipboard(text)
+        addLog("✅ Teks berhasil disalin ke clipboard!", Enum.MessageType.MessageInfo)
+    else
+        addLog("❌ Executor tidak mendukung clipboard!", Enum.MessageType.MessageError)
+    end
+end
+
+-- Button Events
+clearBtn.MouseButton1Click:Connect(function()
+    animateButton(clearBtn)
+    clearLogs()
+    addLog("🗑 Log telah dibersihkan", Enum.MessageType.MessageInfo)
+end)
+
+minimizeBtn.MouseButton1Click:Connect(function()
+    animateButton(minimizeBtn)
+    isMinimized = true
+    mainFrame.Visible = false
+    minimizedFrame.Visible = true
+end)
+
+minButton.MouseButton1Click:Connect(function()
+    isMinimized = false
+    minimizedFrame.Visible = false
+    mainFrame.Visible = true
+end)
+
+closeBtn.MouseButton1Click:Connect(function()
+    animateButton(closeBtn)
+    screenGui:Destroy()
+end)
+
+copyAllBtn.MouseButton1Click:Connect(function()
+    animateButton(copyAllBtn)
+    if #logs > 0 then
+        local allText = ""
+        for i, log in ipairs(logs) do
+            allText = allText .. log.text
+            if i < #logs then
+                allText = allText .. "\n"
+            end
+        end
+        copyToClipboard(allText)
+    else
+        addLog("⚠️ Tidak ada log untuk disalin", Enum.MessageType.MessageWarning)
+    end
+end)
+
+copySelectedBtn.MouseButton1Click:Connect(function()
+    animateButton(copySelectedBtn)
+    if selectedLog then
+        for _, log in ipairs(logs) do
+            if log.frame == selectedLog then
+                copyToClipboard(log.text)
+                break
+            end
+        end
+    else
+        addLog("⚠️ Pilih log terlebih dahulu", Enum.MessageType.MessageWarning)
+    end
+end)
+
+-- Intercept logs
+local oldPrint = print
+local oldWarn = warn
+local oldError = error
+
+print = function(...)
+    local args = {...}
+    local message = ""
+    for i, v in ipairs(args) do
+        message = message .. tostring(v)
+        if i < #args then message = message .. " " end
+    end
+    addLog(message, Enum.MessageType.MessageOutput)
+    oldPrint(...)
+end
+
+warn = function(...)
+    local args = {...}
+    local message = ""
+    for i, v in ipairs(args) do
+        message = message .. tostring(v)
+        if i < #args then message = message .. " " end
+    end
+    addLog(message, Enum.MessageType.MessageWarning)
+    oldWarn(...)
+end
+
+-- Capture LogService messages
+LogService.MessageOut:Connect(function(message, messageType)
+    addLog(message, messageType)
+end)
+
+-- Capture script errors
+local function handleError(err)
+    addLog("ERROR: " .. tostring(err), Enum.MessageType.MessageError)
+end
+
+-- Welcome message
+addLog("🚀 Console Logger berhasil dimuat!", Enum.MessageType.MessageInfo)
+addLog("✨ Siap memonitor aktivitas script", Enum.MessageType.MessageInfo)
+
+-- Return control functions
+return {
+    addLog = addLog,
+    clearLogs = clearLogs,
+    minimize = function() minimizeBtn.MouseButton1Click:Fire() end,
+    close = function() closeBtn.MouseButton1Click:Fire() end
+}
