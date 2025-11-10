@@ -2,6 +2,8 @@
 -- GTA 5 Style Weapon Wheel Script Loader - Mobile Version (MODIFIED V45 - FIXED)
 -- Perbaikan: Syntax error pada AUTO_LOAD_URL dan penempatan tombol folder.
 -- MODIFIKASI: Minimize Button TIDAK BISA hide/tenggelam ke arah atas.
+-- PERBAIKAN: Tombol tengah sekarang memuat skrip dengan suara dan menutup wheel.
+-- Visual tombol tengah DIKEMBALIKAN (tanpa UIStroke).
 --================================================================
 
 local Players = game:GetService("Players")
@@ -59,6 +61,12 @@ local DIMMER_TRANSPARENCY = 1 -- Ditingkatkan agar lebih buram
 local DEFAULT_CENTER_TEXT = "PILIH SCRIPT\nATAU TEKAN\nMENU LAINNYA"
 local GUI_NAME = "WeaponWheelGUI" 
 
+-- KONFIGURASI UNTUK TOMBOL TENGAH (Menu Lainnya)
+local CENTER_MENU_SCRIPT = {
+    Name = "Menu Lainnya Script",
+    URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/PanelWindow", -- GANTI dengan URL skrip yang ingin Anda muat
+}
+
 --================================================================
 -- KONFIGURASI WARNA & DATA
 --================================================================
@@ -90,13 +98,10 @@ local AllScripts = {
     {Name = "Lari Cepat", Icon = "⚡️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/lari%20cepat"},
     {Name = "Tembus & Cahaya", Icon = "🧱💡", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Tembus%20tembok%20dan%20lampu"},
     {Name = "DetectPlayer", Icon = "👤", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/detector%20player"},
-    {Name = "BanPemain", Icon = "🚷", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/PanelBannya"},
     {Name = "Copy Id", Icon = "📥", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Copy%20Id"},
     {Name = "Infinite Jump", Icon = "⏫️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/InfinitejumpOnOff"},
     {Name = "Tombol Lompat", Icon = "🦶", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/tombol%20lompat"}, 
-    {Name = "Tester Notif Teman", Icon = "🚻", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/TesterNotifTeman"},
     {Name = "Xray", Icon = "📵", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Xray"}, 
-    {Name = "Sett Posisi Frame", Icon = "🛄", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/SetPosisiFrame"}, 
 }
 
 local ScriptsInWheel = {}
@@ -174,7 +179,14 @@ local function loadScriptFromURL(url, scriptName)
     return true
 end
 
+-- FUNGSI BERSAMA UNTUK UPDATE UI DAN LOGIKA PENUTUPAN
 local function performScriptLoadAndUIUpdate(scriptInfo, itemFrame, itemStroke, defaultColor, defaultStrokeColor, toggleFunc, centerLabel, isWheelOpen)
+    -- Memainkan suara seleksi
+    local selectionSound = itemFrame.Parent.Parent:FindFirstChild("SelectionSound") 
+    if selectionSound then
+        selectionSound:Play()
+    end
+    
     centerLabel.Text = "Loading..." 
     
     local loadSuccess = loadScriptFromURL(scriptInfo.URL, scriptInfo.Name)
@@ -182,18 +194,33 @@ local function performScriptLoadAndUIUpdate(scriptInfo, itemFrame, itemStroke, d
     if loadSuccess then
         centerLabel.Text = "✅ Loaded"
         itemFrame.BackgroundColor3 = Color3.fromRGB(80, 250, 123)
-        itemStroke.Color = Color3.fromRGB(80, 250, 123)
+        -- Jika ini adalah CenterCircle, kita tidak punya itemStroke di CenterCircle, jadi gunakan properti CenterCircle sebagai frame
+        if itemFrame.Name == "CenterCircle" then
+            itemFrame.BackgroundTransparency = 0.2 -- Mengubah transparansi saat success
+        elseif itemStroke then
+            itemStroke.Color = Color3.fromRGB(80, 250, 123)
+        end
     else
         centerLabel.Text = "❌ Error"
         itemFrame.BackgroundColor3 = Color3.fromRGB(255, 85, 85)
-        itemStroke.Color = Color3.fromRGB(255, 85, 85)
+        if itemFrame.Name == "CenterCircle" then
+            itemFrame.BackgroundTransparency = 0.2 -- Mengubah transparansi saat error
+        elseif itemStroke then
+            itemStroke.Color = Color3.fromRGB(255, 85, 85)
+        end
     end
     
     task.wait(0.1) 
     
+    -- Reset warna/transparansi
     itemFrame.BackgroundColor3 = defaultColor
-    itemStroke.Color = defaultStrokeColor
+    if itemFrame.Name == "CenterCircle" then
+        itemFrame.BackgroundTransparency = 0.8 -- Reset CenterCircle transparency
+    elseif itemStroke then
+        itemStroke.Color = defaultStrokeColor
+    end
     
+    -- Setelah loading/error, wheel harus ditutup
     if isWheelOpen then
         toggleFunc()
     end
@@ -500,7 +527,7 @@ local function createWeaponWheel()
     centerCircle.Name = "CenterCircle"
     centerCircle.Parent = wheelContainer
     centerCircle.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    centerCircle.BackgroundTransparency = 0.8
+    centerCircle.BackgroundTransparency = 0.8 -- Dibiarkan 0.8 seperti permintaan
     centerCircle.AnchorPoint = Vector2.new(0.5, 0.5)
     centerCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
     centerCircle.Size = UDim2.new(0, CENTER_CIRCLE_SIZE, 0, CENTER_CIRCLE_SIZE)
@@ -510,6 +537,8 @@ local function createWeaponWheel()
     local centerCorner = Instance.new("UICorner")
     centerCorner.CornerRadius = UDim.new(1, 0)
     centerCorner.Parent = centerCircle
+    
+    -- UIStroke PADA centerCircle DIHAPUS sesuai permintaan
     
     local centerLabel = Instance.new("TextLabel")
     centerLabel.Parent = centerCircle
@@ -637,6 +666,7 @@ local function createWeaponWheel()
     local isSelectionDebounced = false
 
     local function showConfirmationDialog(onConfirm, onCancel)
+        -- Logika untuk menutup wheel saat dialog konfirmasi muncul
         if isWheelOpen then
             isWheelOpen = false 
             isActionLocked = true
@@ -805,23 +835,37 @@ local function createWeaponWheel()
         if isSelectionDebounced then return end 
         isSelectionDebounced = true 
         
+        -- Gunakan nama script dari config untuk cek konfirmasi
         if SCRIPTS_REQUIRING_CONFIRMATION[scriptInfo.Name] then
             showConfirmationDialog(
                 function()
+                    -- Jika konfirmasi Ya, muat skrip dan tutup wheel
                     performScriptLoadAndUIUpdate(scriptInfo, itemFrame, itemStroke, defaultColor, defaultStrokeColor, toggleWheel, centerLabel, isWheelOpen)
                     isSelectionDebounced = false
                 end, 
                 function()
+                    -- Jika konfirmasi Tidak, reset label
                     centerLabel.Text = DEFAULT_CENTER_TEXT 
                     isSelectionDebounced = false
                 end
             )
         else
+            -- Muat skrip dan tutup wheel (toggleWheel akan menutup jika isWheelOpen=true)
             performScriptLoadAndUIUpdate(scriptInfo, itemFrame, itemStroke, defaultColor, defaultStrokeColor, toggleWheel, centerLabel, isWheelOpen)
             isSelectionDebounced = false
         end
     end
     
+    -- Koneksi untuk tombol tengah (CenterCircle)
+    centerCircle.MouseButton1Click:Connect(function() 
+        -- Gunakan CENTER_MENU_SCRIPT dan berikan CenterCircle sebagai 'itemFrame'
+        -- itemStroke diisi 'nil' karena kita menghapusnya dari CenterCircle
+        handleScriptSelection(CENTER_MENU_SCRIPT, centerCircle, nil, Color3.fromRGB(40, 40, 40), INNER_DEFAULT_STROKE) 
+    end)
+    centerCircle.TouchTap:Connect(function() 
+        handleScriptSelection(CENTER_MENU_SCRIPT, centerCircle, nil, Color3.fromRGB(40, 40, 40), INNER_DEFAULT_STROKE) 
+    end)
+
     local numScripts = #ScriptsInWheel
     local radius = 90
     local angleStep = (2 * math.pi) / numScripts
@@ -1041,8 +1085,6 @@ local function createWeaponWheel()
         end)
     end
     
-    centerCircle.Active = false 
-    
     local function onMinimizeClick()
         if not isConfirmationActive then
             toggleWheel() 
@@ -1105,3 +1147,5 @@ for _, scriptInfo in ipairs(AUTO_LOAD_SCRIPTS) do
 end
 
 createWeaponWheel()
+
+
