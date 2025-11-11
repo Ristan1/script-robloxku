@@ -62,9 +62,9 @@ local BringScripts = {
 }
 
 local VisualFeatures = { 
-    {Name = "Auto Farm Level", Icon = "⚙️", URL = "balum"},
-    {Name = "ESP Player", Icon = "👁️", URL = "balum"},
-    {Name = "No Clip", Icon = "🧱", URL = "balum"},
+    {Name = "Boombox", Icon = "", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/BoomboxKu"},
+    {Name = "Mahkota", Icon = "", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/MahkotaKu"},
+    --{Name = "No Clip", Icon = "🧱", URL = "balum"},
 }
 
 local TeleportOptions = {
