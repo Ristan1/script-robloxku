@@ -1,0 +1,996 @@
+--[[
+    IDX BOOMBOX PLAYER - V6.7 (Perbaikan Volume + Slider)
+    
+    MODIFIKASI V6.7:
+    - Memindahkan sumber Sound dari Tool.Handle ke Character.HumanoidRootPart.
+    - Tool sekarang hanya berfungsi sebagai "remote control".
+    - Sound akan selalu mengikuti player (di HRP) dengan volume konsisten,
+      baik saat tool dipegang atau di punggung.
+    - Menambahkan slider volume di sebelah kiri tombol Previous.
+    
+    MODIFIKASI PENGGUNA:
+    - Menghapus notifikasi "STOPPED ERROR".
+--]]
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Backpack = LocalPlayer:WaitForChild("Backpack")
+
+-- [MODIFIKASI] Cek agar script tidak berjalan double
+if Backpack:FindFirstChild("IDX Boombox") then
+    print("❌ Sistem pemutar musik V6.7 sudah ada di Backpack. Script dihentikan.")
+    return 
+end
+if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("IDX Boombox") then
+    print("❌ Sistem pemutar musik V6.7 sudah ada di Karakter (sedang dipakai). Script dihentikan.")
+    return
+end
+
+-- === Lagu Default (Ganti sesuai selera) ===
+local DaftarLagu = {
+    {Nama = "Cup of Joe Multo Bus", ID = 79199147672535},
+    {Nama = "DJ Kangen Bgt Sama Kamu", ID = 106291412410472},
+    {Nama = "Aku Bete Sama Kamu", ID = 83817418053316},
+    {Nama = "Galau", ID = 110524647114903},
+    {Nama = "DJ Thailand ", ID = 73922038429555},
+    {Nama = "Golden Hour", ID = 136409279011083},
+    {Nama = "Not Around", ID = 6902400044}, 
+    {Nama = "Garuutt Tehh Remix ", ID = 114727662968481}, 
+    {Nama = "Dj 1", ID = 120871403922972}, 
+    {Nama = "dj 2", ID = 83817418053316}
+}
+
+-- === Buat Boombox ===
+local boombox = Instance.new("Tool")
+boombox.Name = "IDX Boombox"
+boombox.RequiresHandle = true 
+boombox.GripPos = Vector3.new(0, 0, 0.5)
+
+-- 1. Buat Handle ASLI (Part tak terlihat)
+local handle = Instance.new("Part")
+handle.Name = "Handle"
+handle.Size = Vector3.new(1, 1, 1) 
+handle.Transparency = 1 
+handle.CanCollide = false
+handle.Anchored = false
+handle.Material = Enum.Material.Plastic
+handle.Parent = boombox
+
+-- 2. Buat Mesh visualnya (Boombox kustom kamu)
+local boomboxMesh = Instance.new("MeshPart")
+boomboxMesh.Name = "VisualMesh"
+boomboxMesh.Size = Vector3.new(4, 4, 3.7) 
+boomboxMesh.Material = Enum.Material.Plastic
+boomboxMesh.BrickColor = BrickColor.new("White")
+boomboxMesh.CanCollide = false
+boomboxMesh.Anchored = false
+boomboxMesh.MeshId = "rbxassetid://212302951"
+boomboxMesh.TextureID = "rbxassetid://548314619"
+boomboxMesh.Parent = handle 
+
+-- 3. Buat Weld (Las) untuk menyatukan Handle dan Mesh
+local weld = Instance.new("WeldConstraint")
+weld.Part0 = handle
+weld.Part1 = boomboxMesh
+weld.Parent = handle
+
+-- 5. Parent-kan Tool ke Backpack (SETELAH SEMUA SIAP)
+boombox.Parent = Backpack
+
+-- === Variabel Status Pemutar Musik ===
+local MusicGUI = nil
+local MusicButton = nil
+local CurrentSongIndex = 1 
+local CurrentSound = nil
+local SpectrumBars = {}
+local SpectrumRunning = false
+local fakeBoomboxOnBack = nil
+local notificationLabel = nil -- Untuk label notifikasi
+local notificationCheckRunning = false -- Status pengecekan notifikasi
+
+-- Dapatkan Data Lagu Saat Ini
+local function GetCurrentSongData()
+    if CurrentSongIndex > 0 and CurrentSongIndex <= #DaftarLagu then
+        return DaftarLagu[CurrentSongIndex]
+    end
+    return {Nama = "Tidak Ada Lagu", ID = 0} 
+end
+
+-- [MODIFIKASI V6.7] Fungsi baru untuk mengambil/membuat sound di HRP
+local function GetCharacterSound()
+    local char = LocalPlayer.Character
+    if not char then 
+        if CurrentSound then 
+            CurrentSound:Stop() 
+        end
+        CurrentSound = nil
+        return nil 
+    end
+    
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then 
+        if CurrentSound then 
+            CurrentSound:Stop() 
+        end
+        CurrentSound = nil
+        return nil 
+    end
+    
+    if CurrentSound and CurrentSound.Parent == hrp then
+        return CurrentSound
+    end
+
+    local sound = hrp:FindFirstChild("BoomboxSound")
+    if not sound then
+        print("Membuat sound baru di HumanoidRootPart...")
+        sound = Instance.new("Sound")
+        sound.Name = "BoomboxSound"
+        sound.Volume = 1
+        sound.Parent = hrp
+        
+        local songData = GetCurrentSongData()
+        sound.SoundId = "rbxassetid://" .. tostring(songData.ID)
+        sound.TimePosition = 0
+        
+        sound.Ended:Connect(function()
+            if GetCharacterSound() then
+                NextSong()
+            end
+        end)
+    end
+    
+    CurrentSound = sound
+    return CurrentSound
+end
+
+-- Dapatkan Data Lagu Berikutnya
+local function GetNextSongData()
+    local nextIndex = (CurrentSongIndex % #DaftarLagu) + 1
+    return DaftarLagu[nextIndex]
+end
+
+-- Perbarui Status GUI Pemutar Musik
+local function UpdateGUIStatus()
+    local sound = GetCharacterSound()
+    if not sound then return end
+    
+    if MusicGUI and MusicGUI:FindFirstChild("MainFrame") then
+        local mainFrame = MusicGUI.MainFrame
+        
+        local songData = GetCurrentSongData()
+        mainFrame.CurrentSongName.Text = songData.Nama
+
+        local nextSongData = GetNextSongData()
+        mainFrame.NextSongName.Text = "Berikutnya: " .. nextSongData.Nama
+
+        local pauseBtn = mainFrame.Controls.PauseResumeBtn
+        if sound.IsPlaying then
+            pauseBtn.Text = "⏸️"
+        else
+            pauseBtn.Text = "▶️"
+        end
+    end
+end
+
+-- === Lanjut Lagu Berikutnya (Auto-Play/Manual) ===
+function NextSong()
+    local sound = GetCharacterSound()
+    if not sound then return end
+
+    CurrentSongIndex = (CurrentSongIndex % #DaftarLagu) + 1
+    local nextSong = GetCurrentSongData()
+    sound:Stop()
+    sound.SoundId = "rbxassetid://" .. tostring(nextSong.ID)
+    sound.TimePosition = 0
+    sound:Play()
+    UpdateGUIStatus()
+    print("⏭️ Next Song: " .. nextSong.Nama)
+    
+    -- Reset notifikasi saat ganti lagu
+    if notificationLabel then
+        notificationLabel.Visible = false
+    end
+end
+
+-- === Mundur ke Lagu Sebelumnya ===
+local function PreviousSong()
+    local sound = GetCharacterSound()
+    if not sound then return end
+
+    CurrentSongIndex = CurrentSongIndex - 1
+    if CurrentSongIndex < 1 then
+        CurrentSongIndex = #DaftarLagu
+    end
+    local prevSong = GetCurrentSongData()
+    sound:Stop()
+    sound.SoundId = "rbxassetid://" .. tostring(prevSong.ID)
+    sound.TimePosition = 0
+    sound:Play()
+    UpdateGUIStatus()
+    print("⏮️ Previous Song: " .. prevSong.Nama)
+    
+    -- Reset notifikasi saat ganti lagu
+    if notificationLabel then
+        notificationLabel.Visible = false
+    end
+end
+
+-- === Jeda/Lanjut Lagu ===
+local function TogglePause()
+    local sound = GetCharacterSound()
+    if not sound then return end
+
+    if sound.SoundId ~= "" then
+        if sound.IsPlaying then
+            sound:Pause()
+        else
+            sound:Resume()
+        end
+    end
+    UpdateGUIStatus()
+end
+
+-- === Mainkan Lagu berdasarkan ID/Index ===
+local function PlaySong(assetId, songName)
+    local sound = GetCharacterSound()
+    if not sound then return end
+
+    local foundIndex = nil
+    for i, song in ipairs(DaftarLagu) do
+        if song.ID == assetId then
+            foundIndex = i
+            break
+        end
+    end
+
+    if foundIndex then
+        CurrentSongIndex = foundIndex
+        sound:Stop()
+        sound.SoundId = "rbxassetid://" .. tostring(assetId)
+        sound.TimePosition = 0
+        sound:Play()
+        UpdateGUIStatus()
+        print("🎵 Memutar lagu dari playlist: " .. songName)
+    else
+        sound:Stop()
+        sound.SoundId = "rbxassetid://" .. tostring(assetId)
+        sound.TimePosition = 0
+        sound:Play()
+        print("🎵 Memutar lagu manual ID: " .. tostring(assetId))
+        if MusicGUI and MusicGUI:FindFirstChild("MainFrame") then
+            local mainFrame = MusicGUI.MainFrame
+            mainFrame.CurrentSongName.Text = songName or "ID Manual"
+            mainFrame.NextSongName.Text = "Memutar dari ID..."
+            mainFrame.Controls.PauseResumeBtn.Text = "⏸️"
+        end
+    end
+    
+    -- Trigger notifikasi check setelah play
+    task.wait(0.1)
+    if notificationLabel then
+        notificationLabel.Visible = false
+    end
+end
+
+-- === GUI BARU (Gaya Glassmorphism) ===
+local function ShowMusicGUI()
+    if MusicGUI then return end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "IDX_MusicGUI_V7_Glass"
+    gui.ResetOnSpawn = false
+    pcall(function()
+        gui.Parent = LocalPlayer.PlayerGui
+    end)
+
+    -- MAIN FRAME (TIDAK BISA DIGESER)
+    local frame = Instance.new("Frame")
+    frame.Name = "MainFrame"
+    frame.Size = UDim2.new(0, 360, 0, 260) 
+    frame.Position = UDim2.new(0.5, -180, 0.5, -150)
+    frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    frame.BackgroundTransparency = 0.3
+    frame.BorderSizePixel = 0
+    frame.Active = true -- Mencegah input tembus ke game
+    frame.Parent = gui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 12)
+    corner.Parent = frame
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(200, 200, 255)
+    stroke.Transparency = 0.7
+    stroke.Thickness = 1
+    stroke.Parent = frame
+
+    -- Title Bar
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(0, 120, 0, 30)
+    title.Position = UDim2.new(0, 20, 0, 10)
+    title.BackgroundTransparency = 1
+    title.Text = "Playlist Menu"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 18
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = frame
+    
+    -- Search Box
+    local searchBox = Instance.new("TextBox")
+    searchBox.Name = "SearchBox"
+    searchBox.Size = UDim2.new(0, 130, 0, 26)
+    searchBox.Position = UDim2.new(0, 145, 0, 12)
+    searchBox.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+    searchBox.BackgroundTransparency = 0.5
+    searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    searchBox.Font = Enum.Font.Gotham
+    searchBox.TextSize = 12
+    searchBox.PlaceholderText = "Masukkan Asset ID..."
+    searchBox.Text = ""
+    searchBox.ClearTextOnFocus = true
+    searchBox.Parent = frame
+    
+    local searchCorner = Instance.new("UICorner")
+    searchCorner.CornerRadius = UDim.new(0, 6)
+    searchCorner.Parent = searchBox
+
+    -- Play Button
+    local playManual = Instance.new("TextButton")
+    playManual.Name = "PlayManualBtn"
+    playManual.Size = UDim2.new(0, 50, 0, 26)
+    playManual.Position = UDim2.new(0, 280, 0, 12)
+    playManual.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+    playManual.TextColor3 = Color3.fromRGB(255, 255, 255)
+    playManual.Font = Enum.Font.GothamBold
+    playManual.Text = "PUTAR"
+    playManual.TextSize = 11
+    playManual.Parent = frame
+    
+    local playManualCorner = Instance.new("UICorner")
+    playManualCorner.CornerRadius = UDim.new(0, 6)
+    playManualCorner.Parent = playManual
+
+    playManual.MouseButton1Click:Connect(function()
+        local id = tonumber(searchBox.Text:match("%d+"))
+        if id then
+            PlaySong(id, "ID: " .. tostring(id))
+            searchBox.Text = "" 
+        end
+    end)
+    
+    -- Close Button (X)
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position = UDim2.new(1, -35, 0, 10)
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.Text = "X"
+    closeBtn.TextSize = 20
+    closeBtn.Parent = frame
+
+    closeBtn.MouseButton1Click:Connect(function()
+        SpectrumRunning = false
+        notificationCheckRunning = false -- Stop pengecekan notifikasi
+        gui:Destroy()
+        MusicGUI = nil
+        SpectrumBars = {}
+        notificationLabel = nil
+    end)
+    
+    -- Scrolling List
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Size = UDim2.new(1, -40, 0, 105) 
+    scroll.Position = UDim2.new(0, 20, 0, 45)
+    scroll.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+    scroll.BackgroundTransparency = 0.5
+    scroll.BorderSizePixel = 0
+    scroll.ScrollBarThickness = 6
+    scroll.Parent = frame
+    
+    local scrollCorner = Instance.new("UICorner")
+    scrollCorner.CornerRadius = UDim.new(0, 6)
+    scrollCorner.Parent = scroll
+    
+    local listLayoutScroll = Instance.new("UIListLayout")
+    listLayoutScroll.Padding = UDim.new(0, 5)
+    listLayoutScroll.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    listLayoutScroll.Parent = scroll
+    
+    local listPadding = Instance.new("UIPadding")
+    listPadding.PaddingTop = UDim.new(0, 5)
+    listPadding.PaddingLeft = UDim.new(0, 5)
+    listPadding.PaddingRight = UDim.new(0, 5)
+    listPadding.Parent = scroll
+    
+    -- Populate List
+    local itemHeight = 30
+    local itemPadding = 5
+    for _, lagu in ipairs(DaftarLagu) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -10, 0, itemHeight) 
+        btn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        btn.BackgroundTransparency = 0.3
+        btn.TextColor3 = Color3.fromRGB(220, 220, 240)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 13
+        btn.Text = "  " .. lagu.Nama
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        btn.Parent = scroll
+        
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 5)
+        btnCorner.Parent = btn
+
+        btn.MouseButton1Click:Connect(function()
+            PlaySong(lagu.ID, lagu.Nama)
+        end)
+    end
+    
+    scroll.CanvasSize = UDim2.new(0, 0, 0, (#DaftarLagu * (itemHeight + itemPadding)) + itemPadding)
+    
+    -- Nama Lagu (Besar)
+    local songName = Instance.new("TextLabel")
+    songName.Name = "CurrentSongName"
+    songName.Size = UDim2.new(1, -100, 0, 25)
+    songName.Position = UDim2.new(0, 20, 0, 155) 
+    songName.BackgroundTransparency = 1
+    songName.TextColor3 = Color3.fromRGB(255, 255, 255)
+    songName.Font = Enum.Font.GothamBold
+    songName.TextSize = 16
+    songName.TextXAlignment = Enum.TextXAlignment.Left
+    songName.Parent = frame
+
+    -- Nama Lagu Berikutnya (Kecil)
+    local nextSong = Instance.new("TextLabel")
+    nextSong.Name = "NextSongName"
+    nextSong.Size = UDim2.new(1, -100, 0, 20)
+    nextSong.Position = UDim2.new(0, 20, 0, 180) 
+    nextSong.BackgroundTransparency = 1
+    nextSong.TextColor3 = Color3.fromRGB(180, 180, 200)
+    nextSong.Font = Enum.Font.Gotham
+    nextSong.TextSize = 13
+    nextSong.TextXAlignment = Enum.TextXAlignment.Left
+    nextSong.Parent = frame
+
+    -- Container Spectrum
+    local spectrumContainer = Instance.new("Frame")
+    spectrumContainer.Name = "SpectrumContainer"
+    spectrumContainer.Size = UDim2.new(0, 70, 0, 45)
+    spectrumContainer.Position = UDim2.new(1, -85, 0, 155)
+    spectrumContainer.BackgroundTransparency = 1
+    spectrumContainer.Parent = frame
+
+    -- Buat 5 bar spectrum
+    SpectrumBars = {}
+    for i = 1, 5 do
+        local bar = Instance.new("Frame")
+        bar.Name = "Bar" .. i
+        bar.Size = UDim2.new(0, 10, 0, 8)
+        bar.Position = UDim2.new(0, (i - 1) * 14, 1, -8)
+        bar.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
+        bar.BorderSizePixel = 0
+        bar.AnchorPoint = Vector2.new(0, 1)
+        bar.Parent = spectrumContainer
+        
+        local barCorner = Instance.new("UICorner")
+        barCorner.CornerRadius = UDim.new(0, 3)
+        barCorner.Parent = bar
+        
+        table.insert(SpectrumBars, bar)
+    end
+
+    -- Container Tombol (Prev, Play, Next)
+    local btnContainer = Instance.new("Frame")
+    btnContainer.Name = "Controls"
+    btnContainer.Size = UDim2.new(1, -40, 0, 40)
+    btnContainer.Position = UDim2.new(0, 20, 0, 205)
+    btnContainer.BackgroundTransparency = 1
+    btnContainer.Parent = frame
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.FillDirection = Enum.FillDirection.Horizontal
+    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    listLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    listLayout.Padding = UDim.new(0, 20) 
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Parent = btnContainer
+
+    -- 1. Tombol Mundur (PREVIOUS)
+    local prevBtn = Instance.new("TextButton")
+    prevBtn.Name = "PrevButton"
+    prevBtn.Size = UDim2.new(0, 40, 0, 40)
+    prevBtn.BackgroundTransparency = 1
+    prevBtn.TextColor3 = Color3.fromRGB(220, 220, 255)
+    prevBtn.Font = Enum.Font.GothamBold
+    prevBtn.Text = "⏮️"
+    prevBtn.TextSize = 28
+    prevBtn.LayoutOrder = 1
+    prevBtn.Parent = btnContainer
+    prevBtn.MouseButton1Click:Connect(PreviousSong)
+    
+    -- 2. Tombol JEDA/LANJUT (PLAY/STOP)
+    local pauseBtn = Instance.new("TextButton")
+    pauseBtn.Name = "PauseResumeBtn"
+    pauseBtn.Size = UDim2.new(0, 40, 0, 40)
+    pauseBtn.BackgroundTransparency = 1
+    pauseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    pauseBtn.Font = Enum.Font.GothamBold
+    pauseBtn.TextSize = 34
+    pauseBtn.LayoutOrder = 2
+    pauseBtn.Parent = btnContainer
+    pauseBtn.MouseButton1Click:Connect(TogglePause)
+
+    -- 3. Tombol LANJUT (NEXT)
+    local nextBtn = Instance.new("TextButton")
+    nextBtn.Name = "NextButton"
+    nextBtn.Size = UDim2.new(0, 40, 0, 40)
+    nextBtn.BackgroundTransparency = 1
+    nextBtn.TextColor3 = Color3.fromRGB(220, 220, 255)
+    nextBtn.Font = Enum.Font.GothamBold
+    nextBtn.Text = "⏭️"
+    nextBtn.TextSize = 28
+    nextBtn.LayoutOrder = 3
+    nextBtn.Parent = btnContainer
+    nextBtn.MouseButton1Click:Connect(NextSong)
+    
+    -- Notifikasi Status Musik (DI SAMPING TOMBOL NEXT)
+    local notifContainer = Instance.new("Frame")
+    notifContainer.Name = "NotificationContainer"
+    notifContainer.Size = UDim2.new(0, 85, 0, 45)
+    notifContainer.Position = UDim2.new(1, -100, 0, 203)
+    notifContainer.BackgroundTransparency = 1
+    notifContainer.ZIndex = 15
+    notifContainer.Parent = frame
+    
+    notificationLabel = Instance.new("TextLabel")
+    notificationLabel.Name = "NotificationLabel"
+    notificationLabel.Size = UDim2.new(1, 0, 1, 0)
+    notificationLabel.Position = UDim2.new(0, 0, 0, 0)
+    notificationLabel.BackgroundColor3 = Color3.fromRGB(170, 40, 40) -- UBAH WARNA
+    notificationLabel.BackgroundTransparency = 0.2
+    notificationLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    notificationLabel.Font = Enum.Font.GothamBold
+    notificationLabel.TextSize = 11
+    notificationLabel.Text = "⚠️ ERROR\nAUDIO"
+    notificationLabel.TextWrapped = true
+    notificationLabel.TextXAlignment = Enum.TextXAlignment.Center
+    notificationLabel.TextYAlignment = Enum.TextYAlignment.Center
+    notificationLabel.Visible = false -- UBAH LOGIKA
+    notificationLabel.ZIndex = 16
+    notificationLabel.Parent = notifContainer
+    
+    local notifCorner = Instance.new("UICorner")
+    notifCorner.CornerRadius = UDim.new(0, 8)
+    notifCorner.Parent = notificationLabel
+    
+    local notifStroke = Instance.new("UIStroke")
+    notifStroke.Color = Color3.fromRGB(0, 0, 0) -- UBAH TEKS (WARNA)
+    notifStroke.Transparency = 0.5 -- UBAH TEKS (TRANSPARANSI)
+    notifStroke.Thickness = 1 -- UBAH TEKS (TEBAL)
+    notifStroke.Parent = notificationLabel
+    
+    -- Fungsi untuk update notifikasi
+    local function UpdateNotification(status, message, color)
+        if not notificationLabel then return end
+        
+        notificationLabel.Text = message
+        notificationLabel.BackgroundColor3 = color
+        notificationLabel.Visible = status
+        
+        print("🔔 Notifikasi Update:", message, "Visible:", status)
+    end
+    
+    -- Fungsi untuk cek status musik
+    local function CheckMusicStatus()
+        notificationCheckRunning = true
+        print("✅ Sistem pengecekan musik dimulai")
+        
+        local checkCount = 0 -- Counter untuk tracking berapa kali sudah dicek
+        
+        spawn(function()
+            while notificationCheckRunning and MusicGUI and MusicGUI.Parent do
+                task.wait(1) -- Cek setiap 1 detik
+                checkCount = checkCount + 1
+                
+                pcall(function()
+                    local sound = GetCharacterSound()
+                    
+                    if sound and sound.SoundId ~= "" then
+                        local isPlaying = sound.IsPlaying
+                        local timeLength = sound.TimeLength
+                        local timePlayed = sound.TimePosition
+                        local isLoaded = sound.IsLoaded
+                        
+                        print("📊 Status - Playing:", isPlaying, "Length:", timeLength, "Position:", timePlayed, "Loaded:", isLoaded)
+                        
+                        -- DETEKSI UTAMA: Jika sudah dicek 2 kali (2 detik) dan TimeLength masih 0
+                        if checkCount >= 2 and timeLength == 0 then
+                            UpdateNotification(true, "⚠️ AUDIO\nFAILED", Color3.fromRGB(170, 40, 40)) -- UBAH WARNA
+                            print("🚨 DETEKSI: Audio gagal load - TimeLength = 0 setelah", checkCount, "detik")
+                        
+                        -- DETEKSI: IsLoaded = false setelah 3 detik
+                        elseif checkCount >= 3 and not isLoaded then
+                            UpdateNotification(true, "⚠️ LOAD\nFAILED", Color3.fromRGB(255, 80, 80))
+                            print("🚨 DETEKSI: IsLoaded = false setelah", checkCount, "detik")
+                        
+                        -- DETEKSI: Audio corrupt (TimeLength terlalu pendek)
+                        elseif timeLength > 0 and timeLength < 1 then
+                            UpdateNotification(true, "⚠️ CORRUPT\nAUDIO", Color3.fromRGB(255, 100, 50))
+                            print("🚨 DETEKSI: Audio corrupt - TimeLength < 1")
+                        
+                        -- DETEKSI: Playing tapi Position tidak bergerak (stuck)
+                        elseif isPlaying and timePlayed == 0 and checkCount >= 3 then
+                            UpdateNotification(true, "⚠️ STUCK\nERROR", Color3.fromRGB(255, 120, 0))
+                            print("🚨 DETEKSI: Musik stuck - Playing tapi Position = 0")
+                        
+                        -- [MODIFIKASI] Blok "STOPPED ERROR" dihapus
+                        -- DETEKSI: Musik berhenti tidak normal
+                        -- elseif not isPlaying and timePlayed > 1 and timePlayed < (timeLength - 1) and timeLength > 1 then
+                        --    UpdateNotification(true, "⚠️ STOPPED\nERROR", Color3.fromRGB(255, 150, 0))
+                        --    print("🚨 DETEKSI: Musik berhenti tidak normal")
+                        
+                        -- Musik berjalan normal
+                        elseif isPlaying and timeLength > 1 and timePlayed > 0 then
+                            UpdateNotification(false, "", Color3.fromRGB(100, 255, 100))
+                            checkCount = 0 -- Reset counter saat musik normal
+                            print("✅ Musik normal")
+                        
+                        -- Masih dalam proses loading (kurang dari 2 detik)
+                        elseif checkCount < 2 then
+                            print("⏳ Masih loading... (" .. checkCount .. " detik)")
+                        end
+                    else
+                        -- Tidak ada sound atau SoundId kosong
+                        UpdateNotification(false, "", Color3.fromRGB(100, 100, 100))
+                        checkCount = 0
+                        print("ℹ️ Tidak ada musik yang dimainkan")
+                    end
+                end)
+            end
+            
+            print("❌ Sistem pengecekan musik dihentikan")
+        end)
+    end
+    
+    -- Mulai pengecekan status
+    CheckMusicStatus()
+    
+    -- Volume Slider (DI SEBELAH KIRI PREVIOUS)
+    local volumeContainer = Instance.new("Frame")
+    volumeContainer.Name = "VolumeContainer"
+    volumeContainer.Size = UDim2.new(0, 70, 0, 60)
+    volumeContainer.Position = UDim2.new(0, 15, 0, 195)
+    volumeContainer.BackgroundTransparency = 1
+    volumeContainer.Active = true
+    volumeContainer.Parent = frame
+
+    -- Icon Speaker
+    local speakerIcon = Instance.new("TextLabel")
+    speakerIcon.Name = "SpeakerIcon"
+    speakerIcon.Size = UDim2.new(0, 18, 0, 18)
+    speakerIcon.Position = UDim2.new(0, 0, 0, 10)
+    speakerIcon.BackgroundTransparency = 1
+    speakerIcon.Text = "🔊"
+    speakerIcon.TextSize = 14
+    speakerIcon.TextColor3 = Color3.fromRGB(220, 220, 255)
+    speakerIcon.Font = Enum.Font.GothamBold
+    speakerIcon.ZIndex = 10
+    speakerIcon.Parent = volumeContainer
+
+    -- Track slider
+    local volumeTrack = Instance.new("Frame")
+    volumeTrack.Size = UDim2.new(0, 50, 0, 4)
+    volumeTrack.Position = UDim2.new(0, 20, 0, 18)
+    volumeTrack.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
+    volumeTrack.BorderSizePixel = 0
+    volumeTrack.Active = true
+    volumeTrack.ZIndex = 10
+    volumeTrack.Parent = volumeContainer
+    
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(0, 2)
+    trackCorner.Parent = volumeTrack
+
+    -- Fill slider (bagian yang terisi)
+    local volumeFill = Instance.new("Frame")
+    volumeFill.Name = "Fill"
+    volumeFill.Size = UDim2.new(1, 0, 1, 0)
+    volumeFill.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
+    volumeFill.BorderSizePixel = 0
+    volumeFill.ZIndex = 11
+    volumeFill.Parent = volumeTrack
+    
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(0, 2)
+    fillCorner.Parent = volumeFill
+
+    -- Knob slider
+    local volumeKnob = Instance.new("Frame")
+    volumeKnob.Name = "Knob"
+    volumeKnob.Size = UDim2.new(0, 12, 0, 12)
+    volumeKnob.Position = UDim2.new(1, -6, 0.5, -6)
+    volumeKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    volumeKnob.BorderSizePixel = 0
+    volumeKnob.Active = true
+    volumeKnob.ZIndex = 12
+    volumeKnob.Parent = volumeTrack
+    
+    local knobCorner = Instance.new("UICorner")
+    knobCorner.CornerRadius = UDim.new(1, 0)
+    knobCorner.Parent = volumeKnob
+
+    -- Label Volume (Angka %)
+    local volumeLabel = Instance.new("TextLabel")
+    volumeLabel.Name = "VolumeLabel"
+    volumeLabel.Size = UDim2.new(1, 0, 0, 20)
+    volumeLabel.Position = UDim2.new(0, 0, 0, 35)
+    volumeLabel.BackgroundTransparency = 1
+    volumeLabel.Text = "100%"
+    volumeLabel.TextSize = 12
+    volumeLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+    volumeLabel.Font = Enum.Font.Gotham
+    volumeLabel.TextXAlignment = Enum.TextXAlignment.Center
+    volumeLabel.ZIndex = 10
+    volumeLabel.Parent = volumeContainer
+
+    -- Fungsi update volume
+    local function updateVolumeSlider(percentage)
+        percentage = math.clamp(percentage, 0, 1)
+        volumeFill.Size = UDim2.new(percentage, 0, 1, 0)
+        volumeKnob.Position = UDim2.new(percentage, -6, 0.5, -6)
+        
+        -- Update label persentase
+        volumeLabel.Text = math.floor(percentage * 100) .. "%"
+        
+        -- Update icon speaker berdasarkan volume
+        if percentage == 0 then
+            speakerIcon.Text = "🔇"
+        elseif percentage <= 0.33 then
+            speakerIcon.Text = "🔈"
+        elseif percentage <= 0.66 then
+            speakerIcon.Text = "🔉"
+        else
+            speakerIcon.Text = "🔊"
+        end
+        
+        local sound = GetCharacterSound()
+        if sound then
+            sound.Volume = percentage
+        end
+    end
+
+    -- Dragging logic
+    local dragging = false
+    local UserInputService = game:GetService("UserInputService")
+
+    volumeKnob.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            input.SinkInput = true -- Mencegah input tembus
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local mousePos = UserInputService:GetMouseLocation().X
+            local trackPos = volumeTrack.AbsolutePosition.X
+            local trackSize = volumeTrack.AbsoluteSize.X
+            local percentage = math.clamp((mousePos - trackPos) / trackSize, 0, 1)
+            updateVolumeSlider(percentage)
+        end
+    end)
+
+    -- Klik langsung pada track
+    volumeTrack.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            local mousePos = input.Position.X
+            local trackPos = volumeTrack.AbsolutePosition.X
+            local trackSize = volumeTrack.AbsoluteSize.X
+            local percentage = math.clamp((mousePos - trackPos) / trackSize, 0, 1)
+            updateVolumeSlider(percentage)
+            input.SinkInput = true -- Mencegah input tembus
+        end
+    end)
+
+    -- Set volume awal ke 100%
+    updateVolumeSlider(1)
+    
+    MusicGUI = gui
+    UpdateGUIStatus()
+    
+    -- Animasi Spectrum
+    SpectrumRunning = true
+    spawn(function()
+        local heights = {8, 12, 18, 12, 8}
+        local phase = 0
+        while SpectrumRunning and gui and gui.Parent do
+            wait(0.1)
+            local sound = GetCharacterSound()
+            
+            pcall(function()
+                if sound and sound.IsPlaying then
+                    phase = phase + 1
+                    for i = 1, #SpectrumBars do
+                        local bar = SpectrumBars[i]
+                        if bar and bar.Parent then
+                            local offset = math.sin(phase * 0.5 + i) * 0.5 + 0.5
+                            local targetHeight = heights[i] + (offset * 15)
+                            bar.Size = UDim2.new(0, 10, 0, targetHeight)
+                        end
+                    end
+                else
+                    for i = 1, #SpectrumBars do
+                        local bar = SpectrumBars[i]
+                        if bar and bar.Parent then
+                            bar.Size = UDim2.new(0, 10, 0, 8)
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+-- === Tombol di Tengah (Booxbox Equiped) ===
+local function CreateMusicButton()
+    if MusicButton then return end
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "IDX_MusicButton"
+    gui.ResetOnSpawn = false
+    pcall(function()
+        gui.Parent = LocalPlayer.PlayerGui
+    end)
+    
+    local mainText = "🎵  BUKA PEMUTAR MUSIK"
+    local mainFont = Enum.Font.GothamBold
+    local mainSize = 15
+
+    local btn = Instance.new("TextButton")
+    btn.Name = "OpenButton"
+    btn.Size = UDim2.new(0, 200, 0, 50) 
+    btn.Position = UDim2.new(0.5, -100, 0.5, -25) 
+    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30) 
+    btn.BackgroundTransparency = 0.3
+    btn.Text = "" 
+    btn.Parent = gui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10) 
+    corner.Parent = btn
+    
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 255, 255)
+    stroke.Transparency = 0.8
+    stroke.Thickness = 1.5
+    stroke.Parent = btn
+    
+    local shadowText = Instance.new("TextLabel")
+    shadowText.Name = "Shadow"
+    shadowText.Size = UDim2.new(1, 0, 1, 0)
+    shadowText.Position = UDim2.new(0, 1, 0, 2) 
+    shadowText.BackgroundTransparency = 1
+    shadowText.Font = mainFont
+    shadowText.Text = mainText
+    shadowText.TextSize = mainSize
+    shadowText.TextColor3 = Color3.fromRGB(0, 0, 0) 
+    shadowText.TextTransparency = 0.6 
+    shadowText.ZIndex = 2
+    shadowText.Parent = btn
+
+    local topText = Instance.new("TextLabel")
+    topText.Name = "Top"
+    topText.Size = UDim2.new(1, 0, 1, 0)
+    topText.Position = UDim2.new(0, 0, 0, 0) 
+    topText.BackgroundTransparency = 1
+    topText.Font = mainFont
+    topText.Text = mainText
+    topText.TextSize = mainSize
+    topText.TextColor3 = Color3.fromRGB(255, 255, 255) 
+    topText.ZIndex = 3 
+    topText.Parent = btn
+
+    btn.MouseButton1Click:Connect(function()
+        ShowMusicGUI()
+    end)
+
+    MusicButton = gui
+end
+
+local function RemoveMusicButton()
+    if MusicButton then
+        MusicButton:Destroy()
+        MusicButton = nil
+    end
+    if MusicGUI then
+        SpectrumRunning = false
+        notificationCheckRunning = false -- Stop pengecekan notifikasi
+        MusicGUI:Destroy()
+        MusicGUI = nil
+        SpectrumBars = {}
+        notificationLabel = nil
+    end
+end
+
+-- Fungsi untuk membuat boombox palsu
+local function CreateFakeBoombox()
+    local char = LocalPlayer.Character
+    if not char then return end 
+
+    local animatedTorso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+    if not animatedTorso then
+        animatedTorso = char:FindFirstChild("HumanoidRootPart")
+    end
+
+    if animatedTorso and not fakeBoomboxOnBack then
+        local originalMesh = boombox:FindFirstChild("Handle"):FindFirstChild("VisualMesh")
+        if not originalMesh then return end 
+
+        local fakeMesh = originalMesh:Clone()
+        fakeMesh.Name = "FakeBoomboxOnBack"
+        fakeMesh.Parent = char 
+
+        local backWeld = Instance.new("Motor6D")
+        backWeld.Name = "BoomboxBackWeld"
+        backWeld.Part0 = animatedTorso    
+        backWeld.Part1 = fakeMesh         
+        backWeld.C0 = CFrame.new(0, -1, 1) * CFrame.Angles(0, math.rad(180), 0)
+        backWeld.Parent = animatedTorso 
+        
+        fakeBoomboxOnBack = fakeMesh
+    end
+end
+
+-- Fungsi untuk menghapus boombox palsu
+local function RemoveFakeBoombox()
+    if fakeBoomboxOnBack then
+        fakeBoomboxOnBack:Destroy()
+        fakeBoomboxOnBack = nil
+    end
+end
+
+-- Event Bawaan Tool
+boombox.Equipped:Connect(function()
+    CreateMusicButton()
+    RemoveFakeBoombox()
+end)
+
+boombox.Unequipped:Connect(function()
+    RemoveMusicButton()
+    task.wait() 
+    CreateFakeBoombox()
+end)
+
+-- Mengatur boombox palsu saat karakter spawn
+LocalPlayer.CharacterAdded:Connect(function(char)
+    RemoveFakeBoombox()
+    
+    -- Inisialisasi sound di karakter baru
+    GetCharacterSound() 
+    
+    task.wait(1) 
+    
+    if Backpack:FindFirstChild(boombox.Name) then
+        CreateFakeBoombox()
+    end
+end)
+
+-- Panggilan awal saat skrip di-load
+if LocalPlayer.Character then
+    GetCharacterSound() 
+    
+    task.wait(1)
+    if Backpack:FindFirstChild(boombox.Name) then
+        CreateFakeBoombox()
+    end
+end
+
+print("✅ Sistem pemutar musik V6.7 (Volume Slider - No Stop Error) aktif!")
