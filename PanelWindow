@@ -1,5 +1,6 @@
 -- =============================================================================================
--- WINDOWS STYLE GUI PANEL - DENGAN MENU BRING SCRIPT LOADER (FULL DENGAN PERBAIKAN ERROR SUARA)
+-- WINDOWS STYLE GUI PANEL - FINAL UPDATE (COLORFUL LOGS EDITION)
+-- FITUR: FIX ZINDEX + SLOWER TEXT + RESET ANIMATION + WARNA-WARNI ESTETIK
 -- =============================================================================================
 
 -- *********************************************************************************************
@@ -13,12 +14,12 @@ local SoundService = game:GetService("SoundService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- ** Variabel Suara ** !!! GANTI ID INI DENGAN ID AUDIO ROBLOX YANG AKTIF !!!
-local CLICK_SOUND_ID = "rbxassetid://70844388753756"   -- Contoh: Suara Klik (Ganti!)
-local HOVER_SOUND_ID = "rbxassetid://87437544236708"   -- Contoh: Suara Hover/MouseOver (Ganti!)
-local SCROLL_SOUND_ID = "rbxassetid://115916891254154"  -- Contoh: Suara Gulir (Ganti!)
+-- ** Variabel Suara **
+local CLICK_SOUND_ID = "rbxassetid://70844388753756"   
+local HOVER_SOUND_ID = "rbxassetid://87437544236708"   
+local SCROLL_SOUND_ID = "rbxassetid://115916891254154" 
 
--- ** Variabel Desain dan Ukuran **
+-- ** Variabel Desain **
 local CORNER_RADIUS = UDim.new(0, 6)   
 local PANEL_BORDER_COLOR = Color3.fromRGB(35, 35, 35) 
 local PANEL_BORDER_THICKNESS = 1      
@@ -26,7 +27,7 @@ local TITLE_BAR_HEIGHT = 40
 local BUTTON_SIZE = 40                
 local TEXT_PADDING = 10 
 
-local BACKGROUND_ASSET_ID = "rbxassetid://75384310624665"
+local BACKGROUND_ASSET_ID = "rbxassetid://75384310624665" 
 
 local defaultPanelSize = UDim2.new(0.5, 0, 0.7, 0) 
 local defaultPanelPosition = UDim2.new(0.5, 0, 0.5, 0) 
@@ -48,20 +49,19 @@ local isDragging = false
 local dragStartPos = Vector2.new(0, 0)
 local frameStartPos = UDim2.new(0, 0, 0, 0)
 
--- ** Daftar Script untuk Menu Bring **
+-- ** Daftar Script **
 local BringScripts = {
     {Name = "AntiLag", Icon = "😎", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/antilag"},
-    {Name = "Teleport Tulis", Icon = "✍️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/teleport"},
-    {Name = "Teleport Ketuk", Icon = "👇", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/teleport%20ketuk"},
-    {Name = "Teleport Dekat", Icon = "⌛️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Tptool"},
-    {Name = "Terbang", Icon = "✈️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/terbang"},
-    {Name = "Invisible & spectate", Icon = "👻", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Invisible%26Spectate"},
-    {Name = "Liat Admin", Icon = "🔍", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/liat%20admin%20dan%20owner"},
-    {Name = "Lari Cepat", Icon = "⚡️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/lari%20cepat"},
+    {Name = "Teleport Tulis", Icon = "✍️", URL = "balum"},
+    {Name = "Teleport Ketuk", Icon = "👇", URL = "balum"},
+    {Name = "Teleport Dekat", Icon = "⌛️", URL = "balum"},
+    {Name = "Terbang", Icon = "✈️", URL = "balum"},
+    {Name = "Invisible & spectate", Icon = "👻", URL = "balum"},
+    {Name = "Liat Admin", Icon = "🔍", URL = "balum"},
+    {Name = "Lari Cepat", Icon = "⚡️", URL = "balum"},
 }
 
--- ** Struktur Data Baru untuk Menu Lain **
-local MainFeatures = {
+local VisualFeatures = { 
     {Name = "Auto Farm Level", Icon = "⚙️", URL = "balum"},
     {Name = "ESP Player", Icon = "👁️", URL = "balum"},
     {Name = "No Clip", Icon = "🧱", URL = "balum"},
@@ -93,30 +93,23 @@ local ToolOwnerFeatures = {
 
 ---
 -- *********************************************************************************************
--- FUNGSI PEMBANTU SUARA (DIPERBAIKI UNTUK MENGHINDARI ERROR INDEX BOOLEAN)
+-- FUNGSI PEMBANTU SUARA
 -- *********************************************************************************************
 
 local function PlaySound(assetId, volume)
-    -- Lakukan pemeriksaan dasar untuk ID aset yang valid
     if not SoundService or not assetId or not assetId:match("rbxassetid://") then return end
     
-    -- Buat objek Sound
     local sound = Instance.new("Sound")
     sound.SoundId = assetId
     sound.Volume = volume or 0.5 
-    sound.Parent = SoundService -- Parent ke SoundService
+    sound.Parent = SoundService 
     
-    -- Gunakan event 'Ended' untuk menghapus sound setelah selesai
     local connection
     connection = sound.Ended:Connect(function()
         sound:Destroy()
-        -- Putuskan koneksi agar fungsi tidak mencoba memutuskan koneksi yang sudah terputus
-        if connection then
-            connection:Disconnect()
-        end
+        if connection then connection:Disconnect() end
     end)
     
-    -- Fallback untuk menghapus sound jika gagal dimuat/dimainkan
     task.spawn(function()
         task.wait(5)
         if sound.Parent and not sound.IsPlaying then
@@ -140,7 +133,7 @@ local BUTTON_ACTIVE_COLOR = Color3.fromRGB(80, 80, 80)
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "ExecutorPanelGUI"
 ScreenGui.IgnoreGuiInset = true
-ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global 
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
 
@@ -241,6 +234,7 @@ local CloseCorner = Instance.new("UICorner")
 CloseCorner.CornerRadius = CORNER_RADIUS
 CloseCorner.Parent = CloseButton 
 
+-- BACKGROUND IMAGE (ZINDEX = 9)
 local BackgroundImage = Instance.new("ImageLabel")
 BackgroundImage.Name = "ContentBackground"
 BackgroundImage.Size = UDim2.new(1, 0, 1, -TITLE_BAR_HEIGHT)
@@ -308,7 +302,6 @@ local function CreateMenuItem(name, text, layoutOrder)
     ItemStroke.Thickness = 0.5 
     ItemStroke.Parent = Button
 
-    -- PENAMBAHAN SUARA HOVER
     Button.MouseEnter:Connect(function()
         PlaySound(HOVER_SOUND_ID, 0.3) 
         Button:TweenBackgroundColor3(BUTTON_HOVER_COLOR, Enum.EasingDirection.Out, Enum.EasingStyle.Linear, 0.1, true)
@@ -321,7 +314,6 @@ local function CreateMenuItem(name, text, layoutOrder)
         end
     end)
     
-    -- PENAMBAHAN SUARA KLIK MENU UTAMA
     Button.MouseButton1Click:Connect(function()
         PlaySound(CLICK_SOUND_ID, 0.4) 
     end)
@@ -330,7 +322,7 @@ local function CreateMenuItem(name, text, layoutOrder)
 end
 
 local InfoBtn = CreateMenuItem("Info", "Info", 1)
-local MainBtn = CreateMenuItem("Main", "> Main", 2)
+local VisualBtn = CreateMenuItem("Visual", "Visual", 2)
 local BringBtn = CreateMenuItem("Bring", "Bring", 3)
 local TeleportBtn = CreateMenuItem("Teleport", "Teleport", 4)
 local LocalPlayerBtn = CreateMenuItem("LocalPlayer", "@LocalPlayer", 5)
@@ -367,112 +359,154 @@ end
 
 ---
 -- *********************************************************************************************
--- FUNGSI PEMBANTU UNTUK KONTEN TEKS (KHUSUS INFO)
+-- [[ UPDATE WARNA-WARNI ]] FUNGSI LOG ROLLING TEXT
 -- *********************************************************************************************
 
-local function CreateMenuContent(menuName, titleText, bodyMessage)
+local function CreateAnimatedLines(menuName, titleText, lineDataList)
     local ContentFrame = Instance.new("Frame")
-    ContentFrame.Name = menuName .. "Content" 
+    ContentFrame.Name = menuName .. "Content"
     ContentFrame.Size = UDim2.new(1, 0, 1, 0)
     ContentFrame.Position = UDim2.new(0, 0, 0, 0)
-    ContentFrame.BackgroundTransparency = 1 
-    ContentFrame.Visible = false 
+    ContentFrame.BackgroundTransparency = 1
+    ContentFrame.Visible = false
     ContentFrame.Parent = MainContentFrame
 
-    local TextBoxBg = Instance.new("ScrollingFrame")
+    local TextBoxBg = Instance.new("Frame")
     TextBoxBg.Name = "TextBoxBackground"
     TextBoxBg.Size = UDim2.new(1, -20, 1, -20)
     TextBoxBg.Position = UDim2.new(0, 10, 0, 10)
-    TextBoxBg.BackgroundColor3 = CONTENT_BG_COLOR
-    TextBoxBg.BackgroundTransparency = currentTextBoxTransparency
+    TextBoxBg.BackgroundColor3 = Color3.new(0, 0, 0)
+    TextBoxBg.BackgroundTransparency = currentTextBoxTransparency 
     TextBoxBg.BorderSizePixel = 0
-    TextBoxBg.ZIndex = 11
-    
-    TextBoxBg.CanvasSize = UDim2.new(0, 0, 0, 0) 
-    TextBoxBg.AutomaticCanvasSize = Enum.AutomaticSize.Y 
-    TextBoxBg.ScrollBarThickness = 6
-    TextBoxBg.ScrollingDirection = Enum.ScrollingDirection.Y
+    TextBoxBg.ClipsDescendants = true 
+    TextBoxBg.ZIndex = 12
     TextBoxBg.Parent = ContentFrame
-    
+
     local TextBoxCorner = Instance.new("UICorner")
-    TextBoxCorner.CornerRadius = CORNER_RADIUS
+    TextBoxCorner.CornerRadius = CORNER_RADIUS 
     TextBoxCorner.Parent = TextBoxBg
-    
+
+    -- Judul Tetap
     local TitleLabel = Instance.new("TextLabel")
     TitleLabel.Name = "ContentTitle"
-    TitleLabel.Size = UDim2.new(1, 0, 0, 30)
-    TitleLabel.Position = UDim2.new(0, 0, 0, 0)
+    TitleLabel.Size = UDim2.new(1, 0, 0, 40)
     TitleLabel.Text = titleText
     TitleLabel.Font = Enum.Font.SourceSansBold
     TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    TitleLabel.TextSize = 18
+    TitleLabel.TextSize = 22
     TitleLabel.BackgroundTransparency = 1
-    TitleLabel.TextXAlignment = Enum.TextXAlignment.Center
-    TitleLabel.ZIndex = 12
-    TitleLabel.Parent = TextBoxBg 
+    TitleLabel.ZIndex = 13 
+    TitleLabel.Parent = TextBoxBg
 
-    local InfoLayout = Instance.new("UIListLayout")
-    InfoLayout.Padding = UDim.new(0, 5)
-    InfoLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    InfoLayout.VerticalAlignment = Enum.VerticalAlignment.Top
-    InfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    InfoLayout.Parent = TextBoxBg 
+    -- Container Khusus Baris Teks
+    local LinesContainer = Instance.new("Frame")
+    LinesContainer.Name = "LinesContainer"
+    LinesContainer.Size = UDim2.new(1, -20, 1, -50) 
+    LinesContainer.Position = UDim2.new(0, 10, 0, 50)
+    LinesContainer.BackgroundTransparency = 1
+    LinesContainer.ZIndex = 13
+    LinesContainer.Parent = TextBoxBg
 
-    local InfoSpacer = Instance.new("Frame")
-    InfoSpacer.Name = "Spacer"
-    InfoSpacer.Size = UDim2.new(1, 0, 0, 10) -- Jarak antara judul dan body
-    InfoSpacer.BackgroundTransparency = 1
-    InfoSpacer.LayoutOrder = 1
-    InfoSpacer.Parent = TextBoxBg
-    
-    local BodyLabel = Instance.new("TextLabel")
-    BodyLabel.Name = "ContentBody"
-    BodyLabel.Size = UDim2.new(1, -20, 0, 0) 
-    BodyLabel.AutomaticSize = Enum.AutomaticSize.Y 
-    BodyLabel.Text = bodyMessage
-    BodyLabel.Font = Enum.Font.SourceSans
-    BodyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    BodyLabel.TextSize = 14
-    BodyLabel.BackgroundTransparency = 1
-    BodyLabel.TextWrapped = true
-    BodyLabel.TextXAlignment = Enum.TextXAlignment.Left
-    BodyLabel.TextYAlignment = Enum.TextYAlignment.Top
-    BodyLabel.ZIndex = 12
-    BodyLabel.LayoutOrder = 2
-    BodyLabel.Parent = TextBoxBg 
-    
-    local BodyPadding = Instance.new("UIPadding")
-    BodyPadding.PaddingLeft = UDim.new(0, 10)
-    BodyPadding.PaddingRight = UDim.new(0, 10)
-    BodyPadding.Parent = BodyLabel
-    
+    local ListLayout = Instance.new("UIListLayout")
+    ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    ListLayout.Padding = UDim.new(0, 5) 
+    ListLayout.VerticalAlignment = Enum.VerticalAlignment.Top 
+    ListLayout.Parent = LinesContainer
+
+    -- LOGIKA ANIMASI UTAMA (RESET + WARNA-WARNI)
+    task.spawn(function()
+        while ContentFrame.Parent do
+            
+            -- [1] CEK APAKAH TAB INFO SEDANG AKTIF?
+            if not ContentFrame.Visible then
+                for _, c in pairs(LinesContainer:GetChildren()) do
+                    if c:IsA("TextLabel") then c:Destroy() end
+                end
+                task.wait(0.5)
+                continue 
+            end
+
+            -- [2] RESET BERSIH SAAT DIBUKA
+            for _, c in pairs(LinesContainer:GetChildren()) do
+                if c:IsA("TextLabel") then c:Destroy() end
+            end
+            
+            local layoutOrderCounter = 0
+
+            for _, data in ipairs(lineDataList) do
+                if not ContentFrame.Parent then break end
+                if not ContentFrame.Visible then break end
+
+                -- Hapus baris lama jika > 3
+                local activeLabels = {}
+                for _, child in pairs(LinesContainer:GetChildren()) do
+                    if child:IsA("TextLabel") then
+                        table.insert(activeLabels, child)
+                    end
+                end
+                table.sort(activeLabels, function(a,b) return a.LayoutOrder < b.LayoutOrder end)
+                if #activeLabels >= 3 then
+                    if activeLabels[1] then activeLabels[1]:Destroy() end
+                end
+
+                -- Buat Baris Baru
+                layoutOrderCounter = layoutOrderCounter + 1
+                
+                local LineLabel = Instance.new("TextLabel")
+                LineLabel.Name = "Line_" .. layoutOrderCounter
+                LineLabel.Size = UDim2.new(1, 0, 0, 30)
+                LineLabel.BackgroundTransparency = 1
+                
+                -- [[ SET WARNA DARI DATA ]]
+                LineLabel.TextColor3 = data.Color -- Mengambil warna dari table
+                
+                LineLabel.TextSize = 26 
+                LineLabel.Font = Enum.Font.SourceSansBold
+                LineLabel.TextXAlignment = Enum.TextXAlignment.Left
+                LineLabel.TextYAlignment = Enum.TextYAlignment.Center
+                LineLabel.Text = "" 
+                LineLabel.LayoutOrder = layoutOrderCounter
+                LineLabel.ZIndex = 15 
+                LineLabel.Parent = LinesContainer
+
+                -- Efek Typewriter
+                local textToType = data.Text -- Mengambil teks dari table
+                for i = 1, #textToType do
+                    if not ContentFrame.Visible then break end
+                    LineLabel.Text = textToType:sub(1, i)
+                    task.wait(0.05) 
+                end
+                
+                if not ContentFrame.Visible then break end
+                
+                task.wait(1) 
+            end
+            
+            if ContentFrame.Visible then
+                task.wait(2)
+            end
+        end
+    end)
+
     return ContentFrame
 end
 
-
 ---
 -- *********************************************************************************************
--- FUNGSI PEMBANTU UNTUK KONTEN BERBASIS TOMBOL (MENU SCRIPT LOADER)
+-- FUNGSI PEMBANTU UNTUK KONTEN BERBASIS TOMBOL
 -- *********************************************************************************************
 
--- Fungsi untuk load script
 local function loadScript(url, scriptName)
     local success, result = pcall(function()
-        -- Menggunakan game:HttpGet sebagai fungsi untuk mendapatkan script dari URL
         return loadstring(game:HttpGet(url, true))() 
     end)
     
     if success then
         print("✅ Script berhasil dimuat: " .. scriptName)
-        
-        -- !!! SCRIPT BARU DITAMBAHKAN DI SINI !!!
-        -- Perintah untuk menutup atau menghapus GUI utama
         if ScreenGui then
             ScreenGui:Destroy()
             print("✅ GUI Utama berhasil ditutup setelah loadscript berhasil.")
         end
-        -- !!! AKHIR SCRIPT BARU !!!
-        
     else
         warn("❌ Gagal memuat script: " .. scriptName)
         warn("Error: " .. tostring(result))
@@ -495,7 +529,7 @@ local function CreateButtonContent(menuName, titleText, scriptList)
     TextBoxBg.BackgroundColor3 = CONTENT_BG_COLOR
     TextBoxBg.BackgroundTransparency = currentTextBoxTransparency
     TextBoxBg.BorderSizePixel = 0
-    TextBoxBg.ZIndex = 11
+    TextBoxBg.ZIndex = 12 
     TextBoxBg.CanvasSize = UDim2.new(0, 0, 0, 0)
     TextBoxBg.AutomaticCanvasSize = Enum.AutomaticSize.Y
     TextBoxBg.ScrollBarThickness = 6
@@ -515,11 +549,11 @@ local function CreateButtonContent(menuName, titleText, scriptList)
     TitleLabel.TextSize = 18
     TitleLabel.BackgroundTransparency = 1
     TitleLabel.TextXAlignment = Enum.TextXAlignment.Center
-    TitleLabel.ZIndex = 12
+    TitleLabel.ZIndex = 13 
     TitleLabel.Parent = TextBoxBg
 
     local ScriptLayout = Instance.new("UIListLayout")
-    ScriptLayout.Padding = UDim.new(0, 4) -- Jarak antar tombol 
+    ScriptLayout.Padding = UDim.new(0, 4) 
     ScriptLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     ScriptLayout.VerticalAlignment = Enum.VerticalAlignment.Top
     ScriptLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -527,12 +561,11 @@ local function CreateButtonContent(menuName, titleText, scriptList)
 
     local Spacer = Instance.new("Frame")
     Spacer.Name = "Spacer"
-    Spacer.Size = UDim2.new(1, 0, 0, 10) -- Jarak antara judul dan tombol
+    Spacer.Size = UDim2.new(1, 0, 0, 10)
     Spacer.BackgroundTransparency = 1
     Spacer.LayoutOrder = 1
     Spacer.Parent = TextBoxBg
 
-    -- Buat tombol untuk setiap fitur/script
     for i, scriptData in ipairs(scriptList) do
         local ScriptButton = Instance.new("TextButton")
         ScriptButton.Name = "Script_" .. i
@@ -545,7 +578,7 @@ local function CreateButtonContent(menuName, titleText, scriptList)
         ScriptButton.TextColor3 = Color3.fromRGB(255, 255, 255)
         ScriptButton.TextSize = 16
         ScriptButton.TextXAlignment = Enum.TextXAlignment.Left
-        ScriptButton.ZIndex = 12
+        ScriptButton.ZIndex = 14 
         ScriptButton.LayoutOrder = i + 1
         ScriptButton.Parent = TextBoxBg
 
@@ -562,7 +595,6 @@ local function CreateButtonContent(menuName, titleText, scriptList)
         ButtonStroke.Thickness = 1
         ButtonStroke.Parent = ScriptButton
 
-        -- Hover effect
         ScriptButton.MouseEnter:Connect(function()
             PlaySound(HOVER_SOUND_ID, 0.3)
             ScriptButton:TweenBackgroundColor3(Color3.fromRGB(60, 60, 60), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
@@ -572,15 +604,11 @@ local function CreateButtonContent(menuName, titleText, scriptList)
             ScriptButton:TweenBackgroundColor3(Color3.fromRGB(40, 40, 40), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
         end)
 
-        -- Load script saat diklik (DITAMBAHKAN SUARA KLIK)
         ScriptButton.MouseButton1Click:Connect(function()
             PlaySound(CLICK_SOUND_ID, 0.6) 
             ScriptButton.Text = "⏳ Loading..."
-            -- Call loadScript (fungsi loadScript sekarang memiliki logic penutupan GUI)
             loadScript(scriptData.URL, scriptData.Name)
             wait(0.5)
-            -- Catatan: Jika script di atas berhasil, baris di bawah ini TIDAK AKAN dieksekusi 
-            -- karena ScreenGui:Destroy() akan menghentikan skrip GUI ini.
             ScriptButton.Text = scriptData.Icon .. "  " .. scriptData.Name 
         end)
     end
@@ -588,36 +616,35 @@ local function CreateButtonContent(menuName, titleText, scriptList)
     return ContentFrame
 end
 
-
 ---
 -- *********************************************************************************************
 -- 3. INICIALISASI KONTEN MENU
 -- *********************************************************************************************
 
--- Konten Info (MENGGUNAKAN FUNGSI TEKS)
-local InfoContent = CreateMenuContent("Info", "INFORMASI PANEL EXECUTOR", 
-"Selamat datang di Foxname Executor. \n\nPanel ini dibuat oleh Cáo Mod untuk menyediakan akses cepat ke berbagai fitur game dan skrip. \n\nFitur-fitur utama diatur per kategori: \n\n- **Main:** Fitur inti seperti Auto Farm dan ESP. \n- **Bring:** Pemuat skrip khusus dari URL eksternal. \n- **Teleport:** Opsi pergerakan dan navigasi cepat. \n- **@LocalPlayer:** Modifikasi karakter lokal (God Mode, Speed). \n- **Mis & ToolOwner:** Fitur tambahan dan kontrol lingkungan. \n- **Settings:** Pengaturan tampilan (transparansi, dll.).")
+-- [[ DATA INFO DENGAN WARNA BERBEDA SETIAP BARIS ]]
+-- Anda bisa mengubah warna (Color) sesuka hati dengan Color3.fromRGB(R, G, B)
+local InfoLinesData = {
+    {Text = "Selamat Datang", Color = Color3.fromRGB(0, 255, 0)}, -- Hijau Matrix
+    {Text = "Script Ini Masih", Color = Color3.fromRGB(0, 255, 255)},      -- Cyan Neon
+    {Text = "Dalam Tahap Perkembangan", Color = Color3.fromRGB(255, 255, 0)}, -- Kuning
+    --{Text = "Dalam Tahap Perkembangan", Color = Color3.fromRGB(255, 0, 255)},        -- Magenta/Pink
+    --{Text = "", Color = Color3.fromRGB(50, 255, 50)},     -- Hijau Terang
+   --{Text = "> Check 'Bring' Menu", Color = Color3.fromRGB(255, 165, 0)}, -- Oranye
+    --{Text = "> Check 'Visual' Menu", Color = Color3.fromRGB(255, 100, 100)}, -- Merah Muda
+    --{Text = "> Have Fun Cheating!", Color = Color3.fromRGB(150, 100, 255)}, -- Ungu
+    --{Text = "> System Ready.", Color = Color3.fromRGB(255, 255, 255)}     -- Putih
+}
+
+local InfoContent = CreateAnimatedLines("Info", "INFO LOG", InfoLinesData)
     
--- Konten Main (Menggunakan CreateButtonContent)
-local MainContent = CreateButtonContent("Main", "MAIN FEATURES", MainFeatures)
-
--- Konten Bring (Menggunakan CreateButtonContent)
+local VisualContent = CreateButtonContent("Visual", "Visual(Hanya Tampilan)", VisualFeatures)
 local BringContent = CreateButtonContent("Bring", "BRING - SCRIPT LOADER", BringScripts)
-
--- Konten Teleport (Menggunakan CreateButtonContent)
 local TeleportContent = CreateButtonContent("Teleport", "MOVEMENT - TELEPORT", TeleportOptions)
-
--- Konten LocalPlayer (Menggunakan CreateButtonContent)
 local LocalPlayerContent = CreateButtonContent("LocalPlayer", "PLAYER MODIFICATION (@LOCALPLAYER)", LocalPlayerMods)
-
--- Konten Mis (Menggunakan CreateButtonContent)
 local MisContent = CreateButtonContent("Mis", "MISCELLANEOUS (LAIN-LAIN)", MisFeatures)
-
--- Konten ToolOwner (Menggunakan CreateButtonContent)
 local ToolOwnerContent = CreateButtonContent("ToolOwner", "ToolOwner", ToolOwnerFeatures)
 
-
--- KONTEN SETTINGS - INI ADALAH KODE LAMA UNTUK MENGINISIALISASI FRAME KOSONG UNTUK SLIDER
+-- KONTEN SETTINGS
 local SettingsContent = Instance.new("Frame")
 SettingsContent.Name = "SettingsContent"
 SettingsContent.Size = UDim2.new(1, 0, 1, 0)
@@ -633,7 +660,7 @@ SettingsBoxBg.Position = UDim2.new(0, 10, 0, 10)
 SettingsBoxBg.BackgroundColor3 = CONTENT_BG_COLOR
 SettingsBoxBg.BackgroundTransparency = currentTextBoxTransparency
 SettingsBoxBg.BorderSizePixel = 0
-SettingsBoxBg.ZIndex = 11
+SettingsBoxBg.ZIndex = 12 
 SettingsBoxBg.CanvasSize = UDim2.new(0, 0, 0, 0)
 SettingsBoxBg.AutomaticCanvasSize = Enum.AutomaticSize.Y
 SettingsBoxBg.ScrollBarThickness = 6
@@ -644,10 +671,9 @@ local SettingsTextBoxCorner = Instance.new("UICorner")
 SettingsTextBoxCorner.CornerRadius = CORNER_RADIUS
 SettingsTextBoxCorner.Parent = SettingsBoxBg
 
-
 -- Hubungkan tombol menu
 InfoBtn.MouseButton1Click:Connect(function() activateMenu("Info") end)
-MainBtn.MouseButton1Click:Connect(function() activateMenu("Main") end)
+VisualBtn.MouseButton1Click:Connect(function() activateMenu("Visual") end)
 BringBtn.MouseButton1Click:Connect(function() activateMenu("Bring") end)
 TeleportBtn.MouseButton1Click:Connect(function() activateMenu("Teleport") end)
 LocalPlayerBtn.MouseButton1Click:Connect(function() activateMenu("LocalPlayer") end)
@@ -657,7 +683,7 @@ SettingsBtn.MouseButton1Click:Connect(function() activateMenu("Settings") end)
 
 ---
 -- *********************************************************************************************
--- 4. FUNGSIONALITAS DRAGGABLE (TIDAK BERUBAH)
+-- 4. FUNGSIONALITAS DRAGGABLE
 -- *********************************************************************************************
 
 local function onInputBegan(input, source)
@@ -695,7 +721,7 @@ UserInputService.InputEnded:Connect(onInputEnded)
 
 ---
 -- *********************************************************************************************
--- 5. LOGIKA RUNNING TEXT (MARQUEE) (TIDAK BERUBAH)
+-- 5. LOGIKA RUNNING TEXT (MARQUEE)
 -- *********************************************************************************************
 
 local marqueeConnection = nil
@@ -843,7 +869,7 @@ end)
 
 ---
 -- *********************************************************************************************
--- 7. FUNGSI SLIDER KUSTOM (TIDAK BERUBAH)
+-- 7. FUNGSI SLIDER KUSTOM
 -- *********************************************************************************************
 
 local function CreateSliderBackground(parent, name, title, initialValue)
@@ -851,6 +877,7 @@ local function CreateSliderBackground(parent, name, title, initialValue)
     SliderContainer.Name = name .. "Container"
     SliderContainer.Size = UDim2.new(1, 0, 0, 50)
     SliderContainer.BackgroundTransparency = 1
+    SliderContainer.ZIndex = 12
     SliderContainer.Parent = parent
     
     local SliderTitle = Instance.new("TextLabel")
@@ -863,7 +890,7 @@ local function CreateSliderBackground(parent, name, title, initialValue)
     SliderTitle.TextSize = 14
     SliderTitle.BackgroundTransparency = 1
     SliderTitle.TextXAlignment = Enum.TextXAlignment.Left
-    SliderTitle.ZIndex = 12
+    SliderTitle.ZIndex = 13
     SliderTitle.Parent = SliderContainer
 
     local TitlePadding = Instance.new("UIPadding")
@@ -877,7 +904,7 @@ local function CreateSliderBackground(parent, name, title, initialValue)
     SliderBarBackground.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     SliderBarBackground.BackgroundTransparency = 0
     SliderBarBackground.BorderSizePixel = 0
-    SliderBarBackground.ZIndex = 12
+    SliderBarBackground.ZIndex = 13
     SliderBarBackground.Active = true
     SliderBarBackground.Parent = SliderContainer
     
@@ -891,7 +918,7 @@ local function CreateSliderBackground(parent, name, title, initialValue)
     SliderBarValue.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
     SliderBarValue.BackgroundTransparency = 0
     SliderBarValue.BorderSizePixel = 0
-    SliderBarValue.ZIndex = 13
+    SliderBarValue.ZIndex = 14
     SliderBarValue.Parent = SliderBarBackground
     
     local ValueCorner = Instance.new("UICorner")
@@ -906,7 +933,7 @@ local function CreateSliderBackground(parent, name, title, initialValue)
     SliderHandle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     SliderHandle.BackgroundTransparency = 0
     SliderHandle.BorderSizePixel = 0
-    SliderHandle.ZIndex = 14
+    SliderHandle.ZIndex = 15
     SliderHandle.Active = true
     SliderHandle.Parent = SliderBarBackground
     
@@ -968,13 +995,11 @@ end
 
 ---
 -- *********************************************************************************************
--- 8. PENGATURAN KONTEN SETTINGS (INTEGRASI SLIDER)
+-- 8. PENGATURAN KONTEN SETTINGS
 -- *********************************************************************************************
 
--- Mengambil objek SettingsBoxBg yang sudah dibuat di bagian inisialisasi konten
 local SettingsBoxBg = SettingsContent:FindFirstChild("TextBoxBackground")
 
--- Membersihkan konten lama sebelum menambahkan slider
 for _, child in pairs(SettingsBoxBg:GetChildren()) do
     child:Destroy()
 end
@@ -989,7 +1014,7 @@ SettingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 SettingsTitle.TextSize = 18
 SettingsTitle.BackgroundTransparency = 1
 SettingsTitle.TextXAlignment = Enum.TextXAlignment.Center
-SettingsTitle.ZIndex = 12
+SettingsTitle.ZIndex = 13
 SettingsTitle.Parent = SettingsBoxBg
 
 local SliderLayout = Instance.new("UIListLayout")
@@ -1074,39 +1099,30 @@ activateMenu("Info")
 
 ---
 -- *********************************************************************************************
--- 10. FUNGSIONALITAS SUARA GULIR (DITAMBAHKAN)
+-- 10. FUNGSIONALITAS SUARA GULIR
 -- *********************************************************************************************
 
-local SCROLL_COOLDOWN = 0.1 -- Batasi suara gulir dimainkan setiap 0.1 detik
+local SCROLL_COOLDOWN = 0.1 
 local scrollDebounce = false
 
 local function setupScrollSound(scrollingFrame)
     local lastCanvasPosition = scrollingFrame.CanvasPosition
     
     scrollingFrame:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-        -- Hanya putar suara jika posisi kanvas benar-benar berubah
         if (scrollingFrame.CanvasPosition.Y - lastCanvasPosition.Y) ~= 0 then
-            
             if not scrollDebounce then
                 scrollDebounce = true
-                
-                -- Putar suara gulir (volume lebih rendah)
                 PlaySound(SCROLL_SOUND_ID, 0.2) 
-                
-                -- Reset debounce setelah cooldown
                 task.wait(SCROLL_COOLDOWN)
                 scrollDebounce = false
             end
-
             lastCanvasPosition = scrollingFrame.CanvasPosition
         end
     end)
 end
 
--- Terapkan suara gulir ke SidebarMenu
 setupScrollSound(SidebarFrame)
 
--- Terapkan suara gulir ke semua konten scrolling (termasuk SettingsBoxBg)
 for _, childContent in pairs(MainContentFrame:GetChildren()) do
     if childContent:IsA("Frame") and childContent.Name:match("Content$") then
         local contentBg = childContent:FindFirstChild("TextBoxBackground")
@@ -1116,11 +1132,9 @@ for _, childContent in pairs(MainContentFrame:GetChildren()) do
     end
 end
 
-
 ---
 -- *********************************************************************************************
 -- 11. AKHIR SKRIP
 -- *********************************************************************************************
 
-print("✅ Panel Executor dengan Menu Bring Script Loader berhasil dimuat!")
-print("📋 Total script tersedia: " .. #BringScripts)
+print("✅ Panel Executor WARNA-WARNI ESTETIK berhasil dimuat!")
