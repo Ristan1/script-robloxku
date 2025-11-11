@@ -658,8 +658,3 @@ return {
     close = killLogger 
 }
 
-    addLog = addLog,
-    clearLogs = clearLogs,
-    minimize = function() minimizeBtn.MouseButton1Click:Fire() end,
-    close = function() closeBtn.MouseButton1Click:Fire() end
-}
