@@ -1,0 +1,172 @@
+-- Script Auto Equip Crown + Thin Rainbow Fire Low & Slow (Blue Dominant)
+-- Paste script ini ke executor Anda
+
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local head = character:WaitForChild("Head")
+
+-- Fungsi untuk membersihkan mahkota lama
+local function cleanOldCrown()
+    for _, child in pairs(head:GetChildren()) do
+        if child.Name == "CustomCrown" or child.Name == "CrownHandle" then
+            child:Destroy()
+        end
+    end
+    for _, child in pairs(character:GetChildren()) do
+        if child.Name == "CustomCrown" then
+            child:Destroy()
+        end
+    end
+end
+
+cleanOldCrown()
+wait(0.5)
+
+-- Buat Accessory untuk mahkota
+local crown = Instance.new("Accessory")
+crown.Name = "CustomCrown"
+
+-- Buat Handle
+local handle = Instance.new("Part")
+handle.Name = "Handle"
+handle.Size = Vector3.new(2, 2, 2)
+handle.Transparency = 0
+handle.CanCollide = false
+handle.Massless = true
+handle.TopSurface = Enum.SurfaceType.Smooth
+handle.BottomSurface = Enum.SurfaceType.Smooth
+handle.Parent = crown
+
+-- Buat SpecialMesh untuk mahkota
+local mesh = Instance.new("SpecialMesh")
+mesh.MeshType = Enum.MeshType.FileMesh
+mesh.MeshId = "rbxassetid://10138606900"
+mesh.TextureId = "rbxassetid://10138606949"
+mesh.Scale = Vector3.new(2.0, 2.0, 2.0)
+mesh.Parent = handle
+
+-- Buat Attachment untuk HatAttachment
+local hatAttachment = Instance.new("Attachment")
+hatAttachment.Name = "HatAttachment"
+hatAttachment.Position = Vector3.new(0, 0, 0)
+hatAttachment.Parent = handle
+
+-- EFEK API TIPIS RAINBOW (DOMINAN BIRU) - RENDAH, LAMBAT & SANGAT SEMPIT
+-- Buat ParticleEmitter untuk efek api tipis rainbow
+local particle = Instance.new("ParticleEmitter")
+particle.Name = "RainbowFire"
+particle.Texture = "rbxasset://textures/particles/smoke_main.dds"
+
+-- Rainbow gradient dengan dominan biru
+particle.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 150, 255)),      -- Biru terang
+    ColorSequenceKeypoint.new(0.2, Color3.fromRGB(100, 200, 255)),  -- Cyan
+    ColorSequenceKeypoint.new(0.4, Color3.fromRGB(150, 100, 255)),  -- Ungu
+    ColorSequenceKeypoint.new(0.6, Color3.fromRGB(255, 100, 200)),  -- Pink
+    ColorSequenceKeypoint.new(0.8, Color3.fromRGB(100, 255, 255)),  -- Cyan terang
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 100, 255))       -- Biru gelap
+}
+
+-- Ukuran tebal
+particle.Size = NumberSequence.new{
+    NumberSequenceKeypoint.new(0, 0.5),
+    NumberSequenceKeypoint.new(0.5, 0.6),
+    NumberSequenceKeypoint.new(1, 0.3)
+}
+
+-- Transparansi untuk efek halus
+particle.Transparency = NumberSequence.new{
+    NumberSequenceKeypoint.new(0, 0.2),
+    NumberSequenceKeypoint.new(0.5, 0.4),
+    NumberSequenceKeypoint.new(1, 1)
+}
+
+particle.Lifetime = NumberRange.new(0.8, 1.2)
+particle.Rate = 80
+particle.Speed = NumberRange.new(0.8, 1.5)
+particle.SpreadAngle = Vector2.new(0.5, 0.5)  -- SANGAT SEMPIT dari 2
+particle.Acceleration = Vector3.new(0, 1.5, 0)
+particle.VelocityInheritance = 0.1  -- Kurangi inheritance
+particle.RotSpeed = NumberRange.new(-50, 50)
+particle.Rotation = NumberRange.new(0, 360)
+particle.Parent = handle
+
+-- ParticleEmitter kedua untuk efek berlapis
+local particle2 = Instance.new("ParticleEmitter")
+particle2.Name = "RainbowFire2"
+particle2.Texture = "rbxasset://textures/particles/smoke_main.dds"
+
+-- Rainbow dengan lebih banyak biru
+particle2.Color = ColorSequence.new{
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(50, 200, 255)),
+    ColorSequenceKeypoint.new(0.3, Color3.fromRGB(100, 150, 255)),
+    ColorSequenceKeypoint.new(0.7, Color3.fromRGB(200, 100, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 150, 255))
+}
+
+particle2.Size = NumberSequence.new{
+    NumberSequenceKeypoint.new(0, 0.4),
+    NumberSequenceKeypoint.new(0.5, 0.45),
+    NumberSequenceKeypoint.new(1, 0.25)
+}
+
+particle2.Transparency = NumberSequence.new{
+    NumberSequenceKeypoint.new(0, 0.3),
+    NumberSequenceKeypoint.new(1, 1)
+}
+
+particle2.Lifetime = NumberRange.new(0.6, 1)
+particle2.Rate = 60
+particle2.Speed = NumberRange.new(1, 2)
+particle2.SpreadAngle = Vector2.new(0.3, 0.3)  -- SANGAT SEMPIT dari 1.5
+particle2.Acceleration = Vector3.new(0, 1.8, 0)
+particle2.VelocityInheritance = 0.1  -- Kurangi inheritance
+particle2.RotSpeed = NumberRange.new(-40, 40)
+particle2.Rotation = NumberRange.new(0, 360)
+particle2.Parent = handle
+
+-- Tambahkan PointLight biru untuk cahaya
+local light = Instance.new("PointLight")
+light.Name = "RainbowLight"
+light.Color = Color3.fromRGB(100, 180, 255)
+light.Brightness = 2
+light.Range = 12
+light.Parent = handle
+
+-- Parent ke character
+crown.Parent = character
+
+-- Tunggu untuk attach
+wait(0.1)
+
+-- Manual Weld jika tidak auto-attach
+if handle.Parent and not handle:FindFirstChild("AccessoryWeld") then
+    local weld = Instance.new("Weld")
+    weld.Name = "AccessoryWeld"
+    weld.Part0 = handle
+    weld.Part1 = head
+    weld.C0 = CFrame.new(0, -0.8, 0)
+    weld.C1 = CFrame.new(0, 0, 0)
+    weld.Parent = handle
+end
+
+-- Animasi warna cahaya rainbow
+spawn(function()
+    local colors = {
+        Color3.fromRGB(100, 180, 255), -- Biru
+        Color3.fromRGB(150, 150, 255), -- Ungu-biru
+        Color3.fromRGB(200, 120, 255), -- Ungu
+        Color3.fromRGB(255, 130, 200), -- Pink
+        Color3.fromRGB(120, 200, 255), -- Cyan
+    }
+    local index = 1
+    while handle and handle.Parent do
+        light.Color = colors[index]
+        index = index + 1
+        if index > #colors then index = 1 end
+        wait(0.3)
+    end
+end)
+
+print("✅ Mahkota + Api Rainbow Sangat Sempit berhasil dipasang!")
+print("🔥 Api sekarang sangat sempit dan tidak melebihi kepala!")
