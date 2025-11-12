@@ -1,6 +1,8 @@
 -- =============================================================================================
--- WINDOWS STYLE GUI PANEL - FINAL UPDATE (COLORFUL LOGS EDITION)
--- FITUR: FIX ZINDEX + SLOWER TEXT + RESET ANIMATION + WARNA-WARNI ESTETIK
+-- WINDOWS STYLE GUI PANEL - FINAL UPDATE (MEMORY MINIMIZE POSITION)
+-- FITUR:
+-- 1. Unminimize -> Selalu ke Tengah (Center).
+-- 2. Minimize -> Mengingat posisi TERAKHIR bar kecil diletakkan.
 -- =============================================================================================
 
 -- *********************************************************************************************
@@ -21,14 +23,16 @@ local SCROLL_SOUND_ID = "rbxassetid://115916891254154"
 
 -- ** Variabel Desain **
 local CORNER_RADIUS = UDim.new(0, 6)   
-local PANEL_BORDER_COLOR = Color3.fromRGB(35, 35, 35) 
+local PANEL_BORDER_COLOR = Color3.fromRGB(45, 45, 45)
 local PANEL_BORDER_THICKNESS = 1      
 local TITLE_BAR_HEIGHT = 40           
+local SIDEBAR_WIDTH_SCALE = 0.25      
 local BUTTON_SIZE = 40                
 local TEXT_PADDING = 10 
 
 local BACKGROUND_ASSET_ID = "rbxassetid://75384310624665" 
 
+-- POSISI DEFAULT
 local defaultPanelSize = UDim2.new(0.5, 0, 0.7, 0) 
 local defaultPanelPosition = UDim2.new(0.5, 0, 0.5, 0) 
 local fullscreenPanelSize = UDim2.new(1, 0, 1, 0)
@@ -37,10 +41,12 @@ local TOTAL_BUTTON_WIDTH = BUTTON_SIZE * 4
 local minimizePanelSize = UDim2.new(0, TOTAL_BUTTON_WIDTH, 0, TITLE_BAR_HEIGHT) 
 
 -- ** Variabel Transparansi **
-local currentSidebarTransparency = 1
+local currentMainPanelTransparency = 1   
+local currentImageBackgroundOpacity = 0.0 
+local currentSidebarTransparency = 0.5 
 local currentMenuItemTransparency = 0.5
 local currentContentTransparency = 1 
-local currentTextBoxTransparency = 0.5
+local currentTextBoxTransparency = 0.5 
 
 -- ** Variabel State **
 local isMinimized = false
@@ -48,6 +54,12 @@ local isFullscreen = false
 local isDragging = false
 local dragStartPos = Vector2.new(0, 0)
 local frameStartPos = UDim2.new(0, 0, 0, 0)
+
+-- [BARU] Variabel untuk menyimpan posisi terakhir minimize
+local lastMinimizePosition = nil 
+
+-- [BARU] Variabel untuk menyimpan koneksi global yang perlu diputus
+local activeConnections = {}
 
 -- ** Daftar Script **
 local BringScripts = {
@@ -64,7 +76,6 @@ local BringScripts = {
 local VisualFeatures = { 
     {Name = "Boombox", Icon = "", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/BoomboxKu"},
     {Name = "Mahkota", Icon = "", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/MahkotaKu"},
-    --{Name = "No Clip", Icon = "🧱", URL = "balum"},
 }
 
 local TeleportOptions = {
@@ -122,7 +133,7 @@ end
 
 ---
 -- *********************************************************************************************
--- 2. KONSTRUKSI GUI
+-- 2. KONSTRUKSI GUI (Deklarasi Variabel GUI dulu)
 -- *********************************************************************************************
 
 local CONTENT_BG_COLOR = Color3.new(0, 0, 0)
@@ -137,17 +148,66 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
 
+-- Deklarasi marqueeConnection di sini agar bisa diakses ShutdownScript
+local marqueeConnection = nil
+
+---
+-- *********************************************************************************************
+-- [BARU] FUNGSI SHUTDOWN GLOBAL
+-- *********************************************************************************************
+
+-- Fungsi ini harus didefinisikan SEBELUM tombol close atau loadScript menggunakannya
+-- Tapi SETELAH ScreenGui dan activeConnections didefinisikan.
+
+local function stopMarquee()
+    if marqueeConnection then
+        marqueeConnection:Cancel()
+        marqueeConnection = nil
+    end
+    -- Pengaturan ulang TitleLabel juga dilakukan di sini jika perlu,
+    -- tapi karena GUI akan di-destroy, ini tidak wajib.
+end
+
+local function ShutdownScript()
+    print("Shutting down GUI and all connections...")
+    
+    -- 1. Hentikan marquee
+    stopMarquee()
+    
+    -- 2. Putuskan semua koneksi global (UserInputService, etc.)
+    for _, connection in ipairs(activeConnections) do
+        if connection then
+            connection:Disconnect()
+        end
+    end
+    table.clear(activeConnections)
+    
+    -- 3. Hancurkan GUI (ini akan memutus semua koneksi internal GUI secara otomatis)
+    if ScreenGui and ScreenGui.Parent then
+        ScreenGui:Destroy()
+    end
+    
+    print("Shutdown complete.")
+end
+
+
+---
+-- *********************************************************************************************
+-- 2. LANJUTAN KONSTRUKSI GUI
+-- *********************************************************************************************
+
 local MainPanelFrame = Instance.new("Frame")
 MainPanelFrame.Name = "MainPanel"
 MainPanelFrame.Size = defaultPanelSize
 MainPanelFrame.Position = defaultPanelPosition
 MainPanelFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainPanelFrame.BackgroundColor3 = Color3.new(0, 0, 0) 
-MainPanelFrame.BackgroundTransparency = 1 
+MainPanelFrame.BackgroundTransparency = currentMainPanelTransparency
 MainPanelFrame.BorderSizePixel = 0
 MainPanelFrame.Active = true 
 MainPanelFrame.ZIndex = 10 
 MainPanelFrame.Parent = ScreenGui
+MainPanelFrame.ClipsDescendants = true 
 
 local MainCorner = Instance.new("UICorner")
 MainCorner.CornerRadius = CORNER_RADIUS
@@ -158,16 +218,51 @@ MainStroke.Color = PANEL_BORDER_COLOR
 MainStroke.Thickness = PANEL_BORDER_THICKNESS
 MainStroke.Parent = MainPanelFrame
 
+-- ----------------------------------------------------
+-- BACKGROUND IMAGE (ZINDEX = 9)
+-- ----------------------------------------------------
+local BackgroundImage = Instance.new("ImageLabel")
+BackgroundImage.Name = "ContentBackground"
+BackgroundImage.Size = UDim2.new(1, 0, 1, 0) 
+BackgroundImage.Position = UDim2.new(0, 0, 0, 0) 
+BackgroundImage.BackgroundTransparency = 1 
+BackgroundImage.ImageColor3 = Color3.new(1, 1, 1) 
+BackgroundImage.ImageTransparency = currentImageBackgroundOpacity 
+BackgroundImage.Image = BACKGROUND_ASSET_ID 
+BackgroundImage.ScaleType = Enum.ScaleType.Crop 
+BackgroundImage.ZIndex = 9 
+BackgroundImage.Parent = MainPanelFrame
+
+local BgImageCorner = Instance.new("UICorner")
+BgImageCorner.CornerRadius = CORNER_RADIUS
+BgImageCorner.Parent = BackgroundImage
+
+-- ----------------------------------------------------
+-- TITLE BAR
+-- ----------------------------------------------------
 local TitleBar = Instance.new("Frame")
 TitleBar.Name = "TitleBar"
-TitleBar.Size = UDim2.new(1, 0, 0, TITLE_BAR_HEIGHT) 
+TitleBar.Size = UDim2.new(1, 0, 1, 0) 
 TitleBar.Position = UDim2.new(0, 0, 0, 0)
 TitleBar.BackgroundColor3 = Color3.fromRGB(60, 60, 60) 
-TitleBar.BackgroundTransparency = 0 
+TitleBar.BackgroundTransparency = 1 
 TitleBar.BorderSizePixel = 0
 TitleBar.Active = true 
 TitleBar.ZIndex = 11
 TitleBar.Parent = MainPanelFrame
+
+-- ************ BAGIAN ATAS L (TOP STRIP) ************
+local TopStripFrame = Instance.new("Frame")
+TopStripFrame.Name = "TopStrip"
+TopStripFrame.Size = UDim2.new(1, 0, 0, TITLE_BAR_HEIGHT) 
+TopStripFrame.Position = UDim2.new(0, 0, 0, 0)
+TopStripFrame.BackgroundColor3 = CONTENT_BG_COLOR 
+TopStripFrame.BackgroundTransparency = currentSidebarTransparency
+TopStripFrame.BorderSizePixel = 0
+TopStripFrame.ClipsDescendants = true 
+TopStripFrame.Active = true 
+TopStripFrame.ZIndex = 12
+TopStripFrame.Parent = TitleBar
 
 local TitleTextContainer = Instance.new("Frame")
 TitleTextContainer.Name = "TitleTextContainer"
@@ -175,8 +270,8 @@ TitleTextContainer.Size = UDim2.new(1, -TOTAL_BUTTON_WIDTH, 1, 0)
 TitleTextContainer.Position = UDim2.new(0, 0, 0, 0) 
 TitleTextContainer.BackgroundTransparency = 1
 TitleTextContainer.ClipsDescendants = true 
-TitleTextContainer.ZIndex = 12
-TitleTextContainer.Parent = TitleBar
+TitleTextContainer.ZIndex = 13
+TitleTextContainer.Parent = TopStripFrame 
 
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Name = "TitleLabel"
@@ -184,97 +279,279 @@ TitleLabel.Size = UDim2.new(1, 0, 1, 0)
 TitleLabel.Position = UDim2.new(0, 0, 0, 0) 
 TitleLabel.Text = "HUB | Dev: RISTAN"
 local originalTitleText = TitleLabel.Text 
-TitleLabel.Font = Enum.Font.SourceSansBold
-TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLabel.TextSize = 18
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+TitleLabel.TextSize = 16
 TitleLabel.BackgroundTransparency = 1
 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-TitleLabel.ZIndex = 13 
+TitleLabel.ZIndex = 14
 TitleLabel.Parent = TitleTextContainer
 
 local TitlePadding = Instance.new("UIPadding")
 TitlePadding.PaddingLeft = UDim.new(0, TEXT_PADDING)
 TitlePadding.Parent = TitleLabel
 
-local function CreateControlBtn(name, text, positionXOffset, bgColor)
+
+-- [[ FUNGSI PENGGAMBAR IKON MANUAL ]]
+local function DrawIcon(parent, shapeType)
+    local IconContainer = Instance.new("Frame")
+    IconContainer.Name = "IconContainer"
+    IconContainer.Size = UDim2.new(0, 20, 0, 20)
+    IconContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+    IconContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+    IconContainer.BackgroundTransparency = 1
+    IconContainer.ZIndex = 14
+    IconContainer.Parent = parent
+
+    local parts = {} 
+    local defaultColor = Color3.fromRGB(200, 200, 200)
+
+    if shapeType == "Close" then
+        local Line1 = Instance.new("Frame")
+        Line1.Name = "Line1"
+        Line1.BackgroundColor3 = defaultColor
+        Line1.Size = UDim2.new(0, 14, 0, 2) 
+        Line1.AnchorPoint = Vector2.new(0.5, 0.5)
+        Line1.Position = UDim2.new(0.5, 0, 0.5, 0)
+        Line1.Rotation = 45
+        Line1.BorderSizePixel = 0
+        Line1.ZIndex = 14
+        Line1.Parent = IconContainer
+        table.insert(parts, Line1)
+
+        local Line2 = Line1:Clone()
+        Line2.Name = "Line2"
+        Line2.Rotation = -45
+        Line2.Parent = IconContainer
+        table.insert(parts, Line2)
+
+    elseif shapeType == "Minimize" then
+        local Line = Instance.new("Frame")
+        Line.BackgroundColor3 = defaultColor
+        Line.Size = UDim2.new(0, 14, 0, 2)
+        Line.AnchorPoint = Vector2.new(0.5, 0.5)
+        Line.Position = UDim2.new(0.5, 0, 0.5, 0)
+        Line.BorderSizePixel = 0
+        Line.ZIndex = 14
+        Line.Parent = IconContainer
+        table.insert(parts, Line)
+
+    elseif shapeType == "Fullscreen" then
+        local Box = Instance.new("Frame")
+        Box.BackgroundColor3 = defaultColor 
+        Box.BackgroundTransparency = 1
+        Box.Size = UDim2.new(0, 12, 0, 12)
+        Box.AnchorPoint = Vector2.new(0.5, 0.5)
+        Box.Position = UDim2.new(0.5, 0, 0.5, 0)
+        Box.BorderSizePixel = 0
+        Box.ZIndex = 14
+        Box.Parent = IconContainer
+
+        local Stroke = Instance.new("UIStroke")
+        Stroke.Color = defaultColor
+        Stroke.Thickness = 2
+        Stroke.Parent = Box
+        table.insert(parts, Stroke) 
+
+    elseif shapeType == "Restore" then
+        local BoxBack = Instance.new("Frame")
+        BoxBack.BackgroundColor3 = defaultColor
+        BoxBack.BackgroundTransparency = 1
+        BoxBack.Size = UDim2.new(0, 9, 0, 9)
+        BoxBack.AnchorPoint = Vector2.new(0.5, 0.5)
+        BoxBack.Position = UDim2.new(0.5, 2, 0.5, -2) 
+        BoxBack.BorderSizePixel = 0
+        BoxBack.ZIndex = 13 
+        BoxBack.Parent = IconContainer
+
+        local StrokeBack = Instance.new("UIStroke")
+        StrokeBack.Color = defaultColor
+        StrokeBack.Thickness = 1.5
+        StrokeBack.Parent = BoxBack
+        table.insert(parts, StrokeBack)
+
+        local BoxFront = Instance.new("Frame")
+        BoxFront.BackgroundColor3 = Color3.fromRGB(40, 40, 40) 
+        BoxFront.Size = UDim2.new(0, 9, 0, 9)
+        BoxFront.AnchorPoint = Vector2.new(0.5, 0.5)
+        BoxFront.Position = UDim2.new(0.5, -2, 0.5, 2)
+        BoxFront.BorderSizePixel = 0
+        BoxFront.ZIndex = 14
+        BoxFront.Parent = IconContainer
+
+        local StrokeFront = Instance.new("UIStroke")
+        StrokeFront.Color = defaultColor
+        StrokeFront.Thickness = 1.5
+        StrokeFront.Parent = BoxFront
+        table.insert(parts, StrokeFront)
+        table.insert(parts, BoxFront) 
+
+    elseif shapeType == "Drag" then
+        for x = -1, 1, 2 do 
+            for y = -1, 1 do 
+                local Dot = Instance.new("Frame")
+                Dot.BackgroundColor3 = defaultColor
+                Dot.Size = UDim2.new(0, 3, 0, 3)
+                Dot.Position = UDim2.new(0.5, x * 3, 0.5, y * 5)
+                Dot.AnchorPoint = Vector2.new(0.5, 0.5)
+                Dot.BorderSizePixel = 0
+                Dot.ZIndex = 14
+                
+                local Corner = Instance.new("UICorner")
+                Corner.CornerRadius = UDim.new(1, 0)
+                Corner.Parent = Dot
+                
+                Dot.Parent = IconContainer
+                table.insert(parts, Dot)
+            end
+        end
+    end
+
+    return IconContainer, parts
+end
+
+local function UpdateButtonIcon(button, newShapeType)
+    if button:FindFirstChild("IconContainer") then
+        button.IconContainer:Destroy()
+    end
+    local _, newParts = DrawIcon(button, newShapeType)
+    return newParts
+end
+
+local function CreateControlBtn(name, shapeType, positionXOffset, hoverColorType)
     local Button = Instance.new("TextButton")
     Button.Name = name
     Button.Size = UDim2.new(0, BUTTON_SIZE, 1, 0)
     Button.AnchorPoint = Vector2.new(1, 0) 
     Button.Position = UDim2.new(1, positionXOffset, 0, 0)
-    Button.BackgroundColor3 = bgColor
-    Button.BackgroundTransparency = 0
-    Button.Text = text
-    Button.Font = Enum.Font.SourceSansBold
-    Button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Button.TextSize = 20
-    Button.ZIndex = 12
-    Button.Parent = TitleBar
+    
+    Button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    Button.BackgroundTransparency = 1 
+    Button.Text = "" 
+    Button.ZIndex = 13
+    Button.AutoButtonColor = false
+    Button.Parent = TopStripFrame 
+
+    local ButtonCorner = Instance.new("UICorner")
+    ButtonCorner.CornerRadius = UDim.new(0, 4)
+    ButtonCorner.Parent = Button
+
+    local _, iconParts = DrawIcon(Button, shapeType)
+
+    Button.MouseEnter:Connect(function()
+        TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundTransparency = 0.9}):Play() 
+        
+        local currentContainer = Button:FindFirstChild("IconContainer")
+        if currentContainer then
+            for _, part in ipairs(currentContainer:GetDescendants()) do
+                if part:IsA("UIStroke") then
+                     TweenService:Create(part, TweenInfo.new(0.2), {Color = Color3.fromRGB(255, 255, 255)}):Play()
+                elseif part:IsA("Frame") and part.Name ~= "IconContainer" then
+                     TweenService:Create(part, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+                end
+            end
+        end
+        
+        if hoverColorType == "Red" then
+            TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 80, 80), BackgroundTransparency = 0.2}):Play()
+        end
+    end)
+
+    Button.MouseLeave:Connect(function()
+        TweenService:Create(Button, TweenInfo.new(0.2), {BackgroundTransparency = 1}):Play() 
+        
+        local currentContainer = Button:FindFirstChild("IconContainer")
+        if currentContainer then
+            for _, part in ipairs(currentContainer:GetDescendants()) do
+                if part:IsA("UIStroke") then
+                     TweenService:Create(part, TweenInfo.new(0.2), {Color = Color3.fromRGB(200, 200, 200)}):Play()
+                elseif part:IsA("Frame") and part.Name ~= "IconContainer" then
+                    if part.ZIndex == 14 and part:FindFirstChildWhichIsA("UIStroke") then 
+                        TweenService:Create(part, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 40, 40)}):Play()
+                    else
+                        TweenService:Create(part, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(200, 200, 200)}):Play()
+                    end
+                end
+            end
+        end
+    end)
+
     return Button
 end
 
-local FullscreenButton = CreateControlBtn("FullscreenButton", "↕️", -BUTTON_SIZE * 3, Color3.fromRGB(60, 60, 60))
-local MinimizeButton = CreateControlBtn("MinimizeButton", "⛔️", -BUTTON_SIZE * 2, Color3.fromRGB(60, 60, 60))
-local CloseButton = CreateControlBtn("CloseButton", "❌️", -BUTTON_SIZE, Color3.fromRGB(60, 60, 60))
-local DragButton = CreateControlBtn("DragButton", "🔄", 0, Color3.fromRGB(60, 60, 60)) 
+local DragButton = CreateControlBtn("DragButton", "Drag", 0, "Normal") 
+local CloseButton = CreateControlBtn("CloseButton", "Close", -BUTTON_SIZE, "Red") 
+local MinimizeButton = CreateControlBtn("MinimizeButton", "Minimize", -BUTTON_SIZE * 2, "Normal") 
+local FullscreenButton = CreateControlBtn("FullscreenButton", "Fullscreen", -BUTTON_SIZE * 3, "Normal") 
 
-local DragCorner = Instance.new("UICorner")
-DragCorner.CornerRadius = CORNER_RADIUS
-DragCorner.Parent = DragButton
+-- ************ BAGIAN KIRI L (LEFT STRIP - PENGGANTI SIDEBAR) ************
+local LeftStripFrame = Instance.new("ScrollingFrame")
+LeftStripFrame.Name = "LeftStripMenu"
+LeftStripFrame.Size = UDim2.new(SIDEBAR_WIDTH_SCALE, 0, 1, -TITLE_BAR_HEIGHT)
+LeftStripFrame.Position = UDim2.new(0, 0, 0, TITLE_BAR_HEIGHT)
+LeftStripFrame.BackgroundColor3 = CONTENT_BG_COLOR
+LeftStripFrame.BackgroundTransparency = currentSidebarTransparency
+LeftStripFrame.BorderSizePixel = 0
+LeftStripFrame.ZIndex = 12
+LeftStripFrame.Parent = TitleBar 
 
-local MinCorner = Instance.new("UICorner")
-MinCorner.CornerRadius = CORNER_RADIUS
-MinCorner.Parent = MinimizeButton 
-
-local FullCorner = Instance.new("UICorner")
-FullCorner.CornerRadius = CORNER_RADIUS
-FullCorner.Parent = FullscreenButton 
-
-local CloseCorner = Instance.new("UICorner")
-CloseCorner.CornerRadius = CORNER_RADIUS
-CloseCorner.Parent = CloseButton 
-
--- BACKGROUND IMAGE (ZINDEX = 9)
-local BackgroundImage = Instance.new("ImageLabel")
-BackgroundImage.Name = "ContentBackground"
-BackgroundImage.Size = UDim2.new(1, 0, 1, -TITLE_BAR_HEIGHT)
-BackgroundImage.Position = UDim2.new(0, 0, 0, TITLE_BAR_HEIGHT)
-BackgroundImage.BackgroundTransparency = 1 
-BackgroundImage.ImageColor3 = Color3.new(1, 1, 1) 
-BackgroundImage.ImageTransparency = 0 
-BackgroundImage.Image = BACKGROUND_ASSET_ID 
-BackgroundImage.ScaleType = Enum.ScaleType.Crop 
-BackgroundImage.ZIndex = 9 
-BackgroundImage.Parent = MainPanelFrame
-
-local SidebarFrame = Instance.new("ScrollingFrame")
-SidebarFrame.Name = "SidebarMenu"
-SidebarFrame.Size = UDim2.new(0.25, 0, 1, -TITLE_BAR_HEIGHT)
-SidebarFrame.Position = UDim2.new(0, 0, 0, TITLE_BAR_HEIGHT)
-SidebarFrame.BackgroundColor3 = CONTENT_BG_COLOR
-SidebarFrame.BackgroundTransparency = currentSidebarTransparency
-SidebarFrame.BorderSizePixel = 0
-SidebarFrame.ZIndex = 11
-SidebarFrame.Parent = MainPanelFrame
+local SidebarPadding = Instance.new("UIPadding")
+SidebarPadding.PaddingLeft = UDim.new(0, 5) 
+SidebarPadding.PaddingRight = UDim.new(0, 5) 
+SidebarPadding.Parent = LeftStripFrame
 
 local ListLayout = Instance.new("UIListLayout")
 ListLayout.Padding = UDim.new(0, 5)
 ListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 ListLayout.VerticalAlignment = Enum.VerticalAlignment.Top
 ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ListLayout.Parent = SidebarFrame
+ListLayout.Parent = LeftStripFrame
 
+-- ----------------------------------------------------
+-- MainContentFrame
+-- ----------------------------------------------------
 local MainContentFrame = Instance.new("Frame")
 MainContentFrame.Name = "MainContent"
-MainContentFrame.Size = UDim2.new(0.75, 0, 1, -TITLE_BAR_HEIGHT)
-MainContentFrame.Position = UDim2.new(0.25, 0, 0, TITLE_BAR_HEIGHT)
+MainContentFrame.Size = UDim2.new(1 - SIDEBAR_WIDTH_SCALE, 0, 1, -TITLE_BAR_HEIGHT)
+MainContentFrame.Position = UDim2.new(SIDEBAR_WIDTH_SCALE, 0, 0, TITLE_BAR_HEIGHT)
 MainContentFrame.BackgroundColor3 = CONTENT_BG_COLOR
 MainContentFrame.BackgroundTransparency = currentContentTransparency
 MainContentFrame.BorderSizePixel = 0
-MainContentFrame.ZIndex = 11
+MainContentFrame.ZIndex = 11 
 MainContentFrame.Parent = MainPanelFrame
 
-local function CreateMenuItem(name, text, layoutOrder)
+local MainContentCorner = Instance.new("UICorner")
+MainContentCorner.CornerRadius = CORNER_RADIUS
+MainContentCorner.Parent = MainContentFrame
+
+local function activateMenu(menuName)
+    local activeBtn = LeftStripFrame:FindFirstChild(menuName .. "Button") 
+
+    for _, btn in pairs(LeftStripFrame:GetChildren()) do 
+        if btn:IsA("TextButton") then
+             btn.BackgroundColor3 = BUTTON_NORMAL_COLOR 
+             btn.BackgroundTransparency = currentMenuItemTransparency
+        end
+    end
+    
+    if activeBtn then
+        activeBtn.BackgroundColor3 = BUTTON_ACTIVE_COLOR 
+        activeBtn.BackgroundTransparency = 0.1 
+    end
+    
+    for _, child in pairs(MainContentFrame:GetChildren()) do
+        if child:IsA("Frame") and child.Name:match("Content$") then
+            child.Visible = false
+        end
+    end
+    
+    local targetContent = MainContentFrame:FindFirstChild(menuName .. "Content")
+    if targetContent then
+        targetContent.Visible = true
+    end
+end
+
+local function CreateMenuItem(name, text, layoutOrder, onClickCallback)
     local Button = Instance.new("TextButton")
     Button.Name = name .. "Button"
     Button.Size = UDim2.new(1, 0, 0, 30)
@@ -282,13 +559,13 @@ local function CreateMenuItem(name, text, layoutOrder)
     Button.BackgroundTransparency = currentMenuItemTransparency
     Button.TextColor3 = Color3.fromRGB(255, 255, 255)
     Button.Text = text
-    Button.Font = Enum.Font.SourceSans
+    Button.Font = Enum.Font.Gotham 
     Button.TextSize = 14
     Button.TextXAlignment = Enum.TextXAlignment.Left
     Button.LayoutOrder = layoutOrder
-    Button.ZIndex = 12
-    Button.Parent = SidebarFrame
-
+    Button.ZIndex = 13
+    Button.Parent = LeftStripFrame 
+    
     local Padding = Instance.new("UIPadding")
     Padding.PaddingLeft = UDim.new(0, 10)
     Padding.Parent = Button
@@ -316,46 +593,14 @@ local function CreateMenuItem(name, text, layoutOrder)
     
     Button.MouseButton1Click:Connect(function()
         PlaySound(CLICK_SOUND_ID, 0.4) 
+        if onClickCallback then
+            onClickCallback(name)
+        end
     end)
 
     return Button
 end
 
-local InfoBtn = CreateMenuItem("Info", "Info", 1)
-local VisualBtn = CreateMenuItem("Visual", "Visual", 2)
-local BringBtn = CreateMenuItem("Bring", "Bring", 3)
-local TeleportBtn = CreateMenuItem("Teleport", "Teleport", 4)
-local LocalPlayerBtn = CreateMenuItem("LocalPlayer", "@LocalPlayer", 5)
-local MisBtn = CreateMenuItem("Mis", "Mis", 6)
-local ToolOwnerBtn = CreateMenuItem("ToolOwner", "ToolOwner", 7)
-local SettingsBtn = CreateMenuItem("Settings", "Settings", 8)
-
-local function activateMenu(menuName)
-    local activeBtn = SidebarFrame:FindFirstChild(menuName .. "Button")
-
-    for _, btn in pairs(SidebarFrame:GetChildren()) do
-        if btn:IsA("TextButton") then
-             btn.BackgroundColor3 = BUTTON_NORMAL_COLOR 
-             btn.BackgroundTransparency = currentMenuItemTransparency
-        end
-    end
-    
-    if activeBtn then
-        activeBtn.BackgroundColor3 = BUTTON_ACTIVE_COLOR 
-        activeBtn.BackgroundTransparency = 0.1 
-    end
-    
-    for _, child in pairs(MainContentFrame:GetChildren()) do
-        if child:IsA("Frame") and child.Name:match("Content$") then
-            child.Visible = false
-        end
-    end
-    
-    local targetContent = MainContentFrame:FindFirstChild(menuName .. "Content")
-    if targetContent then
-        targetContent.Visible = true
-    end
-end
 
 ---
 -- *********************************************************************************************
@@ -391,7 +636,7 @@ local function CreateAnimatedLines(menuName, titleText, lineDataList)
     TitleLabel.Name = "ContentTitle"
     TitleLabel.Size = UDim2.new(1, 0, 0, 40)
     TitleLabel.Text = titleText
-    TitleLabel.Font = Enum.Font.SourceSansBold
+    TitleLabel.Font = Enum.Font.GothamBold
     TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     TitleLabel.TextSize = 22
     TitleLabel.BackgroundTransparency = 1
@@ -415,9 +660,10 @@ local function CreateAnimatedLines(menuName, titleText, lineDataList)
 
     -- LOGIKA ANIMASI UTAMA (RESET + WARNA-WARNI)
     task.spawn(function()
+        -- [DIUBAH] Gunakan ContentFrame.Parent sebagai kondisi loop utama
+        -- Jika ScreenGui dihancurkan, ContentFrame.Parent akan nil dan loop berhenti
         while ContentFrame.Parent do
             
-            -- [1] CEK APAKAH TAB INFO SEDANG AKTIF?
             if not ContentFrame.Visible then
                 for _, c in pairs(LinesContainer:GetChildren()) do
                     if c:IsA("TextLabel") then c:Destroy() end
@@ -426,7 +672,6 @@ local function CreateAnimatedLines(menuName, titleText, lineDataList)
                 continue 
             end
 
-            -- [2] RESET BERSIH SAAT DIBUKA
             for _, c in pairs(LinesContainer:GetChildren()) do
                 if c:IsA("TextLabel") then c:Destroy() end
             end
@@ -434,10 +679,10 @@ local function CreateAnimatedLines(menuName, titleText, lineDataList)
             local layoutOrderCounter = 0
 
             for _, data in ipairs(lineDataList) do
+                -- [DIUBAH] Cek ulang ContentFrame.Parent di dalam loop
                 if not ContentFrame.Parent then break end
                 if not ContentFrame.Visible then break end
 
-                -- Hapus baris lama jika > 3
                 local activeLabels = {}
                 for _, child in pairs(LinesContainer:GetChildren()) do
                     if child:IsA("TextLabel") then
@@ -449,19 +694,15 @@ local function CreateAnimatedLines(menuName, titleText, lineDataList)
                     if activeLabels[1] then activeLabels[1]:Destroy() end
                 end
 
-                -- Buat Baris Baru
                 layoutOrderCounter = layoutOrderCounter + 1
                 
                 local LineLabel = Instance.new("TextLabel")
                 LineLabel.Name = "Line_" .. layoutOrderCounter
                 LineLabel.Size = UDim2.new(1, 0, 0, 30)
                 LineLabel.BackgroundTransparency = 1
-                
-                -- [[ SET WARNA DARI DATA ]]
-                LineLabel.TextColor3 = data.Color -- Mengambil warna dari table
-                
+                LineLabel.TextColor3 = data.Color 
                 LineLabel.TextSize = 26 
-                LineLabel.Font = Enum.Font.SourceSansBold
+                LineLabel.Font = Enum.Font.GothamBold
                 LineLabel.TextXAlignment = Enum.TextXAlignment.Left
                 LineLabel.TextYAlignment = Enum.TextYAlignment.Center
                 LineLabel.Text = "" 
@@ -469,20 +710,21 @@ local function CreateAnimatedLines(menuName, titleText, lineDataList)
                 LineLabel.ZIndex = 15 
                 LineLabel.Parent = LinesContainer
 
-                -- Efek Typewriter
-                local textToType = data.Text -- Mengambil teks dari table
+                local textToType = data.Text 
                 for i = 1, #textToType do
+                    if not ContentFrame.Parent then break end -- [DIUBAH] Cek lagi
                     if not ContentFrame.Visible then break end
                     LineLabel.Text = textToType:sub(1, i)
                     task.wait(0.05) 
                 end
                 
+                if not ContentFrame.Parent then break end -- [DIUBAH] Cek lagi
                 if not ContentFrame.Visible then break end
                 
                 task.wait(1) 
             end
             
-            if ContentFrame.Visible then
+            if ContentFrame.Visible and ContentFrame.Parent then -- [DIUBAH] Cek lagi
                 task.wait(2)
             end
         end
@@ -503,10 +745,8 @@ local function loadScript(url, scriptName)
     
     if success then
         print("✅ Script berhasil dimuat: " .. scriptName)
-        if ScreenGui then
-            ScreenGui:Destroy()
-            print("✅ GUI Utama berhasil ditutup setelah loadscript berhasil.")
-        end
+        -- [DIUBAH] Panggil fungsi shutdown global
+        ShutdownScript()
     else
         warn("❌ Gagal memuat script: " .. scriptName)
         warn("Error: " .. tostring(result))
@@ -544,7 +784,7 @@ local function CreateButtonContent(menuName, titleText, scriptList)
     TitleLabel.Name = "ContentTitle"
     TitleLabel.Size = UDim2.new(1, 0, 0, 30)
     TitleLabel.Text = titleText
-    TitleLabel.Font = Enum.Font.SourceSansBold
+    TitleLabel.Font = Enum.Font.GothamBold
     TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     TitleLabel.TextSize = 18
     TitleLabel.BackgroundTransparency = 1
@@ -574,7 +814,7 @@ local function CreateButtonContent(menuName, titleText, scriptList)
         ScriptButton.BackgroundTransparency = 0.3
         ScriptButton.BorderSizePixel = 0
         ScriptButton.Text = scriptData.Icon .. "  " .. scriptData.Name
-        ScriptButton.Font = Enum.Font.SourceSansBold
+        ScriptButton.Font = Enum.Font.GothamBold
         ScriptButton.TextColor3 = Color3.fromRGB(255, 255, 255)
         ScriptButton.TextSize = 16
         ScriptButton.TextXAlignment = Enum.TextXAlignment.Left
@@ -609,7 +849,11 @@ local function CreateButtonContent(menuName, titleText, scriptList)
             ScriptButton.Text = "⏳ Loading..."
             loadScript(scriptData.URL, scriptData.Name)
             wait(0.5)
-            ScriptButton.Text = scriptData.Icon .. "  " .. scriptData.Name 
+            -- Jika loadScript berhasil, ScriptButton ini akan hancur
+            -- jadi tidak perlu khawatir baris ini error
+            if ScriptButton.Parent then
+                ScriptButton.Text = scriptData.Icon .. "  " .. scriptData.Name 
+            end
         end)
     end
 
@@ -621,18 +865,10 @@ end
 -- 3. INICIALISASI KONTEN MENU
 -- *********************************************************************************************
 
--- [[ DATA INFO DENGAN WARNA BERBEDA SETIAP BARIS ]]
--- Anda bisa mengubah warna (Color) sesuka hati dengan Color3.fromRGB(R, G, B)
 local InfoLinesData = {
-    {Text = "Selamat Datang", Color = Color3.fromRGB(0, 255, 0)}, -- Hijau Matrix
-    {Text = "Script Ini Masih", Color = Color3.fromRGB(0, 255, 255)},      -- Cyan Neon
-    {Text = "Dalam Tahap Perkembangan", Color = Color3.fromRGB(255, 255, 0)}, -- Kuning
-    --{Text = "Dalam Tahap Perkembangan", Color = Color3.fromRGB(255, 0, 255)},        -- Magenta/Pink
-    --{Text = "", Color = Color3.fromRGB(50, 255, 50)},     -- Hijau Terang
-   --{Text = "> Check 'Bring' Menu", Color = Color3.fromRGB(255, 165, 0)}, -- Oranye
-    --{Text = "> Check 'Visual' Menu", Color = Color3.fromRGB(255, 100, 100)}, -- Merah Muda
-    --{Text = "> Have Fun Cheating!", Color = Color3.fromRGB(150, 100, 255)}, -- Ungu
-    --{Text = "> System Ready.", Color = Color3.fromRGB(255, 255, 255)}     -- Putih
+    {Text = "Selamat Datang", Color = Color3.fromRGB(0, 255, 0)}, 
+    {Text = "Script Ini Masih", Color = Color3.fromRGB(0, 255, 255)},      
+    {Text = "Dalam Tahap Perkembangan", Color = Color3.fromRGB(255, 255, 0)}, 
 }
 
 local InfoContent = CreateAnimatedLines("Info", "INFO LOG", InfoLinesData)
@@ -671,27 +907,33 @@ local SettingsTextBoxCorner = Instance.new("UICorner")
 SettingsTextBoxCorner.CornerRadius = CORNER_RADIUS
 SettingsTextBoxCorner.Parent = SettingsBoxBg
 
--- Hubungkan tombol menu
-InfoBtn.MouseButton1Click:Connect(function() activateMenu("Info") end)
-VisualBtn.MouseButton1Click:Connect(function() activateMenu("Visual") end)
-BringBtn.MouseButton1Click:Connect(function() activateMenu("Bring") end)
-TeleportBtn.MouseButton1Click:Connect(function() activateMenu("Teleport") end)
-LocalPlayerBtn.MouseButton1Click:Connect(function() activateMenu("LocalPlayer") end)
-MisBtn.MouseButton1Click:Connect(function() activateMenu("Mis") end)
-ToolOwnerBtn.MouseButton1Click:Connect(function() activateMenu("ToolOwner") end)
-SettingsBtn.MouseButton1Click:Connect(function() activateMenu("Settings") end)
+local InfoBtn = CreateMenuItem("Info", "Info", 1, activateMenu)
+local VisualBtn = CreateMenuItem("Visual", "Visual", 2, activateMenu)
+local BringBtn = CreateMenuItem("Bring", "Bring", 3, activateMenu)
+local TeleportBtn = CreateMenuItem("Teleport", "Teleport", 4, activateMenu)
+local LocalPlayerBtn = CreateMenuItem("LocalPlayer", "@LocalPlayer", 5, activateMenu)
+local MisBtn = CreateMenuItem("Mis", "Mis", 6, activateMenu)
+local ToolOwnerBtn = CreateMenuItem("ToolOwner", "ToolOwner", 7, activateMenu)
+local SettingsBtn = CreateMenuItem("Settings", "Settings", 8, activateMenu)
 
 ---
 -- *********************************************************************************************
--- 4. FUNGSIONALITAS DRAGGABLE
+-- 4. FUNGSIONALITAS DRAGGABLE (UPDATED: SAVE MINIMIZE POSITION)
 -- *********************************************************************************************
 
 local function onInputBegan(input, source)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        if isMinimized and (source == TitleBar or source == DragButton) then
-             isDragging = true
-             dragStartPos = input.Position  
-             frameStartPos = MainPanelFrame.Position
+        local allowDrag = false
+        if source == DragButton then allowDrag = true
+        elseif source == TopStripFrame then allowDrag = true
+        elseif isMinimized and source == MainPanelFrame then allowDrag = true
+        elseif isMinimized and source == TitleBar then allowDrag = true
+        end
+
+        if allowDrag then
+            isDragging = true
+            dragStartPos = input.Position  
+            frameStartPos = MainPanelFrame.Position
         end
     end
 end
@@ -705,6 +947,11 @@ local function onInputChanged(input)
         local newY = frameStartPos.Y.Offset + delta.Y
         
         MainPanelFrame.Position = UDim2.new(frameStartPos.X.Scale, newX, frameStartPos.Y.Scale, newY)
+
+        -- [FIXED] Jika sedang mode minimize, SIMPAN posisi saat ini ke variabel
+        if isMinimized then
+            lastMinimizePosition = MainPanelFrame.Position
+        end
     end
 end
 
@@ -714,17 +961,21 @@ local function onInputEnded(input)
     end
 end
 
-TitleBar.InputBegan:Connect(function(input) onInputBegan(input, TitleBar) end)
 DragButton.InputBegan:Connect(function(input) onInputBegan(input, DragButton) end)
-UserInputService.InputChanged:Connect(onInputChanged)
-UserInputService.InputEnded:Connect(onInputEnded)
+TopStripFrame.InputBegan:Connect(function(input) onInputBegan(input, TopStripFrame) end)
+TitleBar.InputBegan:Connect(function(input) onInputBegan(input, TitleBar) end)         
+MainPanelFrame.InputBegan:Connect(function(input) onInputBegan(input, MainPanelFrame) end) 
+
+-- [DIUBAH] Simpan koneksi global ke tabel
+table.insert(activeConnections, UserInputService.InputChanged:Connect(onInputChanged))
+table.insert(activeConnections, UserInputService.InputEnded:Connect(onInputEnded))
 
 ---
 -- *********************************************************************************************
 -- 5. LOGIKA RUNNING TEXT (MARQUEE)
 -- *********************************************************************************************
 
-local marqueeConnection = nil
+-- (fungsi stopMarquee() dipindah ke atas sebelum ShutdownScript)
 
 local function startMarquee()
     if marqueeConnection then return end
@@ -767,41 +1018,38 @@ local function startMarquee()
     marqueeTween:Play()
 end
 
-local function stopMarquee()
-    if marqueeConnection then
-        marqueeConnection:Cancel()
-        marqueeConnection = nil
-    end
-    TitleLabel.Text = originalTitleText
-    TitleLabel.Position = UDim2.new(0, 0, 0, 0)
-    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-end
 
 ---
 -- *********************************************************************************************
--- 6. INTERAKSI TOMBOL WINDOWS 
+-- 6. INTERAKSI TOMBOL WINDOWS (UPDATED: MEMORY POSITION)
 -- *********************************************************************************************
 
 local function setContentVisibility(isVisible)
-    SidebarFrame.Visible = isVisible
+    LeftStripFrame.Visible = isVisible 
     MainContentFrame.Visible = isVisible
-    BackgroundImage.Visible = isVisible
 end
 
 CloseButton.MouseButton1Click:Connect(function()
     PlaySound(CLICK_SOUND_ID, 0.7) 
-    stopMarquee()
-    ScreenGui:Destroy()
+    -- [DIUBAH] Panggil fungsi shutdown global
+    ShutdownScript()
 end)
 
 MinimizeButton.MouseButton1Click:Connect(function()
     PlaySound(CLICK_SOUND_ID, 0.7) 
     if not isMinimized then
+        -- SEDANG MEMBUKA -> JADI MINIMIZE
         setContentVisibility(false) 
         
+        -- [LOGIKA BARU] Cek apakah punya posisi simpanan?
+        local targetPos = MainPanelFrame.Position -- Default di tempat
+        if lastMinimizePosition then
+            targetPos = lastMinimizePosition -- Kalau ada simpanan, pakai itu
+        end
+
         MainPanelFrame:TweenSizeAndPosition( 
             minimizePanelSize,
-            MainPanelFrame.Position, 
+            targetPos, 
             Enum.EasingDirection.Out,
             Enum.EasingStyle.Quad,
             0.3,
@@ -811,11 +1059,17 @@ MinimizeButton.MouseButton1Click:Connect(function()
         startMarquee()
         
     else
+        -- SEDANG MINIMIZE -> JADI BUKA (RESTORE)
+        
+        -- [PENTING] Simpan posisi minimize saat ini sebelum pindah, jaga-jaga kalau user baru geser
+        lastMinimizePosition = MainPanelFrame.Position
+
         setContentVisibility(true) 
         
+        -- [FIXED] WAJIB KE TENGAH (defaultPanelPosition)
         MainPanelFrame:TweenSizeAndPosition(
             defaultPanelSize,
-            defaultPanelPosition, 
+            defaultPanelPosition, -- RESET KE TENGAH LAYAR
             Enum.EasingDirection.Out,
             Enum.EasingStyle.Quad,
             0.3,
@@ -827,7 +1081,7 @@ MinimizeButton.MouseButton1Click:Connect(function()
     
     if isFullscreen then
         isFullscreen = false
-        FullscreenButton.Text = "↕️" 
+        UpdateButtonIcon(FullscreenButton, "Fullscreen") 
     end
 end)
 
@@ -845,7 +1099,7 @@ FullscreenButton.MouseButton1Click:Connect(function()
             true
         )
         
-        FullscreenButton.Text = "⏏️" 
+        UpdateButtonIcon(FullscreenButton, "Restore")
         
         if isMinimized then
             isMinimized = false 
@@ -855,13 +1109,14 @@ FullscreenButton.MouseButton1Click:Connect(function()
     else
         MainPanelFrame:TweenSizeAndPosition(
             defaultPanelSize,
-            defaultPanelPosition, 
+            defaultPanelPosition, -- Kembali ke tengah jika dari Fullscreen (Opsional bisa diubah juga)
             Enum.EasingDirection.Out,
             Enum.EasingStyle.Quad,
             0.3,
             true
         )
-        FullscreenButton.Text = "↕️" 
+        
+        UpdateButtonIcon(FullscreenButton, "Fullscreen")
     end
     
     isFullscreen = not isFullscreen
@@ -869,7 +1124,7 @@ end)
 
 ---
 -- *********************************************************************************************
--- 7. FUNGSI SLIDER KUSTOM
+-- 7. FUNGSI SLIDER KUSTOM (DIPERBAIKI: ANGKA DIPISAH)
 -- *********************************************************************************************
 
 local function CreateSliderBackground(parent, name, title, initialValue)
@@ -879,13 +1134,14 @@ local function CreateSliderBackground(parent, name, title, initialValue)
     SliderContainer.BackgroundTransparency = 1
     SliderContainer.ZIndex = 12
     SliderContainer.Parent = parent
-    
+
+    -- [[ JUDUL SLIDER (Tanpa Angka) ]]
     local SliderTitle = Instance.new("TextLabel")
     SliderTitle.Name = "SliderTitle"
-    SliderTitle.Size = UDim2.new(1, 0, 0, 20)
+    SliderTitle.Size = UDim2.new(1, 0, 0, 20) 
     SliderTitle.Position = UDim2.new(0, 0, 0, 0)
-    SliderTitle.Text = title .. " (" .. string.format("%.2f", initialValue) .. ")"
-    SliderTitle.Font = Enum.Font.SourceSans
+    SliderTitle.Text = title -- Hanya teks judul, tanpa nilai
+    SliderTitle.Font = Enum.Font.Gotham
     SliderTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     SliderTitle.TextSize = 14
     SliderTitle.BackgroundTransparency = 1
@@ -897,15 +1153,19 @@ local function CreateSliderBackground(parent, name, title, initialValue)
     TitlePadding.PaddingLeft = UDim.new(0, 10)
     TitlePadding.Parent = SliderTitle
     
+    local SLIDER_WIDTH_SCALE = 0.7 -- Lebar Slider 70%
+    local SLIDER_HORIZONTAL_START = 0 
+    
+    -- [[ SLIDER BAR ]]
     local SliderBarBackground = Instance.new("Frame")
     SliderBarBackground.Name = "SliderBarBackground"
-    SliderBarBackground.Size = UDim2.new(1, -20, 0, 10) 
-    SliderBarBackground.Position = UDim2.new(0, 10, 0, 25) 
+    SliderBarBackground.Size = UDim2.new(SLIDER_WIDTH_SCALE, -10, 0, 10) 
+    SliderBarBackground.Position = UDim2.new(SLIDER_HORIZONTAL_START, 10, 0, 25) 
     SliderBarBackground.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     SliderBarBackground.BackgroundTransparency = 0
     SliderBarBackground.BorderSizePixel = 0
     SliderBarBackground.ZIndex = 13
-    SliderBarBackground.Active = true
+    SliderBarBackground.Active = true 
     SliderBarBackground.Parent = SliderContainer
     
     local BarCorner = Instance.new("UICorner")
@@ -915,7 +1175,8 @@ local function CreateSliderBackground(parent, name, title, initialValue)
     local SliderBarValue = Instance.new("Frame")
     SliderBarValue.Name = "SliderBarValue"
     SliderBarValue.Size = UDim2.new(initialValue, 0, 1, 0)
-    SliderBarValue.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    local HIGHLIGHT_COLOR = Color3.fromRGB(0, 150, 255) 
+    SliderBarValue.BackgroundColor3 = HIGHLIGHT_COLOR
     SliderBarValue.BackgroundTransparency = 0
     SliderBarValue.BorderSizePixel = 0
     SliderBarValue.ZIndex = 14
@@ -933,19 +1194,36 @@ local function CreateSliderBackground(parent, name, title, initialValue)
     SliderHandle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     SliderHandle.BackgroundTransparency = 0
     SliderHandle.BorderSizePixel = 0
+    SliderBarBackground.ZIndex = 13
     SliderHandle.ZIndex = 15
-    SliderHandle.Active = true
+    SliderHandle.Active = true 
     SliderHandle.Parent = SliderBarBackground
     
     local HandleCorner = Instance.new("UICorner")
     HandleCorner.CornerRadius = UDim.new(0, 5)
     HandleCorner.Parent = SliderHandle
+
+    -- [[ LABEL ANGKA (VALUE) TERPISAH ]]
+    local ValueLabel = Instance.new("TextLabel")
+    ValueLabel.Name = "ValueLabel"
+    ValueLabel.Size = UDim2.new(1 - SLIDER_WIDTH_SCALE, -10, 0, 20) -- Sisa lebar 30%
+    ValueLabel.Position = UDim2.new(SLIDER_WIDTH_SCALE, 5, 0, 20) -- Posisi di kanan slider
+    ValueLabel.Text = string.format("%.2f", initialValue)
+    ValueLabel.Font = Enum.Font.GothamBold
+    ValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ValueLabel.TextSize = 14
+    ValueLabel.BackgroundTransparency = 1
+    ValueLabel.TextXAlignment = Enum.TextXAlignment.Left -- Rata kiri agar dekat dengan slider
+    ValueLabel.ZIndex = 13
+    ValueLabel.Parent = SliderContainer
     
-    return SliderContainer, SliderBarBackground, SliderBarValue, SliderHandle, SliderTitle
+    -- Mengembalikan ValueLabel juga agar bisa diupdate
+    return SliderContainer, SliderBarBackground, SliderBarValue, SliderHandle, SliderTitle, ValueLabel
 end
 
 local function CreateTransparencySlider(parent, name, title, initialValue, callback)
-    local container, bgBar, valueBar, handle, titleLabel = CreateSliderBackground(parent, name, title, initialValue)
+    -- Tangkap ValueLabel dari return function
+    local container, bgBar, valueBar, handle, titleLabel, valueLabel = CreateSliderBackground(parent, name, title, initialValue)
     
     local isDraggingSlider = false
     
@@ -959,7 +1237,9 @@ local function CreateTransparencySlider(parent, name, title, initialValue, callb
 
             valueBar.Size = UDim2.new(percentage, 0, 1, 0)
             handle.Position = UDim2.new(percentage, -5, 0.5, -8)
-            titleLabel.Text = title .. " (" .. string.format("%.2f", roundedValue) .. ")"
+            
+            -- Update teks pada ValueLabel, bukan TitleLabel
+            valueLabel.Text = string.format("%.2f", roundedValue)
 
             callback(roundedValue)
         end
@@ -987,8 +1267,9 @@ local function CreateTransparencySlider(parent, name, title, initialValue, callb
     bgBar.InputBegan:Connect(onSliderInputBegan)
     handle.InputBegan:Connect(onSliderInputBegan) 
     
-    UserInputService.InputChanged:Connect(onSliderInputChanged)
-    UserInputService.InputEnded:Connect(onSliderInputEnded)
+    -- [DIUBAH] Simpan koneksi global ke tabel
+    table.insert(activeConnections, UserInputService.InputChanged:Connect(onSliderInputChanged))
+    table.insert(activeConnections, UserInputService.InputEnded:Connect(onSliderInputEnded))
 
     return container
 end
@@ -1004,12 +1285,17 @@ for _, child in pairs(SettingsBoxBg:GetChildren()) do
     child:Destroy()
 end
 
+local SettingsPadding = Instance.new("UIPadding")
+SettingsPadding.PaddingLeft = UDim.new(0, 10)
+SettingsPadding.PaddingRight = UDim.new(0, 10)
+SettingsPadding.Parent = SettingsBoxBg
+
 local SettingsTitle = Instance.new("TextLabel")
 SettingsTitle.Name = "ContentTitle"
 SettingsTitle.Size = UDim2.new(1, 0, 0, 30)
 SettingsTitle.Position = UDim2.new(0, 0, 0, 0)
 SettingsTitle.Text = "PANEL SETTINGS"
-SettingsTitle.Font = Enum.Font.SourceSansBold
+SettingsTitle.Font = Enum.Font.GothamBold
 SettingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 SettingsTitle.TextSize = 18
 SettingsTitle.BackgroundTransparency = 1
@@ -1025,32 +1311,56 @@ SliderLayout.SortOrder = Enum.SortOrder.LayoutOrder
 SliderLayout.Parent = SettingsBoxBg
 
 CreateTransparencySlider(
+    SettingsBoxBg,
+    "MainPanelTransSlider",
+    "Main Panel Opacity (Lapisan Dasar Luar)",
+    currentMainPanelTransparency,
+    function(value)
+        currentMainPanelTransparency = value
+        MainPanelFrame.BackgroundTransparency = value
+    end
+)
+
+CreateTransparencySlider(
+    SettingsBoxBg,
+    "ImageBgOpacitySlider",
+    "Background Image Opacity",
+    currentImageBackgroundOpacity,
+    function(value)
+        currentImageBackgroundOpacity = value
+        BackgroundImage.ImageTransparency = value
+    end
+)
+
+CreateTransparencySlider(
     SettingsBoxBg, 
-    "SidebarFrameTransSlider", 
-    "Sidebar Frame Background Transparency", 
+    "LeftStripFrameTransSlider", 
+    "Left Strip (Menu) Background", 
     currentSidebarTransparency, 
     function(value)
         currentSidebarTransparency = value
-        SidebarFrame.BackgroundTransparency = value
+        LeftStripFrame.BackgroundTransparency = value 
+        TopStripFrame.BackgroundTransparency = value 
     end
 )
 
 CreateTransparencySlider(
     SettingsBoxBg, 
     "MenuItemTransSlider", 
-    "Sidebar Menu Item (Textbox) Transparency", 
+    "Left Strip Menu Item (Textbox)", 
     currentMenuItemTransparency,
     function(value)
         currentMenuItemTransparency = value
         
-        for _, btn in pairs(SidebarFrame:GetChildren()) do
+        for _, btn in pairs(LeftStripFrame:GetChildren()) do 
             if btn:IsA("TextButton") then
                  btn.BackgroundTransparency = value
             end
         end
 
         local currentActiveMenuName = "Info"
-        for _, btn in pairs(SidebarFrame:GetChildren()) do
+        local BUTTON_ACTIVE_COLOR = Color3.fromRGB(80, 80, 80)
+        for _, btn in pairs(LeftStripFrame:GetChildren()) do 
             if btn:IsA("TextButton") and btn.BackgroundColor3 == BUTTON_ACTIVE_COLOR then
                 currentActiveMenuName = btn.Name:gsub("Button", "")
                 break
@@ -1108,6 +1418,9 @@ local scrollDebounce = false
 local function setupScrollSound(scrollingFrame)
     local lastCanvasPosition = scrollingFrame.CanvasPosition
     
+    -- Koneksi :GetPropertyChangedSignal secara otomatis terputus
+    -- ketika instance (scrollingFrame) dihancurkan.
+    -- Jadi ini tidak perlu dilacak secara manual.
     scrollingFrame:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
         if (scrollingFrame.CanvasPosition.Y - lastCanvasPosition.Y) ~= 0 then
             if not scrollDebounce then
@@ -1121,7 +1434,7 @@ local function setupScrollSound(scrollingFrame)
     end)
 end
 
-setupScrollSound(SidebarFrame)
+setupScrollSound(LeftStripFrame) 
 
 for _, childContent in pairs(MainContentFrame:GetChildren()) do
     if childContent:IsA("Frame") and childContent.Name:match("Content$") then
@@ -1137,4 +1450,4 @@ end
 -- 11. AKHIR SKRIP
 -- *********************************************************************************************
 
-print("✅ Panel Executor WARNA-WARNI ESTETIK berhasil dimuat!")
+print("✅ Panel Executor FINAL FIXED (Memory Minimize & Full Shutdown) berhasil dimuat!")
