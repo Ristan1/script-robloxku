@@ -103,6 +103,7 @@ local AllScripts = {
     {Name = "Tombol Lompat", Icon = "🦶", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/tombol%20lompat"}, 
     {Name = "Xray", Icon = "📵", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Xray"},
     {Name = "Console Log", Icon = "📋", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/ConsoleLog"}, 
+    {Name = "Cek palsu/Labirin", Icon = "🎬", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Cek%20palsu%7C%7CLabirin"},
 }
 
 local ScriptsInWheel = {}
