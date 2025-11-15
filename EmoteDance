@@ -10,6 +10,9 @@ local SIDE_HEIGHT = 260
 local SIDE_VISIBLE_X = 50
 local SIDE_HIDDEN_X = -SIDE_WIDTH - 10
 local SIDE_VERTICAL_ADJUST = 150
+ 
+local ACTIVE_COLOR = Color3.fromRGB(100, 255, 100) -- Warna Hijau untuk tombol aktif
+local DEFAULT_COLOR = Color3.fromRGB(35, 35, 45) -- Warna default tombol
 -- ----------------------------
  
 -- Bersihkan GUI lama
@@ -113,7 +116,7 @@ stopBtn.TextSize = 16
 stopBtn.TextColor3 = Color3.fromRGB(255, 220, 220)
 Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 6)
  
--- Data (Tambahkan ID Dances/Emotes Agar Bisa Lebih Banyak)
+-- Data
 local dances = {
 {name="Spiderman", animId=83345430870757},
 {name="Acelerada", animId=103360497719320 },
@@ -175,36 +178,179 @@ local emotes = {
 {name="Kicking Fee Sit", animId=115619217455701},
 {name="Cute Feet Kicking", animId=124287251935400},
 {name="Tokyo", animId=132760747409859},
+{name="Jerk(ngocok)", animId=72042024}, -- R6 (placeholder)
 }
- 
+
 local currentTrack = nil
- 
-local function playEmote(animId)
+local jerkTask = nil
+local jerkActive = false
+local currentActiveButton = nil -- Pelacak tombol yang sedang aktif
+
+-- Fungsi utilitas untuk memeriksa rig R15
+local function r15(plr)
+    local char = plr.Character
+    if char and char:FindFirstChildOfClass('Humanoid') then
+        return char:FindFirstChildOfClass('Humanoid').RigType == Enum.HumanoidRigType.R15
+    end
+    return false
+end
+
+-- Fungsi untuk mereset warna semua tombol dan status aktif
+local function resetActiveButton()
+    if currentActiveButton then
+        currentActiveButton.BackgroundColor3 = DEFAULT_COLOR
+        currentActiveButton = nil
+    end
+end
+
+-- Fungsi untuk mengatur tombol aktif baru
+local function setActiveButton(button)
+    resetActiveButton()
+    currentActiveButton = button
+    if currentActiveButton then
+        currentActiveButton.BackgroundColor3 = ACTIVE_COLOR
+    end
+end
+
+-- Fungsi untuk menghentikan animasi saat ini
+local function stopCurrentAnimation()
+    jerkActive = false
+    if jerkTask then
+        task.cancel(jerkTask)
+        jerkTask = nil
+    end
+    if currentTrack then
+        currentTrack:Stop()
+        currentTrack:Destroy()
+        currentTrack = nil
+    end
+    resetActiveButton()
+end
+
+local function playEmote(animId, button)
     local char = player.Character or player.CharacterAdded:Wait()
     local humanoid = char:WaitForChild("Humanoid")
-    if currentTrack then currentTrack:Stop() currentTrack:Destroy() end
+
+    -- 1. Hentikan animasi saat ini (termasuk jerk jika aktif)
+    if currentActiveButton == button then
+        stopCurrentAnimation()
+        return -- Tombol yang sama diklik untuk stop
+    end
+    stopCurrentAnimation()
+
+    -- 2. Mainkan animasi baru
     local anim = Instance.new("Animation")
     anim.AnimationId = "rbxassetid://"..animId
+    
+    if not humanoid then return end 
+
     currentTrack = humanoid:LoadAnimation(anim)
     currentTrack:Play()
+
+    -- 3. Set tombol sebagai aktif
+    setActiveButton(button)
+
+    -- 4. Sambungkan event Stop untuk mereset status tombol (hanya jika animasi ini yang berhenti)
+    local track = currentTrack 
+    local stoppedConn
+    stoppedConn = track.Stopped:Connect(function()
+        if track == currentTrack then 
+            resetActiveButton()
+        end
+        stoppedConn:Disconnect()
+    end)
 end
- 
+
+-- Fungsi khusus untuk animasi Jerk(ngocok) yang berulang
+local function playJerkOff(button)
+    -- 1. Jika tombol yang sama diklik lagi, hentikan
+    if currentActiveButton == button then
+        stopCurrentAnimation()
+        return
+    end
+
+    -- 2. Hentikan animasi/jerk sebelumnya jika ada
+    stopCurrentAnimation()
+    task.wait(0.1) -- Beri waktu untuk cleanup
+
+    local char = player.Character or player.CharacterAdded:Wait()
+    local humanoid = char:WaitForChild("Humanoid")
+    if not humanoid then return end
+    
+    -- 3. Set status dan tombol baru
+    jerkActive = true
+    setActiveButton(button)
+
+    -- 4. Task loop animasi
+    jerkTask = task.spawn(function()
+        while jerkActive and humanoid and humanoid.Parent do
+            local isR15Model = r15(player)
+            local animId = isR15Model and 698251653 or 72042024
+            local anim = Instance.new("Animation")
+            anim.AnimationId = "rbxassetid://"..animId
+            
+            -- Hapus track sebelumnya sebelum membuat yang baru
+            if currentTrack then
+                currentTrack:Destroy()
+                currentTrack = nil
+            end
+
+            local track = humanoid:LoadAnimation(anim)
+            currentTrack = track -- Simpan track saat ini
+
+            track:Play()
+            track:AdjustSpeed(isR15Model and 0.7 or 0.65)
+            track.TimePosition = 0.5
+            task.wait(0.1)
+
+            local waitTime = isR15Model and 0.7 or 0.65
+            
+            -- Tunggu hingga animasi mendekati akhir
+            while track and track.TimePosition < waitTime and jerkActive do
+                task.wait(0.05) -- Loop yang lebih cepat
+            end
+            
+            -- Hentikan dan hancurkan track di akhir loop
+            if track and jerkActive then
+                track:Stop()
+                -- Track akan dihancurkan di awal loop berikutnya
+            end
+            
+            -- Jika loop dihentikan secara eksternal, keluar dari loop
+            if not jerkActive then break end 
+        end
+        -- Final cleanup setelah loop berakhir
+        if currentTrack then
+            currentTrack:Stop()
+            currentTrack:Destroy()
+            currentTrack = nil
+        end
+        resetActiveButton()
+    end)
+end
+
 stopBtn.MouseButton1Click:Connect(function()
-    if currentTrack then currentTrack:Stop() currentTrack:Destroy() currentTrack=nil end
+    stopCurrentAnimation()
+    print("Animate stopped by button.")
 end)
- 
+
 -- Tambah tombol emote/dance
 local function addButton(parent, entry)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(1, 0, 0, 36)
-    b.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    b.BackgroundColor3 = DEFAULT_COLOR -- Gunakan warna default
     b.TextColor3 = Color3.fromRGB(255, 255, 255)
     b.Font = Enum.Font.Gotham
     b.TextSize = 16
     b.Text = entry.name
     b.Parent = parent
     Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
-    b.MouseButton1Click:Connect(function() playEmote(entry.animId) end)
+    
+    if entry.name == "Jerk(ngocok)" then
+        b.MouseButton1Click:Connect(function() playJerkOff(b) end) -- Kirim tombol sebagai argumen
+    else
+        b.MouseButton1Click:Connect(function() playEmote(entry.animId, b) end) -- Kirim tombol sebagai argumen
+    end
 end
     
 for _, d in ipairs(dances) do addButton(dancesList, d) end
