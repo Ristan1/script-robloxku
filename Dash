@@ -423,7 +423,7 @@ local function createGUI()
     local buttonYOffset = buttonSize.Y.Offset + jumpButtonHeight + padding
 
     dashButton.Size = buttonSize 
-    dashButton.Position = UDim2.new(0, 651, 0, 203)
+    dashButton.Position = UDim2.new(0, 651, 0, 250)
     dashButton.AnchorPoint = Vector2.new(0, 0)
     
     dashButton.BackgroundColor3 = Color3.fromRGB(85, 0, 128)
