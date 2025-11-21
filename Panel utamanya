@@ -30,7 +30,6 @@ local AUTO_LOAD_SCRIPTS = {
     {Name = "BanList", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/BanList"},
     {Name = "EmoteDance", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/EmoteDance"},
     {Name = "BundlesAnimation", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/BundlesAnimation"},
-    {Name = "Dash", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Dash"},
   --{Name = "AutoLog", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/AutoLog"},
 }
 
@@ -104,6 +103,7 @@ local AllScripts = {
     {Name = "Xray", Icon = "📵", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Xray"},
     {Name = "Console Log", Icon = "📋", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/ConsoleLog"}, 
     {Name = "Cek palsu/Labirin", Icon = "🎬", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/Cek%20palsu%7C%7CLabirin"},
+    {Name = "DashMonwalk", Icon = "🏃‍➡️", URL = "https://raw.githubusercontent.com/Ristan1/script-robloxku/refs/heads/main/DashMonwalk"},
 }
 
 local ScriptsInWheel = {}
@@ -1149,5 +1149,4 @@ for _, scriptInfo in ipairs(AUTO_LOAD_SCRIPTS) do
 end
 
 createWeaponWheel()
-
 
