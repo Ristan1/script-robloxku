@@ -1,0 +1,473 @@
+--[[
+    SERVER BROWSER ULTIMATE (SILENT MODE - NO NOTIF)
+    
+    CARA KERJA:
+    1. Simpan di Auto-Execute Delta.
+    2. Saat masuk game, script jalan DIAM-DIAM (Tanpa Notif, Tanpa Panel) untuk rekam data.
+    3. Mau buka panel? Execute script ini sekali lagi.
+    4. Mau tutup panel? Execute lagi.
+    
+    FITUR:
+    ✅ Hemat RAM (Script berhenti setelah rekam data).
+    ✅ 100% Silent saat start.
+    ✅ Semua Fitur Ultimate (WITA, Cooldown, Force Current Server).
+]]
+
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local CoreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
+local Stats = game:GetService("Stats")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- === DETEKSI EXECUTOR ===
+local requestFunc = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+if not requestFunc then return warn("Executor not supported") end
+
+local writefileFunc = writefile
+local readfileFunc = readfile
+local isFileSupported = writefileFunc and readfileFunc
+
+-- === FUNGSI NAMA MAP BERSIH ===
+local function GetCleanGameName()
+    local success, info = pcall(function() return MarketplaceService:GetProductInfo(game.PlaceId) end)
+    local name = "UnknownGame"
+    if success and info and info.Name then name = info.Name end
+    name = string.gsub(name, "[^%w]", "_")
+    name = string.gsub(name, "_+", "_")
+    return name
+end
+
+-- === KONFIGURASI ===
+local MAX_HISTORY = 10
+local AUTO_CLEAR_THRESHOLD = 21600
+local GameNameClean = GetCleanGameName()
+local HistoryFileName = "server_history_" .. GameNameClean .. ".json"
+local WITA_OFFSET = 28800
+local REFRESH_LIMIT = 2
+local SHORT_COOLDOWN = 2
+local LONG_COOLDOWN = 60
+
+-- === FUNGSI BANTU ===
+local function formatTimeAgo(timestamp)
+    if not timestamp then return "?" end
+    local diff = os.time() - timestamp
+    if diff < 60 then return "Baru saja"
+    elseif diff < 3600 then return string.format("%d menit", math.floor(diff / 60))
+    elseif diff < 86400 then return string.format("%d jam", math.floor(diff / 3600))
+    else return "Kemarin" end
+end
+
+local function toWitaStr(timestamp)
+    if not timestamp then return "?" end
+    return os.date("!%H.%M", timestamp + WITA_OFFSET)
+end
+
+local function getJobId() return tostring(game.JobId) end
+
+-- === MANAJEMEN RIWAYAT (BACKGROUND) ===
+local function SaveFullHistory(historyData, lastPlayedTime)
+    if not isFileSupported then return end
+    local dataToSave = {}
+    if type(historyData) == "table" then
+        for k, v in pairs(historyData) do dataToSave[k] = v end
+    end
+    dataToSave._meta = dataToSave._meta or {}
+    dataToSave._meta.lastPlayed = lastPlayedTime or os.time()
+    local cleaned = { _meta = dataToSave._meta }
+    local count = 0
+    for id, info in pairs(dataToSave) do
+        if id ~= "_meta" and type(info) == "table" and count < MAX_HISTORY then
+            cleaned[id] = info
+            count += 1
+        end
+    end
+    pcall(function() writefileFunc(HistoryFileName, HttpService:JSONEncode(cleaned)) end)
+end
+
+local function LoadFullHistory()
+    if not isFileSupported then return {}, 0 end
+    local success, content = pcall(readfileFunc, HistoryFileName)
+    if success and content and #content > 0 then
+        local success2, data = pcall(HttpService.JSONDecode, HttpService, content)
+        if success2 and type(data) == "table" then
+            local meta = data._meta or {}
+            return data, meta.lastPlayed or 0
+        end
+    end
+    return {}, 0
+end
+
+-- === LOGIKA PEREKAMAN (JALAN SETIAP SAAT) ===
+-- Ini akan selalu dijalankan untuk memastikan data server saat ini tercatat
+local loadedData, lastPlayed = LoadFullHistory()
+local ServerHistory = { _meta = {} }
+local CurrentJobId = getJobId() 
+
+if os.time() - lastPlayed > AUTO_CLEAR_THRESHOLD then
+    -- Silent cleanup
+else
+    if type(loadedData) == "table" then ServerHistory = loadedData end
+    if type(ServerHistory._meta) ~= "table" then ServerHistory._meta = {} end
+    for id, info in pairs(ServerHistory) do
+        if id ~= "_meta" and id ~= CurrentJobId and type(info) == "table" then
+            if info.leaveTime == nil then
+                info.leaveTime = lastPlayed > 0 and lastPlayed or os.time()
+            end
+        end
+    end
+end
+
+if not ServerHistory[CurrentJobId] then
+    ServerHistory[CurrentJobId] = { joinTime = os.time(), leaveTime = nil }
+else
+    ServerHistory[CurrentJobId].leaveTime = nil
+end
+SaveFullHistory(ServerHistory, os.time())
+
+-- ==========================================
+--        LOGIKA "SILENT TOGGLE"
+-- ==========================================
+
+if not getgenv().ServerBrowserSilentLoaded then
+    -- [EKSEKUSI PERTAMA / AUTO EXEC]
+    getgenv().ServerBrowserSilentLoaded = true
+    
+    -- BERHENTI DI SINI. TIDAK ADA NOTIFIKASI. TIDAK ADA GUI.
+    -- Script selesai tugasnya (merekam data) dan "mati" untuk menghemat RAM.
+    return 
+end
+
+-- [EKSEKUSI KEDUA / MANUAL]
+-- Kode di bawah ini hanya jalan kalau kamu execute scriptnya lagi.
+
+if CoreGui:FindFirstChild("MiniServerBrowser") then
+    CoreGui.MiniServerBrowser:Destroy()
+    return
+end
+
+-- === GUI BUILDER ===
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MiniServerBrowser"
+ScreenGui.Parent = CoreGui
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 380, 0, 260)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+
+local Title = Instance.new("TextLabel")
+Title.Text = "Server List (WITA)"
+Title.Size = UDim2.new(1, -110, 0, 30) 
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 14
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MainFrame
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Text = "×"
+CloseBtn.Size = UDim2.new(0, 25, 0, 25)
+CloseBtn.Position = UDim2.new(1, -30, 0, 2.5)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.Font = Enum.Font.GothamBlack
+CloseBtn.TextSize = 18
+CloseBtn.Parent = MainFrame
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 4)
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+
+local RefreshBtn = Instance.new("TextButton")
+RefreshBtn.Text = "REFRESH"
+RefreshBtn.Size = UDim2.new(0, 70, 0, 25)
+RefreshBtn.Position = UDim2.new(1, -105, 0, 2.5)
+RefreshBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+RefreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+RefreshBtn.Font = Enum.Font.GothamBold
+RefreshBtn.TextSize = 10
+RefreshBtn.Parent = MainFrame
+Instance.new("UICorner", RefreshBtn).CornerRadius = UDim.new(0, 4)
+
+local BackBtn = Instance.new("TextButton")
+BackBtn.Text = "⏪ Kembali ke Server Sebelumnya"
+BackBtn.Size = UDim2.new(0, 180, 0, 24)
+BackBtn.Position = UDim2.new(0, 10, 0, 35)
+BackBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+BackBtn.TextColor3 = Color3.fromRGB(200, 200, 50)
+BackBtn.Font = Enum.Font.GothamBold
+BackBtn.TextSize = 12
+BackBtn.AutoButtonColor = false
+BackBtn.Parent = MainFrame
+Instance.new("UICorner", BackBtn).CornerRadius = UDim.new(0, 4)
+
+BackBtn.MouseButton1Click:Connect(function()
+    -- Reload history terbaru sebelum teleport
+    local refreshedData, _ = LoadFullHistory()
+    if refreshedData and refreshedData._meta then ServerHistory = refreshedData end
+
+    if ServerHistory[CurrentJobId] then ServerHistory[CurrentJobId].leaveTime = os.time() end
+    local lastServer, latestLeave = nil, 0
+    for id, info in pairs(ServerHistory) do
+        if id ~= "_meta" and type(info) == "table" and info.leaveTime and info.leaveTime > latestLeave and id ~= CurrentJobId then
+            latestLeave = info.leaveTime
+            lastServer = id
+        end
+    end
+    if lastServer then
+        SaveFullHistory(ServerHistory, os.time())
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, lastServer, LocalPlayer)
+    else
+        warn("Tidak ada riwayat.")
+    end
+end)
+
+local ScrollList = Instance.new("ScrollingFrame")
+ScrollList.Size = UDim2.new(1, -10, 1, -70)
+ScrollList.Position = UDim2.new(0, 5, 0, 65)
+ScrollList.BackgroundTransparency = 1
+ScrollList.ScrollBarThickness = 4
+ScrollList.Parent = MainFrame
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Padding = UDim.new(0, 5)
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Parent = ScrollList
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Text = "Tekan REFRESH untuk memuat..."
+StatusLabel.Size = UDim2.new(1, 0, 1, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.TextSize = 12
+StatusLabel.Parent = ScrollList
+
+-- === FUNGSI LOGIKA (Fetch & Sort) ===
+local function SortServers(serverList)
+    table.sort(serverList, function(a, b)
+        local idA, idB = tostring(a.id), tostring(b.id)
+        local histA, histB = ServerHistory[idA], ServerHistory[idB]
+        if idA == CurrentJobId then return true end
+        if idB == CurrentJobId then return false end
+        local isHistA, isHistB = (histA ~= nil), (histB ~= nil)
+        if isHistA and isHistB then return (histA.leaveTime or 0) > (histB.leaveTime or 0)
+        elseif isHistA then return true
+        elseif isHistB then return false end
+        return a.playing > b.playing
+    end)
+    return serverList
+end
+
+local function CreateMiniCard(serverInfo)
+    local serverIdStr = tostring(serverInfo.id)
+    local Card = Instance.new("Frame")
+    Card.Size = UDim2.new(1, -6, 0, 45)
+    Card.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    Card.Parent = ScrollList
+    Instance.new("UICorner", Card).CornerRadius = UDim.new(0, 6)
+
+    local isCurrent = (serverIdStr == CurrentJobId)
+    local history = ServerHistory[serverIdStr]
+    local isFull = serverInfo.playing >= serverInfo.maxPlayers
+
+    local InfoText = Instance.new("TextLabel")
+    InfoText.Text = serverInfo.playing .. "/" .. serverInfo.maxPlayers .. " player • " .. (serverInfo.ping or "?") .. "ms"
+    InfoText.Size = UDim2.new(0.5, 0, 1, 0)
+    InfoText.Position = UDim2.new(0, 10, 0, 0)
+    InfoText.BackgroundTransparency = 1
+    InfoText.TextColor3 = isFull and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(220, 220, 220)
+    InfoText.Font = Enum.Font.GothamSemibold
+    InfoText.TextSize = 12
+    InfoText.TextXAlignment = Enum.TextXAlignment.Left
+    InfoText.Parent = Card
+
+    local TimeContainer = Instance.new("Frame")
+    TimeContainer.Size = UDim2.new(0.25, 0, 0, 28)
+    TimeContainer.AnchorPoint = Vector2.new(0, 0.5)
+    TimeContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+    TimeContainer.BackgroundTransparency = 1
+    TimeContainer.Parent = Card
+
+    local JoinTimeLabel = Instance.new("TextLabel")
+    JoinTimeLabel.BackgroundTransparency = 1
+    JoinTimeLabel.Font = Enum.Font.Gotham
+    JoinTimeLabel.TextSize = 10
+    JoinTimeLabel.Size = UDim2.new(1, 0, 0, 14)
+    JoinTimeLabel.Position = UDim2.new(0, 0, 0, 0)
+    JoinTimeLabel.TextXAlignment = Enum.TextXAlignment.Left
+    JoinTimeLabel.Parent = TimeContainer
+    local LeaveTimeLabel = Instance.new("TextLabel")
+    LeaveTimeLabel.BackgroundTransparency = 1
+    LeaveTimeLabel.Font = Enum.Font.Gotham
+    LeaveTimeLabel.TextSize = 10
+    LeaveTimeLabel.Size = UDim2.new(1, 0, 0, 14)
+    LeaveTimeLabel.Position = UDim2.new(0, 0, 0, 14)
+    LeaveTimeLabel.TextXAlignment = Enum.TextXAlignment.Left
+    LeaveTimeLabel.Parent = TimeContainer
+
+    if history and history.joinTime then
+        JoinTimeLabel.Text = "Masuk: " .. toWitaStr(history.joinTime)
+        JoinTimeLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
+        if history.leaveTime then
+            LeaveTimeLabel.Text = "Keluar: " .. formatTimeAgo(history.leaveTime)
+            LeaveTimeLabel.TextColor3 = Color3.fromRGB(255, 150, 150)
+        else
+            LeaveTimeLabel.Text = (serverIdStr == CurrentJobId) and "Masih di sini" or "Keluar: ?"
+            LeaveTimeLabel.TextColor3 = (serverIdStr == CurrentJobId) and Color3.fromRGB(200, 255, 200) or Color3.fromRGB(255, 150, 150)
+        end
+    else
+        JoinTimeLabel.Text = "Masuk: ?"
+        JoinTimeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+        LeaveTimeLabel.Text = "Belum pernah"
+        LeaveTimeLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    end
+
+    local ActionBtn = Instance.new("TextButton")
+    ActionBtn.Size = UDim2.new(0, 70, 0, 28)
+    ActionBtn.Position = UDim2.new(1, -75, 0.5, -14)
+    ActionBtn.Font = Enum.Font.GothamBold
+    ActionBtn.TextSize = 10
+    ActionBtn.Parent = Card
+    Instance.new("UICorner", ActionBtn).CornerRadius = UDim.new(0, 4)
+
+    if isCurrent then
+        ActionBtn.Text = "SAAT INI"
+        ActionBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        ActionBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+        ActionBtn.AutoButtonColor = false
+        Card.LayoutOrder = -999 
+    else
+        if isFull then
+            ActionBtn.Text = "FULL"
+            ActionBtn.BackgroundColor3 = Color3.fromRGB(100, 40, 40)
+            ActionBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        else
+            ActionBtn.Text = "JOIN"
+            ActionBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+            ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        end
+        ActionBtn.MouseButton1Click:Connect(function()
+            if ServerHistory[CurrentJobId] then ServerHistory[CurrentJobId].leaveTime = os.time() end
+            if not ServerHistory[serverIdStr] then
+                ServerHistory[serverIdStr] = { joinTime = os.time(), leaveTime = nil }
+            else
+                ServerHistory[serverIdStr].joinTime = os.time()
+                ServerHistory[serverIdStr].leaveTime = nil
+            end
+            SaveFullHistory(ServerHistory, os.time())
+            CurrentJobId = serverIdStr
+            ActionBtn.Text = "..."
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, serverInfo.id, LocalPlayer)
+        end)
+    end
+end
+
+local isFetching = false
+local refreshCount = 0
+
+local function EnableRefreshButton()
+    RefreshBtn.Text = "REFRESH"
+    RefreshBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    RefreshBtn.AutoButtonColor = true
+    isFetching = false
+end
+local function DisableRefreshButton()
+    RefreshBtn.AutoButtonColor = false
+    RefreshBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+end
+local function StartTimer(seconds, shouldResetCount)
+    DisableRefreshButton()
+    for i = seconds, 1, -1 do
+        RefreshBtn.Text = tostring(i) .. "s"
+        wait(1)
+    end
+    if shouldResetCount then refreshCount = 0 end
+    EnableRefreshButton()
+end
+
+local function FetchServers(isManual)
+    if isFetching then return end
+    isFetching = true
+    DisableRefreshButton()
+    RefreshBtn.Text = "WAIT..."
+    StatusLabel.Text = "Loading..."
+    StatusLabel.Visible = true
+    
+    for _, child in pairs(ScrollList:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+    
+    local PlaceId = game.PlaceId
+    local Url = "https://games.roblox.com/v1/games/" .. PlaceId .. "/servers/Public?sortOrder=Desc&limit=100"
+    
+    local successRequest, Response = pcall(function() return requestFunc({ Url = Url, Method = "GET" }) end)
+    
+    if successRequest and Response then
+        if Response.StatusCode == 200 then
+            local successDecode, Body = pcall(HttpService.JSONDecode, HttpService, Response.Body)
+            if successDecode and Body and Body.data then
+                StatusLabel.Visible = false
+                local allServers = {}
+                local currentFound = false
+                for _, server in pairs(Body.data) do 
+                    table.insert(allServers, server)
+                    if tostring(server.id) == CurrentJobId then currentFound = true end
+                end
+                
+                if not currentFound then
+                    local fakePing = 0
+                    pcall(function() fakePing = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
+                    local currentData = { id = CurrentJobId, playing = #Players:GetPlayers(), maxPlayers = Players.MaxPlayers, ping = fakePing, fps = 60 }
+                    table.insert(allServers, currentData)
+                end
+                
+                allServers = SortServers(allServers)
+                for _, server in pairs(allServers) do CreateMiniCard(server) end
+                ScrollList.CanvasSize = UDim2.new(0, 0, 0, (#ScrollList:GetChildren() - 1) * 50)
+            else
+                StatusLabel.Text = "Data kosong."
+                StatusLabel.Visible = true
+            end
+        elseif Response.StatusCode == 429 then
+            StatusLabel.Text = "Server Roblox sedang sibuk, tunggu 1 menit lalu refresh lagi."
+            isManual = true
+            refreshCount = REFRESH_LIMIT + 1 
+        else
+            StatusLabel.Text = "Gagal: " .. tostring(Response.StatusCode)
+            StatusLabel.Visible = true
+        end
+    else
+        StatusLabel.Text = "Request Error."
+        StatusLabel.Visible = true
+    end
+
+    if isManual then
+        refreshCount = refreshCount + 1
+        if refreshCount > REFRESH_LIMIT then
+            StatusLabel.Text = "Server Roblox sedang sibuk, tunggu 1 menit lalu refresh lagi."
+            StatusLabel.Visible = true
+            spawn(function() StartTimer(LONG_COOLDOWN, true) end)
+        else
+            spawn(function() StartTimer(SHORT_COOLDOWN, false) end)
+        end
+    else
+        isFetching = false
+        EnableRefreshButton()
+    end
+end
+
+RefreshBtn.MouseButton1Click:Connect(function() FetchServers(true) end)
+
+-- FETCH OTOMATIS SAAT GUI DIBUKA
+FetchServers(false)
+
