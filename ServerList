@@ -1,16 +1,15 @@
 --[[
-    SERVER BROWSER ULTIMATE (SILENT MODE - NO NOTIF)
+    SERVER BROWSER ULTIMATE (SILENT MODE - FIX UPDATE WAKTU)
     
-    CARA KERJA:
-    1. Simpan di Auto-Execute Delta.
-    2. Saat masuk game, script jalan DIAM-DIAM (Tanpa Notif, Tanpa Panel) untuk rekam data.
-    3. Mau buka panel? Execute script ini sekali lagi.
-    4. Mau tutup panel? Execute lagi.
+    PERBAIKAN:
+    ✅ FIX UPDATE JAM: Saat Auto-Execute jalan, Waktu Masuk (Join Time) 
+       akan SELALU di-reset ke waktu sekarang. Tidak lagi memakai waktu lama
+       meskipun itu server bekas rejoin.
     
     FITUR:
-    ✅ Hemat RAM (Script berhenti setelah rekam data).
-    ✅ 100% Silent saat start.
-    ✅ Semua Fitur Ultimate (WITA, Cooldown, Force Current Server).
+    ✅ Silent Mode (Tanpa Notif/GUI saat start).
+    ✅ Hemat RAM.
+    ✅ Nama File Otomatis & WITA.
 ]]
 
 local Players = game:GetService("Players")
@@ -102,7 +101,6 @@ local function LoadFullHistory()
 end
 
 -- === LOGIKA PEREKAMAN (JALAN SETIAP SAAT) ===
--- Ini akan selalu dijalankan untuk memastikan data server saat ini tercatat
 local loadedData, lastPlayed = LoadFullHistory()
 local ServerHistory = { _meta = {} }
 local CurrentJobId = getJobId() 
@@ -112,6 +110,8 @@ if os.time() - lastPlayed > AUTO_CLEAR_THRESHOLD then
 else
     if type(loadedData) == "table" then ServerHistory = loadedData end
     if type(ServerHistory._meta) ~= "table" then ServerHistory._meta = {} end
+    
+    -- Fix Status "Keluar" untuk server lain
     for id, info in pairs(ServerHistory) do
         if id ~= "_meta" and id ~= CurrentJobId and type(info) == "table" then
             if info.leaveTime == nil then
@@ -121,11 +121,14 @@ else
     end
 end
 
-if not ServerHistory[CurrentJobId] then
-    ServerHistory[CurrentJobId] = { joinTime = os.time(), leaveTime = nil }
-else
-    ServerHistory[CurrentJobId].leaveTime = nil
-end
+-- [PERBAIKAN DISINI]
+-- Apapun kondisinya (baru masuk atau rejoin), KITA PAKSA UPDATE JAM MASUK KE SEKARANG.
+-- Karena script ini jalan pas Auto Execute (pas loading masuk).
+ServerHistory[CurrentJobId] = {
+    joinTime = os.time(), -- Selalu ambil waktu sekarang
+    leaveTime = nil
+}
+
 SaveFullHistory(ServerHistory, os.time())
 
 -- ==========================================
@@ -135,15 +138,10 @@ SaveFullHistory(ServerHistory, os.time())
 if not getgenv().ServerBrowserSilentLoaded then
     -- [EKSEKUSI PERTAMA / AUTO EXEC]
     getgenv().ServerBrowserSilentLoaded = true
-    
-    -- BERHENTI DI SINI. TIDAK ADA NOTIFIKASI. TIDAK ADA GUI.
-    -- Script selesai tugasnya (merekam data) dan "mati" untuk menghemat RAM.
     return 
 end
 
 -- [EKSEKUSI KEDUA / MANUAL]
--- Kode di bawah ini hanya jalan kalau kamu execute scriptnya lagi.
-
 if CoreGui:FindFirstChild("MiniServerBrowser") then
     CoreGui.MiniServerBrowser:Destroy()
     return
@@ -213,7 +211,6 @@ BackBtn.Parent = MainFrame
 Instance.new("UICorner", BackBtn).CornerRadius = UDim.new(0, 4)
 
 BackBtn.MouseButton1Click:Connect(function()
-    -- Reload history terbaru sebelum teleport
     local refreshedData, _ = LoadFullHistory()
     if refreshedData and refreshedData._meta then ServerHistory = refreshedData end
 
@@ -252,7 +249,6 @@ StatusLabel.Font = Enum.Font.Gotham
 StatusLabel.TextSize = 12
 StatusLabel.Parent = ScrollList
 
--- === FUNGSI LOGIKA (Fetch & Sort) ===
 local function SortServers(serverList)
     table.sort(serverList, function(a, b)
         local idA, idB = tostring(a.id), tostring(b.id)
